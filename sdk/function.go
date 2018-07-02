@@ -1,13 +1,12 @@
-package lib
+package sdk
 
 import (
 	"strings"
 )
 
 type Function struct {
-	Header   map[string]string   // The HTTP call header
-	Param    map[string][]string // The Parameter in Query string
-	Endpoint string              // Endpoint for function (Next Function within a Phase)
+	Header map[string]string   `json:"header"` // The HTTP call header
+	Param  map[string][]string `json:"param"`  // The Parameter in Query string
 }
 
 func CreateFunction(endpoint string) *Function {

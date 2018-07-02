@@ -1,8 +1,8 @@
-package lib
+package sdk
 
 type Phase struct {
 	// The list of function in the Phase
-	Functions []*Function
+	Functions []*Function `json:"functions"`
 }
 
 func CreateExecutionPhase() *Phase {
