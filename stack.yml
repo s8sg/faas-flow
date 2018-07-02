@@ -7,3 +7,8 @@ functions:
     lang: go
     handler: ./faaschain
     image: faaschain
+    environment:
+            # The default method that will be ued to call function 
+            # if not specified by param
+            default-method: "POST" # if not specified it will use POST
+

@@ -25,14 +25,23 @@ func makeQueryStringFromParam(params map[string]string) string {
 	return result
 }
 
-func buildUpstreamRequest(function string, data string, param map[string]string) *http.Request {
+func buildUpstreamRequest(function string, data []byte, param map[string]string) *http.Request {
 	url := "http://" + function + ":8080"
 	queryString := makeQueryStringFromParam(param)
 	if queryString != "" {
 		url = url + queryString
 	}
 
-	req, _ := http.NewRequest(os.Getenv("Http_Method"), deviceUrl, nil)
+	var method string
+
+	if method, ok := param["method"]; !ok {
+		method = os.Getenv("default-method")
+		if method == "" {
+			method = "POST"
+		}
+	}
+
+	req, _ := http.NewRequest(method, deviceUrl, bytes.NewBuffer(data))
 
 }
 
@@ -46,7 +55,7 @@ func execute(request *Request) string {
 		def, err := store.GetChain(request.Name)
 		if err != nil {
 			log.Printf("failed to get chain from store, error %v", err)
-			return fmt.Errorf("failed to get chain from store, error %v", err)
+			return fmt.Sprintf("failed to get chain from store, error %v", err)
 		}
 	}
 
@@ -56,8 +65,11 @@ func execute(request *Request) string {
 	for index, execute := range def.Executes {
 		function := execute.Name
 		params := execute.Params
-		req := buildUpstreamRequest(function, request.Data, params)
+		req := buildUpstreamRequest(function, request.Body.Raw, params)
+		client := &http.Client{}
+
 	}
+
 }
 
 // Handle a serverless request
