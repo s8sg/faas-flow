@@ -2,7 +2,6 @@ package sdk
 
 import (
 	"encoding/json"
-	"io"
 )
 
 type Chain struct {
@@ -12,7 +11,7 @@ type Chain struct {
 }
 
 func CreateChain() *Chain {
-	chain = &Chain{}
+	chain := &Chain{}
 	chain.Phases = make([]*Phase, 0)
 	chain.ExecutionPosition = 0
 	chain.Data = nil
@@ -20,12 +19,12 @@ func CreateChain() *Chain {
 }
 
 func (chain *Chain) AddPhase(phase *Phase) {
-	append(chain.Phases, phase)
+	chain.Phases = append(chain.Phases, phase)
 }
 
-func (chain *Chain) GetLatestPhase(phase *Phase) Phase {
+func (chain *Chain) GetLatestPhase() *Phase {
 	phaseCount := len(chain.Phases)
-	return fchain.chain.Phases[phaseCount-1]
+	return chain.Phases[phaseCount-1]
 }
 
 func (chain *Chain) Encode() ([]byte, error) {

@@ -8,8 +8,9 @@ type Phase struct {
 func CreateExecutionPhase() *Phase {
 	phase := &Phase{}
 	phase.Functions = make([]*Function, 0)
+	return phase
 }
 
 func (phase *Phase) AddFunction(function *Function) {
-	append(phase.Functions, function)
+	phase.Functions = append(phase.Functions, function)
 }

@@ -1,7 +1,7 @@
-package function
+package lib
 
 import (
-	"encoding/json"
+	//	"encoding/json"
 	"testing"
 )
 
@@ -15,7 +15,7 @@ var (
 )
 
 func TestChainCreate(t *testing.T) {
-	chain := NewFaaschain("127.0.0.1:8080", data)
+	chain := NewFaaschain("127.0.0.1:8080")
 	if chain == nil {
 		t.Errorf("Creating faas chain: got %v", chain)
 		t.Fail()
@@ -23,12 +23,12 @@ func TestChainCreate(t *testing.T) {
 }
 
 func TestApply(t *testing.T) {
-	chain := NewFaaschain("127.0.0.1:8080", data)
+	chain := NewFaaschain("127.0.0.1:8080")
 	chain.Apply("compress", map[string]string{"Method": "Post"}, nil).Apply("upload", map[string]string{"Method": "Post"}, map[string][]string{"URL": []string{"my.file.storage/s8sg"}})
 }
 
 func TestApplyFunction(t *testing.T) {
-	chain := NewFaaschain("127.0.0.1:8080", data)
+	//chain := NewFaaschain("127.0.0.1:8080")
 
 }
 

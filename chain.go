@@ -1,29 +1,28 @@
 package lib
 
 import (
-	"bytes"
 	"context"
+	"fmt"
 	"github.com/s8sg/faas-chain/sdk"
 	"io"
-	"io/ioutil"
+	"net/http"
 	"path/filepath"
 )
 
 type Faaschain struct {
-	chain    sdk.Chain
+	chain    *sdk.Chain
 	url      string
-	reader   io.Reader
 	chainDef []byte
 }
 
-func NewFaaschain(faasurl string, reder io.Reader) *Faaschain {
+func NewFaaschain(faasurl string) *Faaschain {
 	fchain := &Faaschain{}
-	fchain.chain = &sdk.CreateChain()
-	fchain.reader = reader
-	fchain.url = path.Join(faasurl, "function/faas-chain")
+	fchain.chain = sdk.CreateChain()
+	fchain.url = filepath.Join(faasurl, "function/faas-chain")
+	return fchain
 }
 
-func (fchain *Faaschain) ApplyFunction(function sdk.Function) *Faaschain {
+func (fchain *Faaschain) ApplyFunction(function *sdk.Function) *Faaschain {
 	var phase *sdk.Phase
 	if len(fchain.chain.Phases) == 0 {
 		phase = sdk.CreateExecutionPhase()
@@ -36,16 +35,16 @@ func (fchain *Faaschain) ApplyFunction(function sdk.Function) *Faaschain {
 }
 
 func (fchain *Faaschain) Apply(function string, header map[string]string, param map[string][]string) *Faaschain {
-	Function := CreateFunction(function)
+	newfunc := sdk.CreateFunction(function)
 	if header != nil {
 		for key, value := range header {
-			Function.Addheader(key, value)
+			newfunc.Addheader(key, value)
 		}
 	}
 	if param != nil {
 		for key, array := range param {
 			for _, value := range array {
-				Function.Addparam(key, value)
+				newfunc.Addparam(key, value)
 			}
 		}
 	}
@@ -56,11 +55,11 @@ func (fchain *Faaschain) Apply(function string, header map[string]string, param 
 	} else {
 		phase = fchain.chain.GetLatestPhase()
 	}
-	phase.AddFunction(Function)
+	phase.AddFunction(newfunc)
 	return fchain
 }
 
-func (fchain *Faaschain) ApplyFunctionAsync(function sdk.Function) *Faaschain {
+func (fchain *Faaschain) ApplyFunctionAsync(function *sdk.Function) *Faaschain {
 	phase := sdk.CreateExecutionPhase()
 	fchain.chain.AddPhase(phase)
 	phase.AddFunction(function)
@@ -68,50 +67,43 @@ func (fchain *Faaschain) ApplyFunctionAsync(function sdk.Function) *Faaschain {
 }
 
 func (fchain *Faaschain) ApplyAsync(function string, header map[string]string, param map[string][]string) *Faaschain {
-	Function := CreateFunction(function)
+	newfunc := sdk.CreateFunction(function)
 	if header != nil {
 		for key, value := range header {
-			Function.Addheader(key, value)
+			newfunc.Addheader(key, value)
 		}
 	}
 	if param != nil {
 		for key, array := range param {
 			for _, value := range array {
-				Function.Addparam(key, value)
+				newfunc.Addparam(key, value)
 			}
 		}
 	}
 	phase := sdk.CreateExecutionPhase()
 	fchain.chain.AddPhase(phase)
-	phase.AddFunction(function)
+	phase.AddFunction(newfunc)
 	return fchain
 }
 
-func (fchain *Faaschain) Build() error {
-	fchain.chain.Data = ioutil.Readall(fchain.reader)
-	fchain.chainDef, err = fchain.chain.Encode()
-	if err != nil {
-		return err
-	}
-}
-
-func buildUpstreamRequest(url string, data []byte) *http.Request {
+func buildUpstreamRequest(url string, reader io.ReadCloser) *http.Request {
 
 	req, _ := http.NewRequest("POST", url, nil)
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Content-Type", "application/json")
 
 	if data != nil {
-		req.Body = bytes.NewReader(data)
+		req.Body = reader
 	}
 
-	return upstreamReq
+	return req
 }
 
-func (fchain *Faaschain) Invoke(ctx context.Context) (io.Reader, error) {
+func (fchain *Faaschain) Invoke(ctx context.Context, reader io.ReadCloser) (io.ReadCloser, error) {
+
 	url := fchain.url
 	client := &http.Client{}
-	upstreamReq := buildUpstreamRequest(url, fchain.chain.Data)
+	upstreamReq := buildUpstreamRequest(url, reader)
 	res, resErr := client.Do(upstreamReq.WithContext(ctx))
 	if resErr != nil {
 		return nil, resErr
