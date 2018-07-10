@@ -1,10 +1,12 @@
 package lib
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/s8sg/faas-chain/sdk"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"path/filepath"
 )
@@ -28,7 +30,7 @@ func (fchain *Faaschain) ApplyFunction(function *sdk.Function) *Faaschain {
 		phase = sdk.CreateExecutionPhase()
 		fchain.chain.AddPhase(phase)
 	} else {
-		phase = fchain.chain.GetLatestPhase()
+		phase = fchain.chain.GetLastPhase()
 	}
 	phase.AddFunction(function)
 	return fchain
@@ -53,7 +55,7 @@ func (fchain *Faaschain) Apply(function string, header map[string]string, param 
 		phase = sdk.CreateExecutionPhase()
 		fchain.chain.AddPhase(phase)
 	} else {
-		phase = fchain.chain.GetLatestPhase()
+		phase = fchain.chain.GetLastPhase()
 	}
 	phase.AddFunction(newfunc)
 	return fchain
@@ -86,24 +88,42 @@ func (fchain *Faaschain) ApplyAsync(function string, header map[string]string, p
 	return fchain
 }
 
-func buildUpstreamRequest(url string, reader io.ReadCloser) *http.Request {
+func (fchain *Faaschain) Build() (err error) {
+	fchain.chainDef, err = fchain.chain.Encode()
+	return err
+}
 
-	req, _ := http.NewRequest("POST", url, nil)
+func (fchain *Faaschain) GetDefinition() string {
+	return string(fchain.chainDef)
+}
+
+func buildUpstreamRequest(url string, chaindef string, data []byte) (*http.Request, error) {
+	request := sdk.BuildRequest(chaindef, data)
+
+	data, err := request.Encode()
+	if err != nil {
+		return nil, err
+	}
+	req, _ := http.NewRequest("POST", url, bytes.NewReader(data))
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Content-Type", "application/json")
 
-	if data != nil {
-		req.Body = reader
-	}
-
-	return req
+	return req, nil
 }
 
-func (fchain *Faaschain) Invoke(ctx context.Context, reader io.ReadCloser) (io.ReadCloser, error) {
+func (fchain *Faaschain) Invoke(ctx context.Context, reader io.Reader) (io.ReadCloser, error) {
+
+	data, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
 
 	url := fchain.url
 	client := &http.Client{}
-	upstreamReq := buildUpstreamRequest(url, reader)
+	upstreamReq, err := buildUpstreamRequest(url, string(fchain.chainDef), data)
+	if err != nil {
+		return nil, err
+	}
 	res, resErr := client.Do(upstreamReq.WithContext(ctx))
 	if resErr != nil {
 		return nil, resErr

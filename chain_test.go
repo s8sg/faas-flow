@@ -1,7 +1,7 @@
 package lib
 
 import (
-	//	"encoding/json"
+	"github.com/s8sg/faas-chain/sdk"
 	"testing"
 )
 
@@ -28,20 +28,46 @@ func TestApply(t *testing.T) {
 }
 
 func TestApplyFunction(t *testing.T) {
-	//chain := NewFaaschain("127.0.0.1:8080")
-
+	chain := NewFaaschain("127.0.0.1:8080")
+	func1 := sdk.CreateFunction("compress")
+	func1.Addheader("Method", "Post")
+	func2 := sdk.CreateFunction("upload")
+	func2.Addheader("Method", "Post")
+	func2.Addparam("URL", "my.file.storage/s8sg")
+	chain.ApplyFunction(func1).ApplyFunction(func2)
 }
 
 func TestApplyAsync(t *testing.T) {
-
+	chain := NewFaaschain("127.0.0.1:8080")
+	chain.ApplyAsync("compress", map[string]string{"Method": "Post"}, nil).ApplyAsync("upload", map[string]string{"Method": "Post"}, map[string][]string{"URL": []string{"my.file.storage/s8sg"}})
 }
 
 func TestApplyAsyncFunction(t *testing.T) {
-
+	chain := NewFaaschain("127.0.0.1:8080")
+	func1 := sdk.CreateFunction("compress")
+	func1.Addheader("Method", "Post")
+	func2 := sdk.CreateFunction("upload")
+	func2.Addheader("Method", "Post")
+	func2.Addparam("URL", "my.file.storage/s8sg")
+	chain.ApplyFunctionAsync(func1).ApplyFunctionAsync(func2)
 }
 
 func TestBuild(t *testing.T) {
-
+	chain1 := NewFaaschain("127.0.0.1:8080")
+	upload := sdk.CreateFunction("upload")
+	upload.Addheader("Method", "Post")
+	upload.Addparam("URL", "my.file.storage/s8sg")
+	chain1.Apply("compress", map[string]string{"Method": "Post"}, nil).ApplyFunction(upload)
+	err := chain1.Build()
+	if err != nil {
+		t.Errorf("Failled to build chain, got error %v", err)
+		t.Fail()
+	}
+	def := chain1.GetDefinition()
+	if def == "" {
+		t.Errorf("Failled to build chain, got empty %v", err)
+		t.Fail()
+	}
 }
 
 func TestInvoke(t *testing.T) {

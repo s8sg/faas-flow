@@ -1,12 +1,11 @@
 package function
 
 import (
+	"bytes"
 	"fmt"
-	"handler/function/sdk"
-	"handler/function/store"
+	"github.com/s8sg/faas-chain/sdk"
 	"net/http"
 	"os"
-	"strings"
 )
 
 func makeQueryStringFromParam(params map[string]string) string {
@@ -41,23 +40,12 @@ func buildUpstreamRequest(function string, data []byte, param map[string]string)
 		}
 	}
 
-	req, _ := http.NewRequest(method, deviceUrl, bytes.NewBuffer(data))
+	req, _ := http.NewRequest(method, url, bytes.NewBuffer(data))
 
 }
 
 func execute(request *Request) string {
 	var def *Request
-
-	// if store is not defined
-	if os.Getenv("store-url") == "" {
-		def = request
-	} else {
-		def, err := store.GetChain(request.Name)
-		if err != nil {
-			log.Printf("failed to get chain from store, error %v", err)
-			return fmt.Sprintf("failed to get chain from store, error %v", err)
-		}
-	}
 
 	var result string
 
