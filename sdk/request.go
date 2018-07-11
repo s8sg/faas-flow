@@ -5,6 +5,7 @@ import (
 )
 
 type Request struct {
+	ID       string `json: "id"`
 	Chaindef string `json: "definition"`
 	Data     []byte `json: "data"`
 }
@@ -33,4 +34,8 @@ func (req *Request) GetChain() (*Chain, error) {
 
 func (req *Request) GetData() []byte {
 	return req.Data
+}
+
+func (req *Request) GetID() string {
+	return req.ID
 }

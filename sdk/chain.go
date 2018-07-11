@@ -25,6 +25,10 @@ func DecodeChain(data []byte) (*Chain, error) {
 	return chain, nil
 }
 
+func (chain *Chain) CountPhases() int {
+	return len(chain.Phases)
+}
+
 func (chain *Chain) AddPhase(phase *Phase) {
 	chain.Phases = append(chain.Phases, phase)
 }

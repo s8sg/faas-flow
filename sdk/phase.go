@@ -14,3 +14,7 @@ func CreateExecutionPhase() *Phase {
 func (phase *Phase) AddFunction(function *Function) {
 	phase.Functions = append(phase.Functions, function)
 }
+
+func (phase *Phase) GetFunctions() []*Function {
+	return phase.Functions
+}

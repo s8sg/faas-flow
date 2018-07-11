@@ -4,82 +4,109 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/s8sg/faas-chain/sdk"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 )
 
-func makeQueryStringFromParam(params map[string]string) string {
+func makeQueryStringFromParam(params map[string][]string) string {
 	if params == nil {
 		return ""
 	}
 	result := ""
-	for key, value := range params {
-		keyVal := fmt.Sprintf("%s-%s", key, value)
-		if result == "" {
-			result = "?" + keyVal
-		} else {
-			result = result + "&" + keyVal
+	for key, array := range params {
+		for _, value := range array {
+			keyVal := fmt.Sprintf("%s-%s", key, value)
+			if result == "" {
+				result = "?" + keyVal
+			} else {
+				result = result + "&" + keyVal
+			}
 		}
 	}
 	return result
 }
 
-func buildUpstreamRequest(function string, data []byte, param map[string]string) *http.Request {
+func buildUpstreamRequest(function string, data []byte, params map[string][]string, headers map[string]string) *http.Request {
 	url := "http://" + function + ":8080"
-	queryString := makeQueryStringFromParam(param)
+	queryString := makeQueryStringFromParam(params)
 	if queryString != "" {
 		url = url + queryString
 	}
 
 	var method string
 
-	if method, ok := param["method"]; !ok {
+	if method, ok := headers["method"]; !ok {
 		method = os.Getenv("default-method")
 		if method == "" {
 			method = "POST"
 		}
 	}
 
-	req, _ := http.NewRequest(method, url, bytes.NewBuffer(data))
+	httpreq, _ := http.NewRequest(method, url, bytes.NewBuffer(data))
 
-}
-
-func execute(request *Request) string {
-	var def *Request
-
-	var result string
-
-	// Execute all function
-	for index, execute := range def.Executes {
-		function := execute.Name
-		params := execute.Params
-		req := buildUpstreamRequest(function, request.Body.Raw, params)
-		client := &http.Client{}
-
+	for key, value := range headers {
+		httpreq.Header.Set(key, value)
 	}
 
+	return httpreq
+}
+
+// Execute function for a phase
+func execute(request *sdk.Request) ([]byte, error) {
+	var result []byte
+	var httpreq *http.Request
+
+	chain, err := request.GetChain()
+	if err != nil {
+		return nil, err
+	}
+
+	phase := chain.GetCurrentPhase()
+
+	// Execute all function
+	for _, function := range phase.GetFunctions() {
+		name := function.GetName()
+		params := function.GetParams()
+		headers := function.GetHeaders()
+
+		// Check if intermidiate data
+		if result == nil {
+			httpreq = buildUpstreamRequest(name, request.GetData(), params, headers)
+		} else {
+			httpreq = buildUpstreamRequest(name, result, params, headers)
+		}
+		client := &http.Client{}
+		resp, err := client.Do(httpreq)
+		if err != nil {
+			return nil, err
+		}
+		result, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+	}
+	chain.UpdateExecutionPosition()
+
+	if chain.CountPhases() == 1 {
+		return result, nil
+	} else {
+		// TODO: Forward chain for async handle
+		return []byte(""), nil
+	}
 }
 
 // Handle a serverless request
 func Handle(req []byte) string {
-	request, err := sdk.ParseRequest(req)
+	request, err := sdk.DecodeRequest(req)
 	if err != nil {
-		log.Printf("failed to parse request object, error %v", err)
-		return fmt.Printf("failed to parse request object, error %v", err)
+		log.Fatalf("failed to parse request object, error %v", err)
 	}
 
-	switch request.Type {
-	case sdk.EXECUTE:
-		return execute(request)
-
-	case sdk.DEFINE:
-		return define(request)
-
-	case sdk.REMOVE:
-		return remove(request)
-
-	default:
-		log.Printf("invalid request type received '%s'", request.Type)
-		return fmt.Printf("failed to parse request object, error %v", err)
+	data, err := execute(request)
+	if err != nil {
+		log.Fatalf("Error(%s): %s", request.GetID(), err)
 	}
+	return string(data)
 }

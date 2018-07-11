@@ -32,3 +32,15 @@ func (function *Function) Addparam(key string, value string) {
 		function.Param[key] = append(array, value)
 	}
 }
+
+func (function *Function) GetName() string {
+	return function.Function
+}
+
+func (function *Function) GetParams() map[string][]string {
+	return function.Param
+}
+
+func (function *Function) GetHeaders() map[string]string {
+	return function.Header
+}
