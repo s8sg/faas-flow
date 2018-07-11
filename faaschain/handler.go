@@ -60,6 +60,7 @@ func execute(request *sdk.Request) ([]byte, error) {
 
 	chain, err := request.GetChain()
 	if err != nil {
+		err = fmt.Errorf("Phase(%d) : %v", chain.ExecutionPosition, err)
 		return nil, err
 	}
 
@@ -80,10 +81,12 @@ func execute(request *sdk.Request) ([]byte, error) {
 		client := &http.Client{}
 		resp, err := client.Do(httpreq)
 		if err != nil {
+			err = fmt.Errorf("Phase(%d) Function(%s) : %v", chain.ExecutionPosition, name, err)
 			return nil, err
 		}
 		result, err = ioutil.ReadAll(resp.Body)
 		if err != nil {
+			err = fmt.Errorf("Phase(%d) Function(%s) : %v", chain.ExecutionPosition, name, err)
 			return nil, err
 		}
 	}
