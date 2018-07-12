@@ -34,7 +34,11 @@ func (chain *Chain) AddPhase(phase *Phase) {
 }
 
 func (chain *Chain) GetCurrentPhase() *Phase {
-	return chain.Phases[chain.ExecutionPosition]
+	if chain.ExecutionPosition < len(chain.Phases) {
+		return chain.Phases[chain.ExecutionPosition]
+	} else {
+		return nil
+	}
 }
 
 func (chain *Chain) GetLastPhase() *Phase {

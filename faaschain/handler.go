@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 )
 
 func makeQueryStringFromParam(params map[string][]string) string {
@@ -90,12 +91,46 @@ func execute(request *sdk.Request) ([]byte, error) {
 			return nil, err
 		}
 	}
+
+	// Update execution position
 	chain.UpdateExecutionPosition()
 
+	// for a single phase just return the result to the caller
 	if chain.CountPhases() == 1 {
 		return result, nil
 	} else {
-		// TODO: Forward chain for async handle
+		// if its the last phase
+		if chain.GetCurrentPhase() == nil {
+			// Check how we can use ""X-Callback-Url"
+			return []byte(""), nil
+		}
+
+		// Create new request
+		// Build chain
+		chaindef, _ := chain.Encode()
+		// Build request
+		uprequest := sdk.BuildRequest(string(chaindef), result)
+		// Make request data
+		data, _ := uprequest.Encode()
+
+		gateway := os.Getenv("gateway")
+		if gateway == "" {
+			gateway = "gateway:8080"
+		}
+
+		// build url for async function
+		forwardurl := filepath.Join(gateway, "async-function/github-status")
+		httpreq, _ := http.NewRequest(http.MethodPost, forwardurl, bytes.NewReader(data))
+		httpreq.Header.Add("Accept", "application/json")
+		httpreq.Header.Add("Content-Type", "application/json")
+
+		client := &http.Client{}
+		_, resErr := client.Do(httpreq)
+		if resErr != nil {
+			err = fmt.Errorf("Phase(%d) : %v", chain.ExecutionPosition, resErr)
+			return nil, err
+		}
+
 		return []byte(""), nil
 	}
 }

@@ -8,6 +8,7 @@ functions:
     handler: ./faaschain
     image: faaschain
     environment:
-            # The default method that will be ued to call function 
+            # The default method that will be used to call function 
             # if not specified by param
             default-method: "POST" # if not specified it will use POST
+            gateway-url: "http://gateway:8080/"

@@ -104,7 +104,7 @@ func buildUpstreamRequest(url string, chaindef string, data []byte) (*http.Reque
 	if err != nil {
 		return nil, err
 	}
-	req, _ := http.NewRequest("POST", url, bytes.NewReader(data))
+	req, _ := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Content-Type", "application/json")
 
