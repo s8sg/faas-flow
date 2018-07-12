@@ -1,10 +1,13 @@
 .PHONY: build
 
-all: lib function
+all: build-lib build-func deploy
 
 
-lib:
+build-lib:
 	./buildlib.sh
 
-function:
-	faas-cli build -f stack.yml	
+build-func:
+	faas-cli build -f stack.yml
+
+deploy: 
+	faas-cli deploy -f stack.yml

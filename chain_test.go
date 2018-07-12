@@ -1,7 +1,7 @@
-package lib
+package faaschain
 
 import (
-	"github.com/s8sg/faas-chain/sdk"
+	"github.com/s8sg/faaschain/sdk"
 	"testing"
 )
 

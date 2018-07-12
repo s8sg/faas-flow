@@ -1,10 +1,10 @@
-package lib
+package faaschain
 
 import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/s8sg/faas-chain/sdk"
+	"github.com/s8sg/faaschain/sdk"
 	"io"
 	"io/ioutil"
 	"net/http"

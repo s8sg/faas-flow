@@ -3,7 +3,7 @@ package function
 import (
 	"bytes"
 	"fmt"
-	"github.com/s8sg/faas-chain/sdk"
+	"github.com/s8sg/faaschain/sdk"
 	"io/ioutil"
 	"log"
 	"net/http"
