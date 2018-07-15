@@ -1,0 +1,22 @@
+provider:
+  name: faas
+  gateway: http://localhost:8080
+
+functions:
+  colorization:
+    lang: Dockerfile
+    handler: ./faas-colorization
+    image: local-openfaas-colorization
+    environment:
+      read_timeout: 60
+      write_timeout: 60
+
+  facedetect:
+    lang: go-opencv
+    handler: ./open-faas-functions/facedetect
+    image: nicholasjackson/func_facedetect
+ 
+  image-resizer:
+    lang: dockerfile
+    handler: ./cdn_faas/ResizeImage
+    image: s8sg/resizer:latest
