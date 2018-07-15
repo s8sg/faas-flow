@@ -8,7 +8,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"path/filepath"
+	"net/url"
+	"path"
 )
 
 type Faaschain struct {
@@ -20,7 +21,9 @@ type Faaschain struct {
 func NewFaaschain(faasurl string) *Faaschain {
 	fchain := &Faaschain{}
 	fchain.chain = sdk.CreateChain()
-	fchain.url = filepath.Join(faasurl, "function/faas-chain")
+	u, _ := url.Parse(faasurl)
+	u.Path = path.Join(u.Path, "function/faaschain")
+	fchain.url = u.String()
 	return fchain
 }
 
@@ -104,7 +107,10 @@ func buildUpstreamRequest(url string, chaindef string, data []byte) (*http.Reque
 	if err != nil {
 		return nil, err
 	}
-	req, _ := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Content-Type", "application/json")
 
@@ -112,6 +118,8 @@ func buildUpstreamRequest(url string, chaindef string, data []byte) (*http.Reque
 }
 
 func (fchain *Faaschain) Invoke(ctx context.Context, reader io.Reader) (io.ReadCloser, error) {
+	var res *http.Response
+	var resErr error
 
 	data, err := ioutil.ReadAll(reader)
 	if err != nil {
@@ -124,7 +132,12 @@ func (fchain *Faaschain) Invoke(ctx context.Context, reader io.Reader) (io.ReadC
 	if err != nil {
 		return nil, err
 	}
-	res, resErr := client.Do(upstreamReq.WithContext(ctx))
+
+	if ctx != nil {
+		res, resErr = client.Do(upstreamReq.WithContext(ctx))
+	} else {
+		res, resErr = client.Do(upstreamReq)
+	}
 	if resErr != nil {
 		return nil, resErr
 	}

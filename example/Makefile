@@ -1,4 +1,4 @@
-all: deploy-function build 
+all: build deploy-function
 
 build:
 	./build.sh

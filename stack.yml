@@ -12,3 +12,5 @@ functions:
             # if not specified by param
             default-method: "POST" # if not specified it will use POST
             gateway-url: "http://gateway:8080/"
+            read_timeout: 300s
+            write_timeout: 300s

@@ -15,7 +15,7 @@ var (
 )
 
 func TestChainCreate(t *testing.T) {
-	chain := NewFaaschain("127.0.0.1:8080")
+	chain := NewFaaschain("http://127.0.0.1:8080")
 	if chain == nil {
 		t.Errorf("Creating faas chain: got %v", chain)
 		t.Fail()
@@ -23,12 +23,12 @@ func TestChainCreate(t *testing.T) {
 }
 
 func TestApply(t *testing.T) {
-	chain := NewFaaschain("127.0.0.1:8080")
-	chain.Apply("compress", map[string]string{"Method": "Post"}, nil).Apply("upload", map[string]string{"Method": "Post"}, map[string][]string{"URL": []string{"my.file.storage/s8sg"}})
+	chain := NewFaaschain("http://127.0.0.1:8080")
+	chain.Apply("compress", map[string]string{"Method": "Post"}, nil).Apply("upload", map[string]string{"Method": "Post"}, map[string][]string{"URL": {"my.file.storage/s8sg"}})
 }
 
 func TestApplyFunction(t *testing.T) {
-	chain := NewFaaschain("127.0.0.1:8080")
+	chain := NewFaaschain("http://127.0.0.1:8080")
 	func1 := sdk.CreateFunction("compress")
 	func1.Addheader("Method", "Post")
 	func2 := sdk.CreateFunction("upload")
@@ -38,12 +38,12 @@ func TestApplyFunction(t *testing.T) {
 }
 
 func TestApplyAsync(t *testing.T) {
-	chain := NewFaaschain("127.0.0.1:8080")
-	chain.ApplyAsync("compress", map[string]string{"Method": "Post"}, nil).ApplyAsync("upload", map[string]string{"Method": "Post"}, map[string][]string{"URL": []string{"my.file.storage/s8sg"}})
+	chain := NewFaaschain("http://127.0.0.1:8080")
+	chain.ApplyAsync("compress", map[string]string{"Method": "Post"}, nil).ApplyAsync("upload", map[string]string{"Method": "Post"}, map[string][]string{"URL": {"my.file.storage/s8sg"}})
 }
 
 func TestApplyAsyncFunction(t *testing.T) {
-	chain := NewFaaschain("127.0.0.1:8080")
+	chain := NewFaaschain("http://127.0.0.1:8080")
 	func1 := sdk.CreateFunction("compress")
 	func1.Addheader("Method", "Post")
 	func2 := sdk.CreateFunction("upload")
@@ -53,7 +53,7 @@ func TestApplyAsyncFunction(t *testing.T) {
 }
 
 func TestBuild(t *testing.T) {
-	chain1 := NewFaaschain("127.0.0.1:8080")
+	chain1 := NewFaaschain("http://127.0.0.1:8080")
 	upload := sdk.CreateFunction("upload")
 	upload.Addheader("Method", "Post")
 	upload.Addparam("URL", "my.file.storage/s8sg")
