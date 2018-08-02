@@ -1,13 +1,10 @@
 .PHONY: build
 
-all: build-lib build-func deploy
+all: build-lib build-template
 
 
 build-lib:
 	./buildlib.sh
 
-build-func:
-	faas-cli build -f stack.yml
-
-deploy: 
-	faas-cli deploy -f stack.yml
+build-template:
+	docker build -t faaschain:test template/faaschain 

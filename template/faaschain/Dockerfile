@@ -1,0 +1,41 @@
+FROM golang:1.9.4-alpine3.7 as builder
+
+RUN apk --no-cache add curl \
+    && echo "Pulling watchdog binary from Github." \
+    && curl -sSL https://github.com/openfaas/faas/releases/download/0.8.0/fwatchdog > /usr/bin/fwatchdog \
+    && chmod +x /usr/bin/fwatchdog \
+    && apk del curl --no-cache
+
+WORKDIR /go/src/handler
+COPY . .
+
+# Run a gofmt and exclude all vendored code.
+RUN test -z "$(gofmt -l $(find . -type f -name '*.go' -not -path "./vendor/*" -not -path "./function/vendor/*"))" || { echo "Run \"gofmt -s -w\" on your Golang code"; exit 1; }
+
+RUN CGO_ENABLED=0 GOOS=linux \
+    go build --ldflags "-s -w" -a -installsuffix cgo -o handler . && \
+    go test $(go list ./... | grep -v /vendor/) -cover
+
+FROM alpine:3.7
+RUN apk --no-cache add ca-certificates
+
+# Add non root user
+RUN addgroup -S app && adduser -S -g app app
+RUN mkdir -p /home/app
+
+WORKDIR /home/app
+
+COPY --from=builder /usr/bin/fwatchdog         .
+
+COPY --from=builder /go/src/handler/function/  .
+COPY --from=builder /go/src/handler/handler    .
+
+RUN chown app /home/app
+
+USER app
+
+ENV fprocess="./handler"
+
+HEALTHCHECK --interval=2s CMD [ -e /tmp/.lock ] || exit 1
+
+CMD ["./fwatchdog"]
