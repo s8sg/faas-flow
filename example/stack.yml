@@ -1,0 +1,30 @@
+provider:
+  name: faas
+  gateway: http://localhost:8080
+
+functions:
+
+  image-upload-chain:
+    lang: faaschain
+    image: example/image-upload-chain
+    handler: ./image-upload-chain
+    environment:
+      gateway: "gateway:8080"
+
+  colorization:
+    lang: Dockerfile
+    handler: ./faas-colorization
+    image: local-openfaas-colorization
+    environment:
+      read_timeout: 60
+      write_timeout: 60
+
+  facedetect:
+    lang: go-opencv
+    handler: ./open-faas-functions/facedetect
+    image: nicholasjackson/func_facedetect
+ 
+  image-resizer:
+    lang: dockerfile
+    handler: ./cdn_faas/ResizeImage
+    image: s8sg/resizer:latest
