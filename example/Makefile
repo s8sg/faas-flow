@@ -7,4 +7,4 @@ deploy-function:
 	./deploy_functions.sh
 
 clean:
-	./cean_functions.sh 
+	./clean_functions.sh 

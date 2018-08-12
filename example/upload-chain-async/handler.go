@@ -7,8 +7,8 @@ import (
 // Handle a serverless request to chian
 func Define(chain *faaschain.Fchain) (err error) {
 
+	// Define Chain
 	chain.Apply("colorization", map[string]string{"method": "post"}, nil).
-		ApplyAsync("facedetect", map[string]string{"method": "post"}, map[string][]string{"output": []string{"image"}}).
 		ApplyAsync("image-resizer", map[string]string{"method": "post"}, nil)
 
 	return nil

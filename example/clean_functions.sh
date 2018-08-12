@@ -1,9 +1,6 @@
 #!/bin/sh
 
-rm -rf faas-colorization
-rm -rf open-faas-functions
-rm -rf cdn_faas
+faas-cli rm -f stack.yml
 
-faas-cli rm colorization
-faas-cli rm facedetect
-faas-cli rm image-resizer
+rm -rf faas-colorization
+rm -rf cdn_faas

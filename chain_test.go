@@ -69,7 +69,3 @@ func TestBuild(t *testing.T) {
 		t.Fail()
 	}
 }
-
-func TestInvoke(t *testing.T) {
-
-}
