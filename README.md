@@ -18,7 +18,7 @@ FaaSChain runs five mejor steps to define and run the pipeline
 | Get Definition | FaaSChain is stateless, to get the chain defintion it calls the exposed `handler.go` every time to get the user defintion of the chain |
 | Plan | FaasChain create simple plan with multiple phases. Each Phase have one or Multiple Function Request or Modifier. Once a phase is complete FaasChain asyncronously forward the request to same chain via gateway |
 | Execute | Execute executes a phase by calling Modifier, FaaS-Functions or Callback. During Execution FaasChain can split a phase into two or more if it take more time |
-| Repeat Or Response | In the reapeat or response phase If pipeline is not yet completed, FaasChain forwards the remaining Pipeline to the same chain via gateway. If its completed faas-chain returns the response to gateway if a `sync` request | 
+| Repeat Or Response | In the reapeat or response phase If pipeline is not yet completed, FaasChain forwards the remaining pipeline to the same chain via gateway by specifying execution state. If its completed faas-chain returns the response to gateway if a `sync` request | 
   
 ## Example
 https://github.com/s8sg/faaschain/tree/master/example
