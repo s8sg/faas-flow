@@ -8,19 +8,26 @@ functions:
     lang: faaschain
     handler: ./upload-chain
     image: s8sg/upload-chain
+    labels:
+          - "openfaas=true"
     environment:
       gateway: "gateway:8080"
+      chain_name: "upload-chain"
       read_timeout: 120
       write_timeout: 120
       write_debug: true
       combine_output: false
 
+
   upload-chain-async:
     lang: faaschain
     handler: ./upload-chain-async
     image: s8sg/upload-chain-async
+    labels:
+          - "openfaas=true"
     environment:
       gateway: "gateway:8080"
+      chain_name: "upload-chain-async"
       read_timeout: 120
       write_timeout: 120
       write_debug: true

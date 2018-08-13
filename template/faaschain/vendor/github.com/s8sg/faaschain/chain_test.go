@@ -15,7 +15,7 @@ var (
 )
 
 func TestChainCreate(t *testing.T) {
-	chain := NewFaaschain("http://127.0.0.1:8080")
+	chain := NewFaaschain("http://127.0.0.1:8080", "mychain")
 	if chain == nil {
 		t.Errorf("Creating faas chain: got %v", chain)
 		t.Fail()
@@ -23,12 +23,12 @@ func TestChainCreate(t *testing.T) {
 }
 
 func TestApply(t *testing.T) {
-	chain := NewFaaschain("http://127.0.0.1:8080")
+	chain := NewFaaschain("http://127.0.0.1:8080", "mychain")
 	chain.Apply("compress", map[string]string{"Method": "Post"}, nil).Apply("upload", map[string]string{"Method": "Post"}, map[string][]string{"URL": {"my.file.storage/s8sg"}})
 }
 
 func TestApplyFunction(t *testing.T) {
-	chain := NewFaaschain("http://127.0.0.1:8080")
+	chain := NewFaaschain("http://127.0.0.1:8080", "mychain")
 	func1 := sdk.CreateFunction("compress")
 	func1.Addheader("Method", "Post")
 	func2 := sdk.CreateFunction("upload")
@@ -38,12 +38,12 @@ func TestApplyFunction(t *testing.T) {
 }
 
 func TestApplyAsync(t *testing.T) {
-	chain := NewFaaschain("http://127.0.0.1:8080")
+	chain := NewFaaschain("http://127.0.0.1:8080", "mychain")
 	chain.ApplyAsync("compress", map[string]string{"Method": "Post"}, nil).ApplyAsync("upload", map[string]string{"Method": "Post"}, map[string][]string{"URL": {"my.file.storage/s8sg"}})
 }
 
 func TestApplyAsyncFunction(t *testing.T) {
-	chain := NewFaaschain("http://127.0.0.1:8080")
+	chain := NewFaaschain("http://127.0.0.1:8080", "mychain")
 	func1 := sdk.CreateFunction("compress")
 	func1.Addheader("Method", "Post")
 	func2 := sdk.CreateFunction("upload")
@@ -53,7 +53,7 @@ func TestApplyAsyncFunction(t *testing.T) {
 }
 
 func TestBuild(t *testing.T) {
-	chain1 := NewFaaschain("http://127.0.0.1:8080")
+	chain1 := NewFaaschain("http://127.0.0.1:8080", "mychain")
 	upload := sdk.CreateFunction("upload")
 	upload.Addheader("Method", "Post")
 	upload.Addparam("URL", "my.file.storage/s8sg")
@@ -68,8 +68,4 @@ func TestBuild(t *testing.T) {
 		t.Errorf("Failled to build chain, got empty %v", err)
 		t.Fail()
 	}
-}
-
-func TestInvoke(t *testing.T) {
-
 }

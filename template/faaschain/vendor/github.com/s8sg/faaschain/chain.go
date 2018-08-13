@@ -20,14 +20,14 @@ type Fchain struct {
 	chainDef []byte
 }
 
-func NewFaaschain(faasurl string) *Fchain {
+func NewFaaschain(gateway string, chain string) *Fchain {
 	fchain := &Fchain{}
 	fchain.chain = sdk.CreateChain()
-	u, _ := url.Parse(faasurl)
-	u.Path = path.Join(u.Path, "function/faaschain")
+	u, _ := url.Parse(gateway)
+	u.Path = path.Join(u.Path, "function/"+chain)
 	fchain.url = u.String()
-	u, _ = url.Parse(faasurl)
-	u.Path = path.Join(u.Path, "async-function/faaschain")
+	u, _ = url.Parse(gateway)
+	u.Path = path.Join(u.Path, "async-function/"+chain)
 	fchain.asyncUrl = u.String()
 	return fchain
 }

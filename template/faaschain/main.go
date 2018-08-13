@@ -21,6 +21,10 @@ func getGateway() string {
 	return gateway
 }
 
+func getChainName() string {
+	return os.Getenv("chain_name")
+}
+
 func makeQueryStringFromParam(params map[string][]string) string {
 	if params == nil {
 		return ""
@@ -72,7 +76,12 @@ func buildChain(data []byte) (fchain *faaschain.Fchain, requestData []byte) {
 	// decode the request to find if chain definition exists
 	request, err := sdk.DecodeRequest(data)
 	if err != nil {
-		fchain = faaschain.NewFaaschain("http://" + getGateway())
+		chainname := getChainName()
+		if chainname == "" {
+			log.Printf("Chain name must be provided when chain deployed as function")
+		}
+
+		fchain = faaschain.NewFaaschain("http://"+getGateway(), chainname)
 		// Generate request Id
 		requestId = xid.New().String()
 		log.Printf("[request `%s`] Created", requestId)
@@ -96,8 +105,14 @@ func buildChain(data []byte) (fchain *faaschain.Fchain, requestData []byte) {
 		}
 		// Get execution position
 		executionPos := chain.ExecutionPosition
+
+		chainname := getChainName()
+		if chainname == "" {
+			log.Printf("Chain name must be provided when chain deployed as function")
+		}
+
 		// Override the old chain with new
-		fchain = faaschain.NewFaaschain("http://" + getGateway())
+		fchain = faaschain.NewFaaschain("http://"+getGateway(), chainname)
 		// Set execution Pos
 		fchain.GetChain().ExecutionPosition = executionPos
 		requestData = request.GetData()
@@ -216,10 +231,16 @@ func handleResponse(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
 	}
 
 	client := &http.Client{}
-	_, resErr := client.Do(httpreq)
+	res, resErr := client.Do(httpreq)
 	if resErr != nil {
-		return nil, fmt.Errorf("Phase(%d): error %v", chain.ExecutionPosition, resErr)
+		return nil, fmt.Errorf("Phase(%d): error %v, url %s", chain.ExecutionPosition, resErr, fchain.GetAsyncUrl())
 	}
+
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {
+		return nil, fmt.Errorf("Phase(%d): error %s, url %s", chain.ExecutionPosition, res.Status, fchain.GetAsyncUrl())
+	}
+
+	log.Printf("Execution request for phase %d has been successfully submitted", chain.ExecutionPosition)
 
 	return []byte(""), nil
 }
@@ -229,17 +250,20 @@ func handle(data []byte) string {
 	fchain, data := buildChain(data)
 
 	// Get Chain definition from user implemented Define()
+	log.Printf("generating function defintion")
 	err := function.Define(fchain)
 	if err != nil {
 		log.Fatalf("[request `%s`] Failed, %v", fchain.GetId(), err)
 	}
 
 	// Execute the chain based on current phase
+	log.Printf("executing phase %d", fchain.GetChain().ExecutionPosition)
 	result, err := execute(fchain, data)
 	if err != nil {
 		log.Fatalf("[request `%s`] Failed, %v", fchain.GetId(), err)
 	}
 
+	log.Printf("handling response for %d", fchain.GetChain().ExecutionPosition)
 	// Handle a response of FaaSChain Function
 	resp, err := handleResponse(fchain, result)
 	if err != nil {
