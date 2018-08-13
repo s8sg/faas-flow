@@ -1,13 +1,7 @@
 package faaschain
 
 import (
-	//	"bytes"
-	//	"context"
-	//	"fmt"
 	"github.com/s8sg/faaschain/sdk"
-	//	"io"
-	//	"io/ioutil"
-	//	"net/http"
 	"net/url"
 	"path"
 )
@@ -38,14 +32,39 @@ func (fchain *Fchain) SetId(id string) {
 
 func (fchain *Fchain) ApplyModifier(mod sdk.Modifier) *Fchain {
 	var phase *sdk.Phase
-	newfunc := sdk.CreateModifier(mod)
+	newMod := sdk.CreateModifier(mod)
 	if len(fchain.chain.Phases) == 0 {
 		phase = sdk.CreateExecutionPhase()
 		fchain.chain.AddPhase(phase)
 	} else {
 		phase = fchain.chain.GetLastPhase()
 	}
-	phase.AddFunction(newfunc)
+	phase.AddFunction(newMod)
+	return fchain
+}
+
+func (fchain *Fchain) Callback(url string, header map[string]string, param map[string][]string) *Fchain {
+	newCallback := sdk.CreateCallback(url)
+	if header != nil {
+		for key, value := range header {
+			newCallback.Addheader(key, value)
+		}
+	}
+	if param != nil {
+		for key, array := range param {
+			for _, value := range array {
+				newCallback.Addparam(key, value)
+			}
+		}
+	}
+	var phase *sdk.Phase
+	if len(fchain.chain.Phases) == 0 {
+		phase = sdk.CreateExecutionPhase()
+		fchain.chain.AddPhase(phase)
+	} else {
+		phase = fchain.chain.GetLastPhase()
+	}
+	phase.AddFunction(newCallback)
 	return fchain
 }
 

@@ -7,7 +7,6 @@ import (
 type Chain struct {
 	Phases            []*Phase `json:"-"`        // Phases that will be executed in async
 	ExecutionPosition int      `json:"position"` // Position of Executor
-	CallbackUrl       string   `json:"callback"` // Chain Callback
 }
 
 func CreateChain() *Chain {

@@ -4,7 +4,9 @@ build:
 	./build.sh
 
 deploy-function:
-	./deploy_functions.sh
+	faas-cli deploy -f stack.yml
 
 clean:
-	./clean_functions.sh 
+	faas-cli rm -f stack.yml
+	rm -rf faas-colorization
+	rm -rf cdn_faas

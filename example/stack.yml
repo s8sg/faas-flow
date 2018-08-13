@@ -8,8 +8,6 @@ functions:
     lang: faaschain
     handler: ./upload-chain
     image: s8sg/upload-chain
-    labels:
-          - "openfaas=true"
     environment:
       gateway: "gateway:8080"
       chain_name: "upload-chain"
@@ -23,8 +21,6 @@ functions:
     lang: faaschain
     handler: ./upload-chain-async
     image: s8sg/upload-chain-async
-    labels:
-          - "openfaas=true"
     environment:
       gateway: "gateway:8080"
       chain_name: "upload-chain-async"
@@ -42,9 +38,17 @@ functions:
       write_timeout: 60
 
   image-resizer:
-    lang: dockerfile
+    lang: Dockerfile
     handler: ./cdn_faas/ResizeImage
     image: s8sg/resizer:latest
+    environment:
+      read_timeout: 60
+      write_timeout: 60
+
+  file-storage:
+    lang: Dockerfile
+    handler: ./cdn_faas/file_storage
+    image: s8sg/file-storage:latest
     environment:
       read_timeout: 60
       write_timeout: 60

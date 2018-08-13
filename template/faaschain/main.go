@@ -69,6 +69,32 @@ func buildUpstreamRequest(function string, data []byte, params map[string][]stri
 	return httpreq
 }
 
+// build upstream request for callback
+func buildUpstreamRequestCallback(callbackUrl string, data []byte, params map[string][]string, headers map[string]string) *http.Request {
+	url := callbackUrl
+	queryString := makeQueryStringFromParam(params)
+	if queryString != "" {
+		url = url + queryString
+	}
+
+	var method string
+
+	if method, ok := headers["method"]; !ok {
+		method = os.Getenv("default-method")
+		if method == "" {
+			method = "POST"
+		}
+	}
+
+	httpreq, _ := http.NewRequest(method, url, bytes.NewBuffer(data))
+
+	for key, value := range headers {
+		httpreq.Header.Set(key, value)
+	}
+
+	return httpreq
+}
+
 // builds a chain from request
 func buildChain(data []byte) (fchain *faaschain.Fchain, requestData []byte) {
 
@@ -87,13 +113,6 @@ func buildChain(data []byte) (fchain *faaschain.Fchain, requestData []byte) {
 		log.Printf("[request `%s`] Created", requestId)
 		// Set execution Pos
 		fchain.GetChain().ExecutionPosition = 0
-		// Check if the Callback URL is provided
-		// If provided we set it as a x-callback-url
-		// for the last phase execution request when (Nos. phases > 1)
-		callBack := os.Getenv("X-Callback-Url")
-		if callBack != "" {
-			fchain.GetChain().CallbackUrl = os.Getenv("X-Callback-Url")
-		}
 		requestData = data
 	} else {
 		// Get the request ID
@@ -136,9 +155,9 @@ func execute(fchain *faaschain.Fchain, request []byte) ([]byte, error) {
 	// Execute all function
 	for _, function := range phase.GetFunctions() {
 
-		switch function.Mod {
+		switch {
 		// If function
-		case nil:
+		case function.GetName() != "":
 			name := function.GetName()
 			params := function.GetParams()
 			headers := function.GetHeaders()
@@ -156,12 +175,34 @@ func execute(fchain *faaschain.Fchain, request []byte) ([]byte, error) {
 				return nil, err
 			}
 			if resp.StatusCode < 200 || resp.StatusCode > 299 {
-				return nil, fmt.Errorf("Phase(%d), Function(%s), error : Failed to execute function %s%d", chain.ExecutionPosition, name, "invalid resp code ", resp.StatusCode)
+				return nil, fmt.Errorf("Phase(%d), Function(%s), error : Failed to execute function %s", chain.ExecutionPosition, name, resp.Status)
 			}
 			// read Response
 			result, err = ioutil.ReadAll(resp.Body)
 			if err != nil {
 				return nil, fmt.Errorf("Phase(%d), Function(%s), error : Failed to read result %v", chain.ExecutionPosition, name, err)
+			}
+		// If callback
+		case function.CallbackUrl != "":
+			cburl := function.CallbackUrl
+			params := function.GetParams()
+			headers := function.GetHeaders()
+
+			// Check if intermidiate data
+			if result == nil {
+				httpreq = buildUpstreamRequestCallback(cburl, request, params, headers)
+			} else {
+				httpreq = buildUpstreamRequestCallback(cburl, result, params, headers)
+			}
+			client := &http.Client{}
+			resp, err := client.Do(httpreq)
+			cbresult, _ := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				err = fmt.Errorf("Phase(%d), Callback(%s), error : Failed to execute callback %v, %s", chain.ExecutionPosition, cburl, err, string(cbresult))
+				return nil, err
+			}
+			if resp.StatusCode < 200 || resp.StatusCode > 299 {
+				log.Printf("Phase(%d), Callback(%s), error : Failed to execute callback %s, %s", chain.ExecutionPosition, cburl, resp.Status, string(cbresult))
 			}
 		// If modifier
 		default:
@@ -173,6 +214,9 @@ func execute(fchain *faaschain.Fchain, request []byte) ([]byte, error) {
 			}
 			if err != nil {
 				return nil, fmt.Errorf("Phase(%d), error : Failed to execute modifier %v", chain.ExecutionPosition, err)
+			}
+			if result == nil {
+				result = []byte("")
 			}
 		}
 	}
@@ -224,20 +268,22 @@ func handleResponse(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
 	// If the chain has only one more phase to execute and callback URL was provided
 	// Execute the last phase with the callback URL so that the returned result gets
 	// handled via openfaas callback
-	if chain.IsLastPhase() {
-		if chain.CallbackUrl != "" {
-			httpreq.Header.Add("X-Callback-Url", chain.CallbackUrl)
-		}
-	}
+	/*
+		if chain.IsLastPhase() {
+			if chain.CallbackUrl != "" {
+				httpreq.Header.Add("X-Callback-Url", chain.CallbackUrl)
+			}
+		}*/
 
 	client := &http.Client{}
 	res, resErr := client.Do(httpreq)
+	resdata, _ := ioutil.ReadAll(res.Body)
 	if resErr != nil {
-		return nil, fmt.Errorf("Phase(%d): error %v, url %s", chain.ExecutionPosition, resErr, fchain.GetAsyncUrl())
+		return nil, fmt.Errorf("Phase(%d): error %v, %s, url %s", chain.ExecutionPosition, resErr, string(resdata), fchain.GetAsyncUrl())
 	}
 
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {
-		return nil, fmt.Errorf("Phase(%d): error %s, url %s", chain.ExecutionPosition, res.Status, fchain.GetAsyncUrl())
+		return nil, fmt.Errorf("Phase(%d): error %s, %s, url %s", chain.ExecutionPosition, res.Status, string(resdata), fchain.GetAsyncUrl())
 	}
 
 	log.Printf("Execution request for phase %d has been successfully submitted", chain.ExecutionPosition)
@@ -246,23 +292,26 @@ func handleResponse(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
 }
 
 func handle(data []byte) string {
-	// Build the chain based on execution request
+
+	// BUILD: build the chain based on execution request
+	log.Printf("building chain request")
 	fchain, data := buildChain(data)
 
-	// Get Chain definition from user implemented Define()
+	// DEFINE: Get Chain definition from user implemented Define()
 	log.Printf("generating function defintion")
 	err := function.Define(fchain)
 	if err != nil {
 		log.Fatalf("[request `%s`] Failed, %v", fchain.GetId(), err)
 	}
 
-	// Execute the chain based on current phase
+	// Execute: execute the chain based on current phase
 	log.Printf("executing phase %d", fchain.GetChain().ExecutionPosition)
 	result, err := execute(fchain, data)
 	if err != nil {
 		log.Fatalf("[request `%s`] Failed, %v", fchain.GetId(), err)
 	}
 
+	// Handle: handle a chain response
 	log.Printf("handling response for %d", fchain.GetChain().ExecutionPosition)
 	// Handle a response of FaaSChain Function
 	resp, err := handleResponse(fchain, result)

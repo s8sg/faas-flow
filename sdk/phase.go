@@ -2,7 +2,7 @@ package sdk
 
 type Phase struct {
 	// The list of function in the Phase
-	Functions []*Function `json:"functions"`
+	Functions []*Function `json:"-"`
 }
 
 func CreateExecutionPhase() *Phase {
