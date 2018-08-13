@@ -4,11 +4,11 @@
 * Available as a `faaschain` template
 * Use FaaS platform to Communicate
      
-## What it does
+## What is it ?
 FaaSChain allow you to define your pipeline and host it as a function
 ![alt overview](https://github.com/s8sg/faaschain/blob/master/doc/figure1.jpeg)
      
-## How it does
+## How does it work ?
 FaaSChain runs five mejor steps to define and run the pipeline
 ![alt internal](https://github.com/s8sg/faaschain/blob/master/doc/figure2.jpeg)
 
