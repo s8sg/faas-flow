@@ -12,17 +12,29 @@ FaaSChain allow you to define your pipeline and host it as a function
 FaaSChain runs five mejor steps to define and run the pipeline
 ![alt internal](https://github.com/s8sg/faaschain/blob/master/doc/figure2.jpeg)
 
-| phase |  description |
+| Step |  description |
 | ---- | ----- |
 | Build Chain | Identify a request and build a chain. A incoming request could be a half finished pipeline or a fresh request. In case its not a fresh request, faas-chain parse and understand the state of the pipeline from the incoming request |
 | Get Definition | FaaSChain is stateless, to get the chain defintion it calls the exposed `handler.go` every time to get the user defintion of the chain |
 | Plan | FaasChain create simple plan with multiple phases. Each Phase have one or Multiple Function Request or Modifier. Once a phase is complete FaasChain asyncronously forward the request to same chain via gateway |
 | Execute | Execute executes a phase by calling Modifier, FaaS-Functions or Callback. During Execution FaasChain can split a phase into two or more if it take more time |
 | Repeat Or Response | In the reapeat or response phase If pipeline is not yet completed, FaasChain forwards the remaining pipeline to the same chain via gateway by specifying execution state. If its completed faas-chain returns the response to gateway if a `sync` request | 
+
+A `Plan` consist of multiple `phases`. Each `Phase` includes of one or multiple `Function Call`, `Modifier` or `Callback`. A `phase` is executed in a single invokation of the chain. The execution `State` is the execution position which denotes the current execution `phase` no. 
+![alt phase](https://github.com/s8sg/faaschain/blob/master/doc/figure3.jpeg)
+   
+| Acronyms |  description |
+| ---- | ----- |
+| Plan | Execution plan which is generated for a chain. For a given chain the execution plan is always the same |
+| Phase | Segment of a Plan which consist of one or more call to `Function`, `Modifier` or `Callback`. A execution Plan has one or more phases |
+| Function | A FaaS Function. A function can be applied to chain by calling `chain.Apply(funcName)` or `chain.ApplyAsync(funcName)` |
+| Modifier | A callback function. A callback function can be applied as `chain.ApplyModifier(callBackFunc() {})`. |
+| Callback | A URL that will be called with the result of the chain. `chain.Callback(url)` |
   
 ## Example
 https://github.com/s8sg/faaschain/tree/master/example
-     
+
+
 ## Getting Started
 
 #### **Get the `faaschain` template with `faas-cli`**.  
