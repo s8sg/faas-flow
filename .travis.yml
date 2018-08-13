@@ -1,0 +1,20 @@
+sudo: required
+
+language: go
+go:
+  - "1.9"
+
+services:
+      - docker
+
+addons:
+  apt:
+    packages:
+      - docker-ce
+
+install:
+
+before_install:
+
+script:
+    - make
