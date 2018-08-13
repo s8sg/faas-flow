@@ -1,4 +1,8 @@
 # FaaSChain - FaaS pipeline as a function
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GoDoc](https://godoc.org/github.com/s8sg/faaschain?status.svg)](https://godoc.org/github.com/s8sg/faaschain)
+[![OpenFaaS](https://img.shields.io/badge/openfaas-serverless-blue.svg)](https://www.openfaas.com)
+
 * Pure FaaS
 * Build Over Current Go Template
 * Available as a `faaschain` template
