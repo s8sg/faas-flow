@@ -3,10 +3,11 @@
 [![GoDoc](https://godoc.org/github.com/s8sg/faaschain?status.svg)](https://godoc.org/github.com/s8sg/faaschain)
 [![OpenFaaS](https://img.shields.io/badge/openfaas-serverless-blue.svg)](https://www.openfaas.com)
 
-* Pure FaaS
-* Build Over Current Go Template
-* Available as a `faaschain` template
-* Use FaaS platform to Communicate
+> **Pure FaaS.**   
+> **Stateless**
+> **Build Over Current Go Template.**   
+> **Available as a `faaschain` template.**   
+> **Use FaaS platform to Communicate.**   
      
 ## What is it ?
 FaaSChain allow you to define your pipeline and host it as a function
