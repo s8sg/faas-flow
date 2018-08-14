@@ -12,11 +12,11 @@
      
 ## What is it ?
 FaaSChain allow you to define your pipeline and host it as a function
-![alt overview](https://github.com/s8sg/faaschain/blob/master/doc/figure1.jpeg)
+![alt overview](https://github.com/s8sg/faaschain/blob/master/doc/overview.jpg)
      
 ## How does it work ?
 FaaSChain runs four mejor steps to define and run the pipeline
-![alt internal](https://github.com/s8sg/faaschain/blob/master/doc/figure2.jpeg)
+![alt internal](https://github.com/s8sg/faaschain/blob/master/doc/internal.jpg)
 
 | Step |  description |
 | ---- | ----- |
@@ -26,7 +26,14 @@ FaaSChain runs four mejor steps to define and run the pipeline
 | Repeat Or Response | In the reapeat or response phase If pipeline is not yet completed, FaasChain forwards the remaining pipeline with `partial execution state` and the `partial result` to the same `chain function` via `gateway`. If the pipeline has only one phase or completed `faaschain` returns the output to the gateway otherwise it returns `empty`| 
 
 A **pipeline-definition** consist of multiple `phases`. Each `Phase` includes of one or multiple `Function Call`, `Modifier` or `Callback`. A `phase` is executed in a single invokation of the chain. The `execution-state` is the execution position which denotes the current execution `phase` position. 
-![alt phase](https://github.com/s8sg/faaschain/blob/master/doc/figure3.jpeg)
+
+**`Async` function call results a chain to have multiple phase**
+![alt single phase](https://github.com/s8sg/faaschain/blob/master/doc/asynccall.jpg)
+
+**For only `Sync Apply` function call a chain create only one phase and return the result to the caller**
+![alt multi phase](https://github.com/s8sg/faaschain/blob/master/doc/synccall.jpg)
+
+
    
 | Acronyms |  description |
 | ---- | ----- |
