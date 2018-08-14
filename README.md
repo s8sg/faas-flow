@@ -21,9 +21,9 @@ FaaSChain runs four mejor steps to define and run the pipeline
 | Step |  description |
 | ---- | ----- |
 | Build Chain | Identify a request and build a chain. A incoming request could be a half finished pipeline or a fresh request. In case its not a fresh request, faas-chain parse and understand the state of the pipeline from the incoming request |
-| Get Definition | FaaSChain is stateless, to get the chain defintion it calls the user defined `handler.go` every time to get the defintion of the chain. FaasChain create simple **pipeline-definition** with multiple phases. **A same chain always outputs to same pipeline-definition**. Each Phase in a pipeline have one or Multiple Function Request, Callback or Modifier. A phase is created based on how user defines the chain. Once a phase is complete FaasChain asyncronously forward the request to same chain via gateway. |
+| Get Definition |  FaasChain create simple **pipeline-definition** with multiple phases based on the chain defintion from the user defined `handler.go`. Each Phase in a pipeline have one or Multiple Function Request, Callback or Modifier. A phase is created based on how user defines the chain. Once a phase is complete FaasChain asyncronously forward the request to same chain via gateway. **A same chain always outputs to same pipeline-definition**, which allows `faaschain` to be completly `stateless`|
 | Execute | Execute executes a phase by calling Modifier, FaaS-Functions or Callback based on how user defines the pipeline. At a time only one `phase` gets executed. |
-| Repeat Or Response | In the reapeat or response phase If pipeline is not yet completed, FaasChain forwards the remaining pipeline and partial execution state and result to the same `chain-function` via gateway. If the pipeline has finished or completed `faaschain` returns the output to the gateway | 
+| Repeat Or Response | In the reapeat or response phase If pipeline is not yet completed, FaasChain forwards the remaining pipeline with `partial execution state` and the `partial result` to the same `chain function` via `gateway`. If the pipeline has only one phase or completed `faaschain` returns the output to the gateway otherwise it returns `empty`| 
 
 A **pipeline-definition** consist of multiple `phases`. Each `Phase` includes of one or multiple `Function Call`, `Modifier` or `Callback`. A `phase` is executed in a single invokation of the chain. The `execution-state` is the execution position which denotes the current execution `phase` position. 
 ![alt phase](https://github.com/s8sg/faaschain/blob/master/doc/figure3.jpeg)
@@ -31,7 +31,7 @@ A **pipeline-definition** consist of multiple `phases`. Each `Phase` includes of
 | Acronyms |  description |
 | ---- | ----- |
 | Pipeline Definition | Definition which is generated for a chain. For a given chain the definition is always the same |
-| Phase | Segment of a Plan which consist of one or more call to `Function`, `Modifier` or `Callback`. A pipeline definition has one or more phases |
+| Phase | Segment of a pipeline definiton which consist of one or more call to `Function`, `Modifier` or `Callback`. A pipeline definition has one or more phases |
 | Function | A FaaS Function. A function can be applied to chain by calling `chain.Apply(funcName)` or `chain.ApplyAsync(funcName)`. For each `Async` call a new phase is assigned  |
 | Modifier | A inline function. A inline modifier function can be applied as `chain.ApplyModifier(callBackFunc(){})`. |
 | Callback | A URL that will be called with the final/partial result. `chain.Callback(url)` |
@@ -66,9 +66,20 @@ faas-cli new test-chain --lang faaschain
       write_debug: true
       combine_output: false
 ```
-> *we will discuss the meaning of the additional parameter in details  
->  in the below section
-    
+> `gateway` : We need to tell faaschain the address of openfaas gateway
+> ```
+>              # swarm
+>              gateway: "gateway:8080"
+>              # k8
+>              gateway: "gateway.openfaas:8080"
+> ```
+> `chain_name` : The name of the chain function. Faaschain use this to forward partial request.   
+> `read_timeout` : A value larger than `max` phase execution time.     
+> `write_timeout` : A value larger than `max` phase execution time.     
+> `write_debug`: It enables the debug msg in logs.   
+> `combine_output` : It allows debug msg to be excluded from `output`.  
+
+
 #### **Edit the `test-chain/handler.go`:**.  
 ```go
     chain.Apply("myfunc1", map[string]string{"method": "post"}, nil).
