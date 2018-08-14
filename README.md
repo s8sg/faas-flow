@@ -21,8 +21,7 @@ FaaSChain runs four mejor steps to define and run the pipeline
 | Step |  description |
 | ---- | ----- |
 | Build Chain | Identify a request and build a chain. A incoming request could be a half finished pipeline or a fresh request. In case its not a fresh request, faas-chain parse and understand the state of the pipeline from the incoming request |
-| Get Definition | FaaSChain is stateless, to get the chain defintion it calls the user defined `handler.go` every time to get the defintion of the chain. FaasChain create simple **pipeline-definition** with multiple phases. **A same chain always outputs to same pipeline-definition**. 
-Each Phase in a pipeline have one or Multiple Function Request, Callback or Modifier. A phase is created based on how user defines the chain. Once a phase is complete FaasChain asyncronously forward the request to same chain via gateway. |
+| Get Definition | FaaSChain is stateless, to get the chain defintion it calls the user defined `handler.go` every time to get the defintion of the chain. FaasChain create simple **pipeline-definition** with multiple phases. **A same chain always outputs to same pipeline-definition**. Each Phase in a pipeline have one or Multiple Function Request, Callback or Modifier. A phase is created based on how user defines the chain. Once a phase is complete FaasChain asyncronously forward the request to same chain via gateway. |
 | Execute | Execute executes a phase by calling Modifier, FaaS-Functions or Callback based on how user defines the pipeline. At a time only one `phase` gets executed. |
 | Repeat Or Response | In the reapeat or response phase If pipeline is not yet completed, FaasChain forwards the remaining pipeline and partial execution state and result to the same `chain-function` via gateway. If the pipeline has finished or completed `faaschain` returns the output to the gateway | 
 
