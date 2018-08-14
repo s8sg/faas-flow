@@ -5,37 +5,37 @@
 [![OpenFaaS](https://img.shields.io/badge/openfaas-serverless-blue.svg)](https://www.openfaas.com)
 
 > **Pure FaaS.**   
-> **Stateless**
-> **Build Over Current Go Template.**   
-> **Available as a `faaschain` template.**   
-> **Use FaaS platform to Communicate.**   
+> **Completely Stateless**.   
+> **Build on current `go` template**   
+> **Available as a template `faaschain`**   
+> **Lightweight, leverage `openfaas` platforms capability**   
      
 ## What is it ?
 FaaSChain allow you to define your pipeline and host it as a function
 ![alt overview](https://github.com/s8sg/faaschain/blob/master/doc/figure1.jpeg)
      
 ## How does it work ?
-FaaSChain runs five mejor steps to define and run the pipeline
+FaaSChain runs four mejor steps to define and run the pipeline
 ![alt internal](https://github.com/s8sg/faaschain/blob/master/doc/figure2.jpeg)
 
 | Step |  description |
 | ---- | ----- |
 | Build Chain | Identify a request and build a chain. A incoming request could be a half finished pipeline or a fresh request. In case its not a fresh request, faas-chain parse and understand the state of the pipeline from the incoming request |
-| Get Definition | FaaSChain is stateless, to get the chain defintion it calls the exposed `handler.go` every time to get the user defintion of the chain |
-| Plan | FaasChain create simple plan with multiple phases. Each Phase have one or Multiple Function Request or Modifier. Once a phase is complete FaasChain asyncronously forward the request to same chain via gateway |
-| Execute | Execute executes a phase by calling Modifier, FaaS-Functions or Callback. During Execution FaasChain can split a phase into two or more if it take more time |
-| Repeat Or Response | In the reapeat or response phase If pipeline is not yet completed, FaasChain forwards the remaining pipeline to the same chain via gateway by specifying execution state. If its completed faas-chain returns the response to gateway if a `sync` request | 
+| Get Definition | FaaSChain is stateless, to get the chain defintion it calls the user defined `handler.go` every time to get the defintion of the chain. FaasChain create simple **pipeline-definition** with multiple phases. **A same chain always outputs to same pipeline-definition**. 
+Each Phase in a pipeline have one or Multiple Function Request, Callback or Modifier. A phase is created based on how user defines the chain. Once a phase is complete FaasChain asyncronously forward the request to same chain via gateway. |
+| Execute | Execute executes a phase by calling Modifier, FaaS-Functions or Callback based on how user defines the pipeline. At a time only one `phase` gets executed. |
+| Repeat Or Response | In the reapeat or response phase If pipeline is not yet completed, FaasChain forwards the remaining pipeline and partial execution state and result to the same `chain-function` via gateway. If the pipeline has finished or completed `faaschain` returns the output to the gateway | 
 
-A `Plan` consist of multiple `phases`. Each `Phase` includes of one or multiple `Function Call`, `Modifier` or `Callback`. A `phase` is executed in a single invokation of the chain. The execution `State` is the execution position which denotes the current execution `phase` no. 
+A **pipeline-definition** consist of multiple `phases`. Each `Phase` includes of one or multiple `Function Call`, `Modifier` or `Callback`. A `phase` is executed in a single invokation of the chain. The `execution-state` is the execution position which denotes the current execution `phase` position. 
 ![alt phase](https://github.com/s8sg/faaschain/blob/master/doc/figure3.jpeg)
    
 | Acronyms |  description |
 | ---- | ----- |
-| Plan | Execution plan which is generated for a chain. For a given chain the execution plan is always the same |
-| Phase | Segment of a Plan which consist of one or more call to `Function`, `Modifier` or `Callback`. A execution Plan has one or more phases |
-| Function | A FaaS Function. A function can be applied to chain by calling `chain.Apply(funcName)` or `chain.ApplyAsync(funcName)` |
-| Modifier | A callback function. A callback function can be applied as `chain.ApplyModifier(callBackFunc() {})`. |
-| Callback | A URL that will be called with the result of the chain. `chain.Callback(url)` |
+| Pipeline Definition | Definition which is generated for a chain. For a given chain the definition is always the same |
+| Phase | Segment of a Plan which consist of one or more call to `Function`, `Modifier` or `Callback`. A pipeline definition has one or more phases |
+| Function | A FaaS Function. A function can be applied to chain by calling `chain.Apply(funcName)` or `chain.ApplyAsync(funcName)`. For each `Async` call a new phase is assigned  |
+| Modifier | A inline function. A inline modifier function can be applied as `chain.ApplyModifier(callBackFunc(){})`. |
+| Callback | A URL that will be called with the final/partial result. `chain.Callback(url)` |
   
 ## Example
 https://github.com/s8sg/faaschain/tree/master/example
@@ -121,3 +121,10 @@ Request can be tracked from the log by `RequestId`. For each new Request a uniqu
 2018/08/13 07:51:59 [request `bdojh7oi7u6bl8te4r0g`] Created
 2018/08/13 07:52:03 [Request `bdojh7oi7u6bl8te4r0g`] Received
 ```
+
+## TODO:
+- [ ] Export support for Debug    
+>      Request Execution Status.    
+>      Execution Time.   
+>      Pipeline Overview.   
+- [ ] Support Of Multi Path Pipeline
