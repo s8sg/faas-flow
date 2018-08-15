@@ -73,6 +73,8 @@ faas-cli new test-chain --lang faaschain
       write_timeout: 120
       write_debug: true
       combine_output: false
+      enable_tracing: true
+      trace_server: "jaegertracing:5775"
 ```
 > `gateway` : We need to tell faaschain the address of openfaas gateway
 > ```
@@ -86,8 +88,15 @@ faas-cli new test-chain --lang faaschain
 > `write_timeout` : A value larger than `max` phase execution time.     
 > `write_debug`: It enables the debug msg in logs.   
 > `combine_output` : It allows debug msg to be excluded from `output`.  
+> `enable_tracing` : It ebales the opentracing for requests and their phases.  
+> `trace_server` : The address of opentracing backend jaeger.   
 
-
+#### Start The Trace Server (jaeger - opentracing-1.x)   
+To start the trace server we run `jaegertracing/all-in-one` as a service.  
+```
+cd tracer; ./deploy_swarm.sh; cd ..
+```
+     
 #### **Edit the `test-chain/handler.go`:**.  
 ```go
     chain.Apply("myfunc1", map[string]string{"method": "post"}, nil).
