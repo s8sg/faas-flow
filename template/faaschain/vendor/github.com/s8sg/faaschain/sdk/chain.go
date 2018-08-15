@@ -5,7 +5,7 @@ import (
 )
 
 type Chain struct {
-	Phases            []*Phase `json:"-"`        // Phases that will be executed in async
+	Phases            []*Phase `json:"phases"`   // Phases that will be executed in async
 	ExecutionPosition int      `json:"position"` // Position of Executor
 }
 
