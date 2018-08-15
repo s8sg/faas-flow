@@ -2,7 +2,7 @@
 [![Build Status](https://travis-ci.org/s8sg/faaschain.svg?branch=master)](https://travis-ci.org/s8sg/faaschain)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GoDoc](https://godoc.org/github.com/s8sg/faaschain?status.svg)](https://godoc.org/github.com/s8sg/faaschain)
-[![OpenTracing-1.0](http://opentracing.io)
+[![OpenTracing Badge](https://img.shields.io/badge/OpenTracing-enabled-blue.svg)](http://opentracing.io)
 [![OpenFaaS](https://img.shields.io/badge/openfaas-serverless-blue.svg)](https://www.openfaas.com)
 
 > **Pure FaaS**   
