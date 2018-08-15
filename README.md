@@ -93,8 +93,12 @@ faas-cli new test-chain --lang faaschain
 
 #### Start The Trace Server (jaeger - opentracing-1.x)   
 To start the trace server we run `jaegertracing/all-in-one` as a service.  
-```
-cd tracer; ./deploy_swarm.sh; cd ..
+```bash
+docker service rm jaegertracing
+docker pull jaegertracing/all-in-one:latest
+docker service create --constraint="node.role==manager" --detach=true \
+        --network func_functions --name jaegertracing -p 5775:5775/udp -p 16686:16686 \
+        jaegertracing/all-in-one:latest
 ```
      
 #### **Edit the `test-chain/handler.go`:**.  
