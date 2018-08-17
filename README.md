@@ -160,7 +160,7 @@ Request tracing can be enabled by providing by specifying
       trace_server: "jaegertracing:5775"
 ```
 Below is an example of tracing for an async request with 3 phases    
-![alt multi phase](https://github.com/s8sg/faaschain/blob/tracing/doc/tracing.png)
+![alt multi phase](https://github.com/s8sg/faaschain/blob/master/doc/tracing.png)
     
 > *Due to some unresolved issue we can't extend the req span over multiple phases    
 > we use the waterfall model as an workaround    
