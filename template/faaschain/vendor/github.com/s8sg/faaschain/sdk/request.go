@@ -8,8 +8,8 @@ import (
 type Request struct {
 	Sign     string `json: "sign"`
 	ID       string `json: "id"`
-	Chaindef string `json: "-"`
 	Data     []byte `json: "data"`
+	Chaindef string `json: "-"`
 }
 
 const (

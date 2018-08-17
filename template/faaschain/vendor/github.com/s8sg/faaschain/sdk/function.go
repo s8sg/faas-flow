@@ -7,11 +7,11 @@ import (
 type Modifier func([]byte) ([]byte, error)
 
 type Function struct {
-	Function    string              `json:"-"` // The name of the function
-	CallbackUrl string              `json:"-"` // Callback Url
-	Mod         Modifier            `json:"-"` // Modifier
-	Header      map[string]string   `json:"-"` // The HTTP call header
-	Param       map[string][]string `json:"-"` // The Parameter in Query string
+	Function    string              `json:"function"` // The name of the function
+	CallbackUrl string              `json:"callback"` // Callback Url
+	Mod         Modifier            `json:"-"`        // Modifier
+	Header      map[string]string   `json:"header"`   // The HTTP call header
+	Param       map[string][]string `json:"param"`    // The Parameter in Query string
 }
 
 // Create a function with execution name
