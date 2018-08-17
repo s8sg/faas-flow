@@ -41,7 +41,7 @@ The `execution-state` is the execution position which denotes the next execution
 | Pipeline Definition | Definition which is generated for a chain. For a given chain the definition is always the same |
 | Phase | Segment of a pipeline definiton which consist of one or more call to `Function`, `Modifier` or `Callback`. A pipeline definition has one or more phases. |
 | Function | A FaaS Function. A function can be applied to chain by calling `chain.Apply(funcName)` or `chain.ApplyAsync(funcName)`. For each `Async` call a new phase is created.  |
-| Modifier | A inline function. A inline modifier function can be applied as `chain.ApplyModifier(callBackFunc(){})`. |
+| Modifier | A inline function. A inline modifier function can be applied as ```chain.ApplyModifier(func(data []byte) ([]byte, error) { return data, nil } )```. |
 | Callback | A URL that will be called with the final/partial result. `chain.Callback(url)` |
   
 ## Example
@@ -104,11 +104,21 @@ docker service create --constraint="node.role==manager" --detach=true \
 #### **Edit the `test-chain/handler.go`:**.  
 ```go
     chain.Apply("myfunc1", map[string]string{"method": "post"}, nil).
-         .ApplyModifier(func(data []byte) ([]byte, error) {
+        ApplyModifier(func(data []byte) ([]byte, error) {
                 log.Printf("Making data serialized for myfunc2")
                 return []byte(fmt.Sprintf("{ \"data\" : \"%s\" }", string(data))), nil
-        }).Apply("myfunc2", map[string]string{"method": "post"}, nil)
+        }).ApplyAsync("myfunc2", map[string]string{"method": "post"}, nil).
+        Callback("storage.io/bucket?id=3345612358265349126")
 ```
+> This function will generate two phases as:     
+> ```
+> Phase 1 :    
+>     Apply("myfunc1")    
+>     ApplyModifier()    
+> Phase 2:    
+>     ApplyAsync("myfunc2")   
+>     Callback()    
+> ```
 #### **Build and Deploy the `test-chain` :**.  
 Build
 ```bash
