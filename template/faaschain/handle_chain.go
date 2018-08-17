@@ -114,6 +114,9 @@ func buildChain(data []byte) (fchain *faaschain.Fchain, requestData []byte) {
 		// Set execution Pos
 		fchain.GetChain().ExecutionPosition = 0
 		requestData = data
+
+		// trace req - mark as start of req
+		startReqSpan(requestId)
 	} else {
 		// Get the request ID
 		requestId = request.GetID()
@@ -130,12 +133,12 @@ func buildChain(data []byte) (fchain *faaschain.Fchain, requestData []byte) {
 		// Set execution Pos
 		fchain.GetChain().ExecutionPosition = executionPos
 		requestData = request.GetData()
+
+		// Continue request span
+		continueReqSpan(requestId)
 	}
 	// set request ID
 	fchain.SetId(requestId)
-
-	// trace req - mark as start of req
-	startReqSpan(requestId)
 
 	return
 }
@@ -251,6 +254,9 @@ func forwardAsync(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
 	httpreq.Header.Add("Accept", "application/json")
 	httpreq.Header.Add("Content-Type", "application/json")
 
+	// extend req span for async call
+	extendReqSpan(chain.ExecutionPosition-1, fchain.GetAsyncUrl(), httpreq)
+
 	client := &http.Client{}
 	res, resErr := client.Do(httpreq)
 	resdata, _ := ioutil.ReadAll(res.Body)
@@ -275,6 +281,7 @@ func handleResponse(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
 	// If chain has only one phase or if the chain has completed excution return
 	case chain.CountPhases() == 1 || chain.GetCurrentPhase() == nil:
 		log.Printf("[request `%s`] Finished successfully ", fchain.GetId())
+
 		return result, nil
 
 	// In default case we forward the partial chain to same chain-function
@@ -282,9 +289,13 @@ func handleResponse(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
 		// forward the chain request
 		resp, forwardErr := forwardAsync(fchain, result)
 		if forwardErr != nil {
-			return nil, fmt.Errorf("Phase(%d): error: %v, %s, url %s", chain.ExecutionPosition, forwardErr, string(resp), fchain.GetAsyncUrl())
+			return nil, fmt.Errorf("Phase(%d): error: %v, %s, url %s",
+				chain.ExecutionPosition, forwardErr,
+				string(resp), fchain.GetAsyncUrl())
 		}
-		log.Printf("[Request `%s`] Phase %d request submitted", chain.ExecutionPosition)
+
+		log.Printf("[Request `%s`] Phase %d request submitted",
+			fchain.GetId(), chain.ExecutionPosition)
 	}
 
 	return []byte(""), nil
@@ -297,7 +308,7 @@ func handleChain(data []byte) string {
 	// Get chain name
 	chainName = getChainName()
 	if chainName == "" {
-		fmt.Errorf("Error: chain name must be provided when chain deployed as function")
+		fmt.Errorf("Error: chain name must be provided when deployed as function")
 		os.Exit(1)
 	}
 
@@ -331,7 +342,9 @@ func handleChain(data []byte) string {
 		}
 	}
 
+	// stop req span if request has finished
 	stopReqSpan()
+
 	// flash any pending trace item if tracing enabled
 	flushTracer()
 

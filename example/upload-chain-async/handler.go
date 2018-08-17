@@ -59,6 +59,7 @@ func Define(chain *faaschain.Fchain) (err error) {
 	// Define Chain
 	chain.Apply("colorization", map[string]string{"method": "post"}, nil).
 		ApplyAsync("image-resizer", map[string]string{"method": "post"}, nil).
+		ApplyAsync("image-resizer", map[string]string{"method": "post"}, nil).
 		ApplyModifier(func(data []byte) ([]byte, error) {
 			client := &http.Client{}
 			r := bytes.NewReader(data)
