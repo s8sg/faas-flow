@@ -7,8 +7,9 @@
 
 > **Pure FaaS**   
 > **Completely Stateless**   
-> **Build on current `go` template**   
-> **Available as a template `faaschain`**   
+> **Build with `go` over `go-template`**   
+> **Integrated with `open-tracing`**    
+> **Available as a template: `faaschain`**   
 > **Lightweight, leverage `openfaas` platform's capabilities**   
      
 ## What is it ?
