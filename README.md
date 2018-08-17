@@ -146,13 +146,27 @@ cat data | faas-cli invoke --async -f test-chain.yml test-chain
 Function submitted asynchronously.
 ```
 
-## Request Tracking
+## Request Tracking by ID
 Request can be tracked from the log by `RequestId`. For each new Request a unique `RequestId` is generated. 
 ```bash
 2018/08/13 07:51:59 [request `bdojh7oi7u6bl8te4r0g`] Created
 2018/08/13 07:52:03 [Request `bdojh7oi7u6bl8te4r0g`] Received
 ```
 
+## Request Tracing by Open-Tracing 
+Request tracing can be enabled by providing by specifying    
+```yaml
+      enable_tracing: true
+      trace_server: "jaegertracing:5775"
+```
+Below is an example of tracing for an async request with 3 phases    
+![alt multi phase](https://github.com/s8sg/faaschain/blob/tracing/doc/tracing.png)
+    
+> *Due to some unresolved issue we can't extend the req span over multiple phases    
+> we use the waterfall model as an workaround    
+> For more details visit : https://github.com/opentracing/specification/issues/81    
+    
+    
 ## TODO:
 - [ ] Export support for Debug    
 >      Request Execution Status.    

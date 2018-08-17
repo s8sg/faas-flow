@@ -201,15 +201,16 @@ func startPhaseSpan(phase int, reqId string) {
 	}
 
 	phasename := fmt.Sprintf("%d", phase)
-	// TODO: Now its always true
-	if reqSpan == nil {
-		phaseSpan = opentracing.GlobalTracer().StartSpan(
-			phasename, ext.RPCServerOption(reqSpanCtx))
-		phaseSpan.SetTag("async", 1)
-	} else {
-		phaseSpan = opentracing.GlobalTracer().StartSpan(
-			phasename, opentracing.ChildOf(reqSpan.Context()))
-	}
+	phaseSpan = opentracing.GlobalTracer().StartSpan(
+		phasename, ext.RPCServerOption(reqSpanCtx))
+	phaseSpan.SetTag("async", 1)
+	/*
+		if reqSpan == nil {
+
+		} else {
+			phaseSpan = opentracing.GlobalTracer().StartSpan(
+				phasename, opentracing.ChildOf(reqSpan.Context()))
+		}*/
 	phaseSpan.SetTag("request", reqId)
 	phaseSpan.SetTag("phase", phase)
 	phaseSpans[phase] = phaseSpan
