@@ -179,8 +179,9 @@ Below is an example of tracing for an async request with 3 phases
     
     
 ## TODO:
-- [ ] Export support for Debug    
->      Request Execution Status.    
->      Execution Time.   
->      Pipeline Overview.   
-- [ ] Support Of Multi Path Pipeline
+- [x] Callback 
+- [x] Tracing    
+- [ ] On Success and On Failure handler      
+- [ ] Pipeline Definition.   
+- [ ] Support Of Multi Path
+- [ ] Phase input
