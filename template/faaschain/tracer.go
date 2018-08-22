@@ -196,6 +196,7 @@ func stopReqSpan() {
 // startPhaseSpan starts a phase span
 func startPhaseSpan(phase int, reqId string) {
 	var phaseSpan opentracing.Span
+	phase = phase + 1
 	if !isTracingEnabled() {
 		return
 	}
@@ -203,7 +204,7 @@ func startPhaseSpan(phase int, reqId string) {
 	phasename := fmt.Sprintf("%d", phase)
 	phaseSpan = opentracing.GlobalTracer().StartSpan(
 		phasename, ext.RPCServerOption(reqSpanCtx))
-	phaseSpan.SetTag("async", 1)
+	phaseSpan.SetTag("async", "true")
 	/*
 		if reqSpan == nil {
 
@@ -218,6 +219,7 @@ func startPhaseSpan(phase int, reqId string) {
 
 // stopPhaseSpan terminates a phase span
 func stopPhaseSpan(phase int) {
+	phase = phase + 1
 	if !isTracingEnabled() {
 		return
 	}

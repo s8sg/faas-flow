@@ -156,6 +156,9 @@ func execute(fchain *faaschain.Fchain, request []byte) ([]byte, error) {
 	// trace phase - mark as start of phase
 	startPhaseSpan(chain.ExecutionPosition, fchain.GetId())
 
+	// set global context
+	fchain.CreateGlobalContext(request)
+
 	// Execute all function
 	for _, function := range phase.GetFunctions() {
 

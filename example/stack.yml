@@ -34,7 +34,7 @@ functions:
       trace_server: "jaegertracing:5775"
 
   colorization:
-    lang: Dockerfile
+    lang: dockerfile
     handler: ./faas-colorization
     image: s8sg/colorization
     environment:
@@ -42,15 +42,20 @@ functions:
       write_timeout: 60
 
   image-resizer:
-    lang: Dockerfile
+    lang: dockerfile
     handler: ./cdn_faas/ResizeImage
     image: s8sg/resizer:latest
     environment:
       read_timeout: 60
       write_timeout: 60
 
+  facedetect:
+    lang: go-opencv
+    handler: ./open-faas-functions/facedetect
+    image: s8sg/func_facedetect
+
   file-storage:
-    lang: Dockerfile
+    lang: dockerfile
     handler: ./cdn_faas/file_storage
     image: s8sg/file-storage:latest
     environment:

@@ -2,6 +2,7 @@ package function
 
 import (
 	"bytes"
+	//"encoding/json"
 	"fmt"
 	"github.com/s8sg/faaschain"
 	"io"
@@ -57,8 +58,16 @@ func Upload(client *http.Client, url string, filename string, r io.Reader) (err 
 func Define(chain *faaschain.Fchain) (err error) {
 
 	// Define Chain
-	chain.Apply("colorization", map[string]string{"method": "post"}, nil).
-		ApplyAsync("image-resizer", map[string]string{"method": "post"}, nil).
+	chain.Apply("face-detect", map[string]string{"method": "post"}, nil).
+		ApplyModifier(func(data []byte) ([]byte, error) {
+			// unmarshal data
+			// find no of face
+			// if == 1
+			return faaschain.GetContext().GetPhaseInput(), nil
+			// else
+			// return nil, fmt.Errorf("No of face should be exactly one")
+		}).
+		ApplyAsync("colorization", map[string]string{"method": "post"}, nil).
 		ApplyAsync("image-resizer", map[string]string{"method": "post"}, nil).
 		ApplyModifier(func(data []byte) ([]byte, error) {
 			client := &http.Client{}
