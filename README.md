@@ -184,4 +184,4 @@ Below is an example of tracing for an async request with 3 phases
 - [ ] On Success and On Failure handler      
 - [ ] Pipeline Definition.   
 - [ ] Support Of Multi Path
-- [ ] Phase input
+- [x] Phase input

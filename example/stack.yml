@@ -7,7 +7,7 @@ functions:
   upload-chain:
     lang: faaschain
     handler: ./upload-chain
-    image: s8sg/upload-chain
+    image: s8sg/upload-chain:latest
     environment:
       gateway: "gateway:8080"
       chain_name: "upload-chain"
@@ -22,7 +22,7 @@ functions:
   upload-chain-async:
     lang: faaschain
     handler: ./upload-chain-async
-    image: s8sg/upload-chain-async
+    image: s8sg/upload-chain-async:latest
     environment:
       gateway: "gateway:8080"
       chain_name: "upload-chain-async"
@@ -36,7 +36,7 @@ functions:
   colorization:
     lang: dockerfile
     handler: ./faas-colorization
-    image: s8sg/colorization
+    image: s8sg/colorization:latest
     environment:
       read_timeout: 60
       write_timeout: 60
@@ -51,8 +51,11 @@ functions:
 
   facedetect:
     lang: go-opencv
-    handler: ./open-faas-functions/facedetect
-    image: s8sg/func_facedetect
+    handler: ./facedetect-openfaas/facedetect
+    image: s8sg/facedetect:latest
+    environment:
+      input_mode: "image"
+      output_mode: "json"
 
   file-storage:
     lang: dockerfile

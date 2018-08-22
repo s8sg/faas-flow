@@ -7,12 +7,16 @@ echo "Get faas-colorization"
 [ ! "$(ls | grep faas-colorization)" ] && git clone https://github.com/alexellis/faas-colorization.git
 
 echo "Get face-detect"
-[ ! "$(ls | grep open-faas-functions)" ] && git clone https://github.com/nicholasjackson/open-faas-functions.git
+[ ! "$(ls | grep facedetect-openfaas)" ] && git clone https://github.com/alexellis/facedetect-openfaas.git
 
 echo "Get opencv template"
-faas-cli template pull https://github.com/s8sg/open-faas-templates
+faas-cli template pull https://github.com/alexellis/opencv-openfaas-template
 
 echo "Get faaschain template"
 faas-cli template pull https://github.com/s8sg/faaschain
 
+echo "Get faas default template"
+faas-cli template pull
+
 faas-cli build -f stack.yml
+
