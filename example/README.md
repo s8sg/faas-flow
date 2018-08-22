@@ -1,5 +1,4 @@
 
-
 #### Getting started
 Build and deploy the stack
 ```
@@ -11,13 +10,13 @@ Function definition
         chain.Apply("colorization", map[string]string{"method": "post"}, nil).
                 Apply("image-resizer", map[string]string{"method": "post"}, nil)
 ```
-
+    
 Invoke chain
 ```bash
-cat apollo13.jpg | faas-cli invoke -f stack.yml upload-chain > apollo13-compressed.jpg
+cat chris.jpg | faas-cli invoke -f stack.yml upload-chain > chris-dp.jpg
 ``` 
-   
-   
+    
+    
 #### Invoke Async function `upload-chain-async`  
 Function definition
 ```go
@@ -33,11 +32,17 @@ Function definition
                         return nil, nil
                 })
 ```
-Invoke chain
+    
+Invoke chain with wrong image
 ```bash
-cat apollo13.jpg | faas-cli invoke --async -f stack.yml upload-chain-async
+cat coldplay.jpg | faas-cli invoke --async -f stack.yml upload-chain-async
+``` 
+    
+Invoke chain with right image
+```bash
+cat chris.jpg | faas-cli invoke --async -f stack.yml upload-chain-async
 ``` 
 Download from storage    
 ```bash
-curl http://127.0.0.1:8080/function/file-storage?file=apollo13.jpg > apollo13-compressed-async.jpg
+curl http://127.0.0.1:8080/function/file-storage?file=chris.jpg > chris-dp.jpg
 ```

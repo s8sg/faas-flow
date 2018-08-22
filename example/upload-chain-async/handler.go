@@ -2,13 +2,29 @@ package function
 
 import (
 	"bytes"
-	//"encoding/json"
+	"encoding/json"
 	"fmt"
 	"github.com/s8sg/faaschain"
 	"io"
 	"mime/multipart"
 	"net/http"
 )
+
+type Dimention struct {
+	X int
+	Y int
+}
+
+type Face struct {
+	Min Dimention
+	Max Dimention
+}
+
+type FaceResult struct {
+	Faces       []Face
+	Bounds      Face
+	ImageBase64 string
+}
 
 // file upload logic
 func Upload(client *http.Client, url string, filename string, r io.Reader) (err error) {
@@ -58,21 +74,30 @@ func Upload(client *http.Client, url string, filename string, r io.Reader) (err 
 func Define(chain *faaschain.Fchain) (err error) {
 
 	// Define Chain
-	chain.Apply("face-detect", map[string]string{"method": "post"}, nil).
+	chain.Apply("facedetect", map[string]string{"method": "post"}, nil).
 		ApplyModifier(func(data []byte) ([]byte, error) {
-			// unmarshal data
-			// find no of face
-			// if == 1
-			return faaschain.GetContext().GetPhaseInput(), nil
-			// else
-			// return nil, fmt.Errorf("No of face should be exactly one")
+			context := faaschain.GetContext()
+			result := FaceResult{}
+			err := json.Unmarshal(data, &result)
+			if err != nil {
+				return nil, fmt.Errorf("Failed to decode facedetect result, error %v", err)
+			}
+			switch len(result.Faces) {
+			case 0:
+				return nil, fmt.Errorf("No face detected, picture should contain one face")
+			case 1:
+				return context.GetPhaseInput(), nil
+			default:
+				return nil, fmt.Errorf("More than one face detected, picture should have single face")
+			}
+			return nil, nil
 		}).
 		ApplyAsync("colorization", map[string]string{"method": "post"}, nil).
 		ApplyAsync("image-resizer", map[string]string{"method": "post"}, nil).
 		ApplyModifier(func(data []byte) ([]byte, error) {
 			client := &http.Client{}
 			r := bytes.NewReader(data)
-			err = Upload(client, "http://gateway:8080/function/file-storage", "apollo13.jpg", r)
+			err = Upload(client, "http://gateway:8080/function/file-storage", "chris.jpg", r)
 			if err != nil {
 				return nil, err
 			}

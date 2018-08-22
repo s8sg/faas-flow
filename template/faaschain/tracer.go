@@ -15,10 +15,11 @@ import (
 )
 
 var (
-	closer     io.Closer
-	reqSpan    opentracing.Span
-	reqSpanCtx opentracing.SpanContext
-	phaseSpans map[int]opentracing.Span
+	closer            io.Closer
+	reqSpan           opentracing.Span
+	reqSpanCtx        opentracing.SpanContext
+	tracerInitialized bool
+	phaseSpans        map[int]opentracing.Span
 )
 
 // EnvHeadersCarrier satisfies both TextMapWriter and TextMapReader
@@ -118,12 +119,14 @@ func initGlobalTracer(chainName string) error {
 
 	phaseSpans = make(map[int]opentracing.Span)
 
+	tracerInitialized = true
+
 	return nil
 }
 
 // startReqSpan starts a request span
 func startReqSpan(reqId string) {
-	if !isTracingEnabled() {
+	if !isTracingEnabled() || !tracerInitialized {
 		return
 	}
 
@@ -137,7 +140,7 @@ func startReqSpan(reqId string) {
 func continueReqSpan(reqId string) {
 	var err error
 
-	if !isTracingEnabled() {
+	if !isTracingEnabled() || !tracerInitialized {
 		return
 	}
 
@@ -161,7 +164,7 @@ func continueReqSpan(reqId string) {
 // extendReqSpan extend req span over a request
 // func extendReqSpan(url string, req *http.Request) {
 func extendReqSpan(lastPhaseRef int, url string, req *http.Request) {
-	if !isTracingEnabled() {
+	if !isTracingEnabled() || !tracerInitialized {
 		return
 	}
 
@@ -182,7 +185,7 @@ func extendReqSpan(lastPhaseRef int, url string, req *http.Request) {
 
 // stopReqSpan terminate a request span
 func stopReqSpan() {
-	if !isTracingEnabled() {
+	if !isTracingEnabled() || !tracerInitialized {
 		return
 	}
 
@@ -197,7 +200,7 @@ func stopReqSpan() {
 func startPhaseSpan(phase int, reqId string) {
 	var phaseSpan opentracing.Span
 	phase = phase + 1
-	if !isTracingEnabled() {
+	if !isTracingEnabled() || !tracerInitialized {
 		return
 	}
 
@@ -220,7 +223,7 @@ func startPhaseSpan(phase int, reqId string) {
 // stopPhaseSpan terminates a phase span
 func stopPhaseSpan(phase int) {
 	phase = phase + 1
-	if !isTracingEnabled() {
+	if !isTracingEnabled() || !tracerInitialized {
 		return
 	}
 
@@ -229,7 +232,7 @@ func stopPhaseSpan(phase int) {
 
 // flushTracer flush all pending traces
 func flushTracer() {
-	if !isTracingEnabled() {
+	if !isTracingEnabled() || !tracerInitialized {
 		return
 	}
 
