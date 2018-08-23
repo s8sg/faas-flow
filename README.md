@@ -185,3 +185,4 @@ Below is an example of tracing for an async request with 3 phases
 - [ ] Pipeline Definition.   
 - [ ] Support Of Multi Path
 - [x] Phase input
+- [ ] Chanhe API in chain.go, make use of interface for `option`, `header`, `reader/writer` 
