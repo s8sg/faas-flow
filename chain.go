@@ -189,7 +189,7 @@ func (fchain *Fchain) GetAsyncUrl() string {
 	return fchain.asyncUrl
 }
 
-// CreateGlobalContext create a context for the chain
+// CreateGlobalContext create a context for the chain (it's
 func (fchain *Fchain) CreateGlobalContext(request []byte) {
 	context := &Context{}
 	context.phaseInput = request

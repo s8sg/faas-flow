@@ -15,7 +15,7 @@ functions:
       write_timeout: 120
       write_debug: true
       combine_output: false
-      enable_tracing: true
+      enable_tracing: false
       trace_server: "jaegertracing:5775"
 
 
@@ -30,7 +30,7 @@ functions:
       write_timeout: 120
       write_debug: true
       combine_output: false
-      enable_tracing: true
+      enable_tracing: false
       trace_server: "jaegertracing:5775"
 
   colorization:
@@ -55,7 +55,7 @@ functions:
     image: s8sg/facedetect:latest
     environment:
       input_mode: "image"
-      output_mode: "json"
+      output_mode: "image"
 
   file-storage:
     lang: dockerfile

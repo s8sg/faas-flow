@@ -19,7 +19,7 @@ Sync function meant to perform all the operation in Sync and reply the caller on
 
 ##### Define Chain:
 ```go
-	chain.Apply("facedetect", map[string]string{"method": "post"}, nil).
+	chain.Apply("facedetect", nil, nil).
 		ApplyModifier(func(data []byte) ([]byte, error) {
 			context := faaschain.GetContext()
 			result := FaceResult{}
@@ -37,8 +37,8 @@ Sync function meant to perform all the operation in Sync and reply the caller on
 			}
 			return nil, nil
 		}).
-		ApplyAsync("colorization", map[string]string{"method": "post"}, nil).
-		ApplyAsync("image-resizer", map[string]string{"method": "post"}, nil)
+		Apply("colorization", nil, nil).
+		Apply("image-resizer", nil, nil)
 ```
 
 #### Writing ASync Function `upload-chain-async`
@@ -65,8 +65,8 @@ Function definition
 			}
 			return nil, nil
 		}).
-		ApplyAsync("colorization", map[string]string{"method": "post"}, nil).
-		ApplyAsync("image-resizer", map[string]string{"method": "post"}, nil).
+		ApplyAsync("colorization", nil, nil).
+		ApplyAsync("image-resizer", nil, nil).
 		ApplyModifier(func(data []byte) ([]byte, error) {
 			client := &http.Client{}
 			r := bytes.NewReader(data)
