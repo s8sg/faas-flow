@@ -55,7 +55,7 @@ functions:
     image: s8sg/facedetect:latest
     environment:
       input_mode: "image"
-      output_mode: "image"
+      output_mode: "json"
 
   file-storage:
     lang: dockerfile
