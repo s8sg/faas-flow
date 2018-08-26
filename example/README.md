@@ -19,37 +19,8 @@ Sync function meant to perform all the operation in Sync and reply the caller on
 
 ##### Define Chain:
 ```go
-	chain.Apply("facedetect", nil, nil).
+	chain.Apply("facedetect").
 		ApplyModifier(func(data []byte) ([]byte, error) {
-			context := faaschain.GetContext()
-			result := FaceResult{}
-			err := json.Unmarshal(data, &result) 
-			if err != nil {
-				return nil, fmt.Errorf("Failed to decode facedetect result, error %v", err)
-			}
-			switch len(result.Faces) {
-			case 0:
-				return nil, fmt.Errorf("No face detected, picture should contain one face")
-			case 1:
-				return context.GetPhaseInput(), nil  // return the initial data
-			default:
-				return nil, fmt.Errorf("More than one face detected, picture should have single face")
-			}
-			return nil, nil
-		}).
-		Apply("colorization", nil, nil).
-		Apply("image-resizer", nil, nil)
-```
-
-#### Writing ASync Function `upload-chain-async`
-ASync function meant to perform all the operation in aSync and upload the result in a storage
-
-##### Define Chain:
-Function definition
-```go
-	chain.Apply("facedetect", map[string]string{"method": "post"}, nil).
-		ApplyModifier(func(data []byte) ([]byte, error) {
-			context := faaschain.GetContext()
 			result := FaceResult{}
 			err := json.Unmarshal(data, &result)
 			if err != nil {
@@ -59,18 +30,41 @@ Function definition
 			case 0:
 				return nil, fmt.Errorf("No face detected, picture should contain one face")
 			case 1:
-				return context.GetPhaseInput(), nil // return the initial data
-			default:
-				return nil, fmt.Errorf("More than one face detected, picture should have single face")
+				return faaschain.GetContext().GetPhaseInput(), nil
 			}
-			return nil, nil
+			return nil, fmt.Errorf("More than one face detected, picture should have single face")
 		}).
-		ApplyAsync("colorization", nil, nil).
-		ApplyAsync("image-resizer", nil, nil).
+		Apply("colorization").
+		Apply("image-resizer")
+```
+
+#### Writing ASync Function `upload-chain-async`
+ASync function meant to perform all the operation in aSync and upload the result in a storage
+
+##### Define Chain:
+Function definition
+```go
+	chain.Apply("facedetect").
+		ApplyModifier(func(data []byte) ([]byte, error) {
+			result := FaceResult{}
+			err := json.Unmarshal(data, &result)
+			if err != nil {
+				return nil, fmt.Errorf("Failed to decode facedetect result, error %v", err)
+			}
+			switch len(result.Faces) {
+			case 0:
+				return nil, fmt.Errorf("No face detected, picture should contain one face")
+			case 1:
+				return faaschain.GetContext().GetPhaseInput(), nil
+			}
+			return nil, fmt.Errorf("More than one face detected, picture should have single face")
+		}).
+		ApplyAsync("colorization").
+		ApplyAsync("image-resizer").
 		ApplyModifier(func(data []byte) ([]byte, error) {
 			client := &http.Client{}
 			r := bytes.NewReader(data)
-			err = Upload(client, "http://gateway:8080/function/file-storage", "chris.jpg", r) // upload to storage
+			err = Upload(client, "http://gateway:8080/function/file-storage", "chris.jpg", r)
 			if err != nil {
 				return nil, err
 			}
