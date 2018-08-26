@@ -5,12 +5,13 @@
 [![OpenTracing Badge](https://img.shields.io/badge/OpenTracing-enabled-blue.svg)](http://opentracing.io)
 [![OpenFaaS](https://img.shields.io/badge/openfaas-serverless-blue.svg)](https://www.openfaas.com)
 
-> **Pure FaaS**   
-> **Completely Stateless**   
-> **Build with `go` over `go-template`**   
-> **Integrated with `open-tracing`**    
-> **Available as a template: `faaschain`**   
-> **Lightweight, leverage `openfaas` platform's capabilities**   
+> - [x] **Pure FaaS**   
+> - [x] **Completely Stateless**   
+> - [x] **Build with `go` over `go-template`**   
+> - [x] **Integrated with `open-tracing`**    
+> - [x] **Available as a template: `faaschain`**   
+> - [x] **Lightweight, leverage `openfaas` platform's capabilities**
+> - [ ] **Secured with HMAC (coming soon)**
      
 ## What is it ?
 FaaSChain allow you to define your faas functions pipeline and deploy it as a function
@@ -172,16 +173,10 @@ Request tracing can be enabled by providing by specifying
 Below is an example of tracing for an async request with 3 phases    
 ![alt multi phase](https://github.com/s8sg/faaschain/blob/master/doc/tracing.png)
     
-> *Due to some unresolved issue we can't extend the req span over multiple phases    
-> we use the waterfall model as an workaround    
-> For more details visit : https://github.com/opentracing/specification/issues/81    
-    
-    
 ## TODO:
 - [x] Callback 
 - [x] Tracing    
 - [x] On Failure handler      
-- [ ] Pipeline Definition.   
-- [ ] Support Of Multi Path
+- [ ] Get Pipeline Definition.   
 - [x] Phase input
-- [x] Chanhe API in chain.go, make use of interface for `option`, `header`, `reader/writer` 
+- [ ] Simplify API (work in progress) 
