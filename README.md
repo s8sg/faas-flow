@@ -104,11 +104,11 @@ docker service create --constraint="node.role==manager" --detach=true \
      
 #### **Edit the `test-chain/handler.go`:**.  
 ```go
-    chain.Apply("myfunc1", map[string]string{"method": "post"}, nil).
+    chain.Apply("myfunc1", Header("method","post")).
         ApplyModifier(func(data []byte) ([]byte, error) {
                 log.Printf("Making data serialized for myfunc2")
                 return []byte(fmt.Sprintf("{ \"data\" : \"%s\" }", string(data))), nil
-        }).ApplyAsync("myfunc2", map[string]string{"method": "post"}, nil).
+        }).ApplyAsync("myfunc2", Header("method","post")).
         Callback("storage.io/bucket?id=3345612358265349126")
 ```
 > This function will generate two phases as:     
@@ -142,14 +142,13 @@ FaaSChain supports async function. It uses the `openfaas` async feature to imple
 To implement a async call use `ApplyAsync` function
 #### **Edit the `test-chain/handler.go`:**.  
 ```go
-    chain.Apply("myfunc1", map[string]string{"method": "post"}, nil).
+    chain.Apply("myfunc1", Header("method","post")).
          .ApplyModifier(func(data []byte) ([]byte, error) {
                 log.Printf("Making data serialized for myfunc2")
                 return []byte(fmt.Sprintf("{ \"data\" : \"%s\" }", string(data))), nil
-        }).ApplyAsync("myfunc2", map[string]string{"method": "post"}, nil).
+        }).ApplyAsync("myfunc2", Header("method", "post")).
         Callback("http://gateway:8080/function/send2slack", 
-                 map[string]string{"method": "post"}, 
-                 map[string]string{"authtoken": os.Getenv(token)})
+                 Header("method", "post"), Query("authtoken", os.Getenv(token)))
 ```
 #### **Invoke :**
 ```
@@ -181,8 +180,8 @@ Below is an example of tracing for an async request with 3 phases
 ## TODO:
 - [x] Callback 
 - [x] Tracing    
-- [ ] On Success and On Failure handler      
+- [x] On Failure handler      
 - [ ] Pipeline Definition.   
 - [ ] Support Of Multi Path
 - [x] Phase input
-- [ ] Chanhe API in chain.go, make use of interface for `option`, `header`, `reader/writer` 
+- [x] Chanhe API in chain.go, make use of interface for `option`, `header`, `reader/writer` 

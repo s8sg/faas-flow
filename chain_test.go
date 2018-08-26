@@ -1,7 +1,6 @@
 package faaschain
 
 import (
-	"github.com/s8sg/faaschain/sdk"
 	"testing"
 )
 
@@ -24,48 +23,10 @@ func TestChainCreate(t *testing.T) {
 
 func TestApply(t *testing.T) {
 	chain := NewFaaschain("http://127.0.0.1:8080", "mychain")
-	chain.Apply("compress", map[string]string{"Method": "Post"}, nil).Apply("upload", map[string]string{"Method": "Post"}, map[string][]string{"URL": {"my.file.storage/s8sg"}})
-}
-
-func TestApplyFunction(t *testing.T) {
-	chain := NewFaaschain("http://127.0.0.1:8080", "mychain")
-	func1 := sdk.CreateFunction("compress")
-	func1.Addheader("Method", "Post")
-	func2 := sdk.CreateFunction("upload")
-	func2.Addheader("Method", "Post")
-	func2.Addparam("URL", "my.file.storage/s8sg")
-	chain.ApplyFunction(func1).ApplyFunction(func2)
+	chain.Apply("compress", Header("Method", "Post")).Apply("upload", Header("Method", "Post"), Query("URL", "my.file.storage/s8sg"))
 }
 
 func TestApplyAsync(t *testing.T) {
 	chain := NewFaaschain("http://127.0.0.1:8080", "mychain")
-	chain.ApplyAsync("compress", map[string]string{"Method": "Post"}, nil).ApplyAsync("upload", map[string]string{"Method": "Post"}, map[string][]string{"URL": {"my.file.storage/s8sg"}})
-}
-
-func TestApplyAsyncFunction(t *testing.T) {
-	chain := NewFaaschain("http://127.0.0.1:8080", "mychain")
-	func1 := sdk.CreateFunction("compress")
-	func1.Addheader("Method", "Post")
-	func2 := sdk.CreateFunction("upload")
-	func2.Addheader("Method", "Post")
-	func2.Addparam("URL", "my.file.storage/s8sg")
-	chain.ApplyFunctionAsync(func1).ApplyFunctionAsync(func2)
-}
-
-func TestBuild(t *testing.T) {
-	chain1 := NewFaaschain("http://127.0.0.1:8080", "mychain")
-	upload := sdk.CreateFunction("upload")
-	upload.Addheader("Method", "Post")
-	upload.Addparam("URL", "my.file.storage/s8sg")
-	chain1.Apply("compress", map[string]string{"Method": "Post"}, nil).ApplyFunction(upload)
-	err := chain1.Build()
-	if err != nil {
-		t.Errorf("Failled to build chain, got error %v", err)
-		t.Fail()
-	}
-	def := chain1.GetDefinition()
-	if def == "" {
-		t.Errorf("Failled to build chain, got empty %v", err)
-		t.Fail()
-	}
+	chain.ApplyAsync("compress", Header("Method", "Post")).ApplyAsync("upload", Header("Method", "Post"), Query("URL", "my.file.storage/s8sg"))
 }

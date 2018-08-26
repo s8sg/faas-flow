@@ -20,9 +20,39 @@ type Context struct {
 	phase      int
 }
 
+type Options struct {
+	header map[string]string
+	query  map[string][]string
+}
+
+type Option func(*Options)
+
 var (
 	gContext *Context
 )
+
+func (o *Options) reset() {
+	o.header = map[string]string{}
+	o.query = map[string][]string{}
+}
+
+// Header Specify a header
+func Header(key, value string) Option {
+	return func(o *Options) {
+		o.header[key] = value
+	}
+}
+
+// Query Specify a query parameter
+func Query(key string, value ...string) Option {
+	return func(o *Options) {
+		array := []string{}
+		for _, val := range value {
+			array = append(array, val)
+		}
+		o.query[key] = array
+	}
+}
 
 // NewFaaschain creates a new faaschain object
 func NewFaaschain(gateway string, chain string) *Fchain {
@@ -61,20 +91,27 @@ func (fchain *Fchain) ApplyModifier(mod sdk.Modifier) *Fchain {
 // Callback register a callback url as a part of chain definition
 // One or more callback function can be placed for sending
 // either partial chain data or after the chain completion
-func (fchain *Fchain) Callback(url string, header map[string]string, param map[string][]string) *Fchain {
+func (fchain *Fchain) Callback(url string, opts ...Option) *Fchain {
 	newCallback := sdk.CreateCallback(url)
-	if header != nil {
-		for key, value := range header {
-			newCallback.Addheader(key, value)
+
+	o := Options{}
+	for _, opt := range opts {
+		o.reset()
+		opt(&o)
+		if len(o.header) != 0 {
+			for key, value := range o.header {
+				newCallback.Addheader(key, value)
+			}
 		}
-	}
-	if param != nil {
-		for key, array := range param {
-			for _, value := range array {
-				newCallback.Addparam(key, value)
+		if len(o.query) != 0 {
+			for key, array := range o.query {
+				for _, value := range array {
+					newCallback.Addparam(key, value)
+				}
 			}
 		}
 	}
+
 	var phase *sdk.Phase
 	if len(fchain.chain.Phases) == 0 {
 		phase = sdk.CreateExecutionPhase()
@@ -86,34 +123,28 @@ func (fchain *Fchain) Callback(url string, header map[string]string, param map[s
 	return fchain
 }
 
-// ApplyFunction apply a function of type sdk.Function
-func (fchain *Fchain) ApplyFunction(function *sdk.Function) *Fchain {
-	var phase *sdk.Phase
-	if len(fchain.chain.Phases) == 0 {
-		phase = sdk.CreateExecutionPhase()
-		fchain.chain.AddPhase(phase)
-	} else {
-		phase = fchain.chain.GetLastPhase()
-	}
-	phase.AddFunction(function)
-	return fchain
-}
-
 // Apply apply a function with given name and options
-func (fchain *Fchain) Apply(function string, header map[string]string, param map[string][]string) *Fchain {
+func (fchain *Fchain) Apply(function string, opts ...Option) *Fchain {
 	newfunc := sdk.CreateFunction(function)
-	if header != nil {
-		for key, value := range header {
-			newfunc.Addheader(key, value)
+
+	o := Options{}
+	for _, opt := range opts {
+		o.reset()
+		opt(&o)
+		if len(o.header) != 0 {
+			for key, value := range o.header {
+				newfunc.Addheader(key, value)
+			}
 		}
-	}
-	if param != nil {
-		for key, array := range param {
-			for _, value := range array {
-				newfunc.Addparam(key, value)
+		if len(o.query) != 0 {
+			for key, array := range o.query {
+				for _, value := range array {
+					newfunc.Addparam(key, value)
+				}
 			}
 		}
 	}
+
 	var phase *sdk.Phase
 	if len(fchain.chain.Phases) == 0 {
 		phase = sdk.CreateExecutionPhase()
@@ -122,39 +153,42 @@ func (fchain *Fchain) Apply(function string, header map[string]string, param map
 		phase = fchain.chain.GetLastPhase()
 	}
 	phase.AddFunction(newfunc)
-	return fchain
-}
-
-// ApplyFunctionAsync apply a function of type sdk.Function which will be called
-// in Async
-// async apply creates a new phase
-func (fchain *Fchain) ApplyFunctionAsync(function *sdk.Function) *Fchain {
-	phase := sdk.CreateExecutionPhase()
-	fchain.chain.AddPhase(phase)
-	phase.AddFunction(function)
 	return fchain
 }
 
 // ApplyAsync apply a function with given name and options which will be called
 // in Async
 // async apply creates a new phase
-func (fchain *Fchain) ApplyAsync(function string, header map[string]string, param map[string][]string) *Fchain {
+func (fchain *Fchain) ApplyAsync(function string, opts ...Option) *Fchain {
 	newfunc := sdk.CreateFunction(function)
-	if header != nil {
-		for key, value := range header {
-			newfunc.Addheader(key, value)
+
+	o := Options{}
+	for _, opt := range opts {
+		o.reset()
+		opt(&o)
+		if len(o.header) != 0 {
+			for key, value := range o.header {
+				newfunc.Addheader(key, value)
+			}
 		}
-	}
-	if param != nil {
-		for key, array := range param {
-			for _, value := range array {
-				newfunc.Addparam(key, value)
+		if len(o.query) != 0 {
+			for key, array := range o.query {
+				for _, value := range array {
+					newfunc.Addparam(key, value)
+				}
 			}
 		}
 	}
+
 	phase := sdk.CreateExecutionPhase()
 	fchain.chain.AddPhase(phase)
 	phase.AddFunction(newfunc)
+	return fchain
+}
+
+// OnFailure set a failure handler routine for the chain
+func (fchain *Fchain) OnFailure(handler sdk.Handler) *Fchain {
+	fchain.chain.FailureHandler = handler
 	return fchain
 }
 
@@ -191,29 +225,31 @@ func (fchain *Fchain) GetAsyncUrl() string {
 
 // CreateGlobalContext create a context for the chain (it's
 func (fchain *Fchain) CreateGlobalContext(request []byte) {
-	context := &Context{}
-	context.phaseInput = request
-	context.requestId = fchain.id
-	context.phase = fchain.chain.ExecutionPosition + 1
-	gContext = context
+	if gContext == nil {
+		context := &Context{}
+		context.phaseInput = request
+		context.requestId = fchain.id
+		context.phase = fchain.chain.ExecutionPosition + 1
+		gContext = context
+	}
 }
 
 // GetContext returns the global context that was created
-func GetContext() *Context {
-	return gContext
+func GetContext() Context {
+	return *gContext
 }
 
 // GetPhaseInput returns the phase input (it allows to user replay a data )
-func (context *Context) GetPhaseInput() []byte {
+func (context Context) GetPhaseInput() []byte {
 	return context.phaseInput
 }
 
 // GetRequestId returns the request id
-func (context *Context) GetRequestId() string {
+func (context Context) GetRequestId() string {
 	return context.requestId
 }
 
 // GetPhase return the phase no
-func (context *Context) GetPhase() int {
+func (context Context) GetPhase() int {
 	return context.phase
 }

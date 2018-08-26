@@ -335,12 +335,20 @@ func handleChain(data []byte) string {
 		// EXECUTE: execute the chain based on current phase
 		result, err := execute(fchain, data)
 		if err != nil {
+			// call failure handler if available
+			if fchain.GetChain().FailureHandler != nil {
+				fchain.GetChain().FailureHandler(err)
+			}
 			log.Fatalf("[request `%s`] Failed, %v", fchain.GetId(), err)
 		}
 
 		// HANDLE: Handle the execution state of last phase
 		resp, err = handleResponse(fchain, result)
 		if err != nil {
+			// call failure handler if available
+			if fchain.GetChain().FailureHandler != nil {
+				fchain.GetChain().FailureHandler(err)
+			}
 			log.Fatalf("[request `%s`] Failed, %v", fchain.GetId(), err)
 		}
 	}

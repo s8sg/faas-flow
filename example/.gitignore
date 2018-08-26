@@ -2,3 +2,4 @@ build
 template
 cdn_faas
 faas-colorization
+facedetect-openfaas

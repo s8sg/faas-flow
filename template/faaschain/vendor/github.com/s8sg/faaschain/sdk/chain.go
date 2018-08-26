@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 )
 
+type Handler func(error)
+
 type Chain struct {
-	Phases            []*Phase `json:"phases"`   // Phases that will be executed in async
+	Phases            []*Phase `json:"-"`        // Phases that will be executed in async
 	ExecutionPosition int      `json:"position"` // Position of Executor
+	FailureHandler    Handler  `json:"-"`
 }
 
 func CreateChain() *Chain {

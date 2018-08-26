@@ -9,7 +9,7 @@ type Request struct {
 	Sign     string `json: "sign"`
 	ID       string `json: "id"`
 	Data     []byte `json: "data"`
-	Chaindef string `json: "-"`
+	Chaindef string `json: "chain-def"`
 }
 
 const (

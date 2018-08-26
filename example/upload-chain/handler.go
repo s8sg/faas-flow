@@ -26,9 +26,8 @@ type FaceResult struct {
 func Define(chain *faaschain.Fchain) (err error) {
 
 	// define chain
-	chain.Apply("facedetect", nil, nil).
+	chain.Apply("facedetect").
 		ApplyModifier(func(data []byte) ([]byte, error) {
-			context := faaschain.GetContext()
 			result := FaceResult{}
 			err := json.Unmarshal(data, &result)
 			if err != nil {
@@ -38,12 +37,12 @@ func Define(chain *faaschain.Fchain) (err error) {
 			case 0:
 				return nil, fmt.Errorf("No face detected, picture should contain one face")
 			case 1:
-				return context.GetPhaseInput(), nil
+				return faaschain.GetContext().GetPhaseInput(), nil
 			}
 			return nil, fmt.Errorf("More than one face detected, picture should have single face")
 		}).
-		Apply("colorization", nil, nil).
-		Apply("image-resizer", nil, nil)
+		Apply("colorization").
+		Apply("image-resizer")
 
 	return nil
 }
