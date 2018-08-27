@@ -19,7 +19,7 @@ Sync function meant to perform all the operation in Sync and reply the caller on
 
 ##### Define Chain:
 ```go
-	chain.Apply("facedetect").
+	chain.Apply("facedetect", fchain.Sync).
 		ApplyModifier(func(data []byte) ([]byte, error) {
 			result := FaceResult{}
 			err := json.Unmarshal(data, &result)
@@ -34,8 +34,8 @@ Sync function meant to perform all the operation in Sync and reply the caller on
 			}
 			return nil, fmt.Errorf("More than one face detected, picture should have single face")
 		}).
-		Apply("colorization").
-		Apply("image-resizer")
+		Apply("colorization", fchain.Sync).
+		Apply("image-resizer", fchain.Sync)
 ```
 
 #### Writing ASync Function `upload-chain-async`
@@ -59,8 +59,8 @@ Function definition
 			}
 			return nil, fmt.Errorf("More than one face detected, picture should have single face")
 		}).
-		ApplyAsync("colorization").
-		ApplyAsync("image-resizer").
+		Apply("colorization").
+		Apply("image-resizer").
 		ApplyModifier(func(data []byte) ([]byte, error) {
 			client := &http.Client{}
 			r := bytes.NewReader(data)
