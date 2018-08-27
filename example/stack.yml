@@ -9,29 +9,24 @@ functions:
     handler: ./upload-chain
     image: s8sg/upload-chain:latest
     environment:
-      gateway: "gateway:8080"
-      chain_name: "upload-chain"
       read_timeout: 120
       write_timeout: 120
       write_debug: true
       combine_output: false
-      enable_tracing: false
-      trace_server: "jaegertracing:5775"
-
+    environment_file:
+      - upload-chain.yml
 
   upload-chain-async:
     lang: faaschain
     handler: ./upload-chain-async
     image: s8sg/upload-chain-async:latest
     environment:
-      gateway: "gateway:8080"
-      chain_name: "upload-chain-async"
       read_timeout: 120
       write_timeout: 120
       write_debug: true
       combine_output: false
-      enable_tracing: false
-      trace_server: "jaegertracing:5775"
+    environment_file:
+      - upload-chain-async.yml
 
   colorization:
     lang: dockerfile
