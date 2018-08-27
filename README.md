@@ -18,17 +18,10 @@ FaaSChain allow you to define your faas functions pipeline and deploy it as a fu
 ![alt overview](https://github.com/s8sg/faaschain/blob/master/doc/overview.jpg)
      
 ## How does it work ?
-FaaSChain runs four mejor steps to define and run the pipeline
-![alt internal](https://github.com/s8sg/faaschain/blob/master/doc/internal.jpg)
+Create pipeline with simple call
+```go
 
-| Step |  description |
-| ---- | ----- |
-| Build Chain | Identify a request and build a chain. A incoming request could be a partially finished pipeline or a fresh raw request. For a partial request `faaschain` parse and understand the state of the pipeline from the incoming request |
-| Get Definition |  FaasChain create simple **pipeline-definition** with one or multiple phases based on the chain defined at `Define()` function in `handler.go`. A **pipeline-definition** consist of multiple `phases`. Each `Phase` includes one or more `Function Call`, `Modifier` or `Callback`. Always a single `phase` is executed in a single invokation of the chain. A same chain always outputs to same pipeline definition, which allows `faaschain` to be completly `stateless`|
-| Execute | Execute executes a `Phase` by calling the `Modifier`, `Functions` or `Callback` based on how user defines the pipeline. Only one `Phase` gets executed at a single execution of `faaschain function`. |
-| Repeat Or Response | If pipeline is not yet completed, FaasChain forwards the remaining pipeline with `partial execution state` and the `partial result` to the same `chain function` via `gateway`. If the pipeline has only one phase or completed `faaschain` returns the output to the gateway otherwise it returns `empty`| 
-
-The `execution-state` is the execution position which denotes the next execution `phase` position. 
+```
 
 **One or more `Async` function call results a chain to have multiple phases**
 ![alt single phase](https://github.com/s8sg/faaschain/blob/master/doc/asynccall.jpg)
@@ -44,7 +37,7 @@ The `execution-state` is the execution position which denotes the next execution
 | Modifier | A inline function. A inline modifier function can be applied as ```chain.ApplyModifier(func(data []byte) ([]byte, error) { return data, nil } )``` |
 | Callback | A URL that will be called with the final/partial result. `chain.Callback(url)` |
 | Phase | Segment of a pipeline definiton which consist of one or more call to `Function` in Sync, `Modifier` or `Callback`. A pipeline definition has one or more phases. Async call `Apply()` results in a new phase |
-  
+
 ## Example
 https://github.com/s8sg/faaschain/tree/master/example
 
@@ -162,16 +155,18 @@ Request can be tracked from the log by `RequestId`. For each new Request a uniqu
 2018/08/13 07:51:59 [request `bdojh7oi7u6bl8te4r0g`] Created
 2018/08/13 07:52:03 [Request `bdojh7oi7u6bl8te4r0g`] Received
 ```
-
+    
+    
 ## Request Tracing by Open-Tracing 
-
+    
 Request tracing can be enabled by providing by specifying    
 ```yaml
       enable_tracing: true
       trace_server: "jaegertracing:5775"
-```
-
-#### Start The Trace Server (jaeger - opentracing-1.x)   
+``` 
+    
+#### Start The Trace Server 
+`jaeger` (opentracing-1.x) used for traceing   
 To start the trace server we run `jaegertracing/all-in-one` as a service.  
 ```bash
 docker service rm jaegertracing
@@ -180,9 +175,34 @@ docker service create --constraint="node.role==manager" --detach=true \
         --network func_functions --name jaegertracing -p 5775:5775/udp -p 16686:16686 \
         jaegertracing/all-in-one:latest
 ```
-
+    
 Below is an example of tracing for an async request with 3 phases    
+      
 ![alt multi phase](https://github.com/s8sg/faaschain/blob/master/doc/tracing.png)
+     
+     
+## Internal and State Management
+
+FaaSChain runs four mejor steps to define and run the pipeline
+![alt internal](https://github.com/s8sg/faaschain/blob/master/doc/internal.jpg)
+
+| Step |  description |
+| ---- | ----- |
+| Build Chain | Identify a request and build a chain. A incoming request could be a partially finished pipeline or a fresh raw request. For a partial request `faaschain` parse and understand the state of the pipeline from the incoming request |
+| Get Definition |  FaasChain create simple **pipeline-definition** with one or multiple phases based on the chain defined at `Define()` function in `handler.go`. A **pipeline-definition** consist of multiple `phases`. Each `Phase` includes one or more `Function Call`, `Modifier` or `Callback`. Always a single `phase` is executed in a single invokation of the chain. A same chain always outputs to same pipeline definition, which allows `faaschain` to be completly `stateless`|
+| Execute | Execute executes a `Phase` by calling the `Modifier`, `Functions` or `Callback` based on how user defines the pipeline. Only one `Phase` gets executed at a single execution of `faaschain function`. |
+| Repeat Or Response | If pipeline is not yet completed, FaasChain forwards the remaining pipeline with `partial execution state` and the `partial result` to the same `chain function` via `gateway`. If the pipeline has only one phase or completed `faaschain` returns the output to the gateway otherwise it returns `empty`| 
+
+> **State Management**     
+> The `state` is consist of `requestId` and `execution-position` which denotes the next execution `phase` position. 
+> FaasChain forwards the state as a data along with the partial completion data
+> ```
+> requestData = {
+>      data byte[]
+>      requestId string
+>      executionPosition int
+> }
+> ```
     
 ## Contribute:
 > **Issue/Suggestion** Create an issue at [faaschain-issue](https://github.com/s8sg/faaschain/issues).  
