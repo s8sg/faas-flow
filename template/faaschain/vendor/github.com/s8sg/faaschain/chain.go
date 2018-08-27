@@ -23,17 +23,28 @@ type Context struct {
 type Options struct {
 	header map[string]string
 	query  map[string][]string
+	sync   bool
 }
 
 type Option func(*Options)
 
 var (
 	gContext *Context
+	// Sync can be used instead of SyncCall
+	Sync = SyncCall()
 )
 
 func (o *Options) reset() {
 	o.header = map[string]string{}
 	o.query = map[string][]string{}
+	o.sync = false
+}
+
+// SyncCall Set sync flag
+func SyncCall() Option {
+	return func(o *Options) {
+		o.sync = true
+	}
 }
 
 // Header Specify a header
@@ -124,8 +135,10 @@ func (fchain *Fchain) Callback(url string, opts ...Option) *Fchain {
 }
 
 // Apply apply a function with given name and options
+// default call is async, provide Sync option to call synchronously
 func (fchain *Fchain) Apply(function string, opts ...Option) *Fchain {
 	newfunc := sdk.CreateFunction(function)
+	sync := false
 
 	o := Options{}
 	for _, opt := range opts {
@@ -142,48 +155,29 @@ func (fchain *Fchain) Apply(function string, opts ...Option) *Fchain {
 					newfunc.Addparam(key, value)
 				}
 			}
+		}
+		if o.sync {
+			sync = true
 		}
 	}
 
 	var phase *sdk.Phase
-	if len(fchain.chain.Phases) == 0 {
-		phase = sdk.CreateExecutionPhase()
-		fchain.chain.AddPhase(phase)
+	if sync {
+		if len(fchain.chain.Phases) == 0 {
+			phase = sdk.CreateExecutionPhase()
+			fchain.chain.AddPhase(phase)
+		} else {
+			phase = fchain.chain.GetLastPhase()
+		}
+		phase.AddFunction(newfunc)
+		return fchain
 	} else {
-		phase = fchain.chain.GetLastPhase()
+		phase := sdk.CreateExecutionPhase()
+		fchain.chain.AddPhase(phase)
+		phase.AddFunction(newfunc)
+		return fchain
+
 	}
-	phase.AddFunction(newfunc)
-	return fchain
-}
-
-// ApplyAsync apply a function with given name and options which will be called
-// in Async
-// async apply creates a new phase
-func (fchain *Fchain) ApplyAsync(function string, opts ...Option) *Fchain {
-	newfunc := sdk.CreateFunction(function)
-
-	o := Options{}
-	for _, opt := range opts {
-		o.reset()
-		opt(&o)
-		if len(o.header) != 0 {
-			for key, value := range o.header {
-				newfunc.Addheader(key, value)
-			}
-		}
-		if len(o.query) != 0 {
-			for key, array := range o.query {
-				for _, value := range array {
-					newfunc.Addparam(key, value)
-				}
-			}
-		}
-	}
-
-	phase := sdk.CreateExecutionPhase()
-	fchain.chain.AddPhase(phase)
-	phase.AddFunction(newfunc)
-	return fchain
 }
 
 // OnFailure set a failure handler routine for the chain
