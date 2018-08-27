@@ -23,10 +23,10 @@ func TestChainCreate(t *testing.T) {
 
 func TestApply(t *testing.T) {
 	chain := NewFaaschain("http://127.0.0.1:8080", "mychain")
-	chain.Apply("compress", Header("Method", "Post")).Apply("upload", Header("Method", "Post"), Query("URL", "my.file.storage/s8sg"))
+	chain.Apply("compress", Header("Method", "Post"), Sync).Apply("upload", Header("Method", "Post"), Query("URL", "my.file.storage/s8sg"), Sync)
 }
 
 func TestApplyAsync(t *testing.T) {
 	chain := NewFaaschain("http://127.0.0.1:8080", "mychain")
-	chain.ApplyAsync("compress", Header("Method", "Post")).ApplyAsync("upload", Header("Method", "Post"), Query("URL", "my.file.storage/s8sg"))
+	chain.Apply("compress", Header("Method", "Post")).Apply("upload", Header("Method", "Post"), Query("URL", "my.file.storage/s8sg"))
 }

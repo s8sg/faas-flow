@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/s8sg/faaschain"
+	fchain "github.com/s8sg/faaschain"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -26,7 +26,7 @@ type FaceResult struct {
 	ImageBase64 string
 }
 
-// file upload logic
+// Upload file upload logic
 func Upload(client *http.Client, url string, filename string, r io.Reader) (err error) {
 	// Prepare a form that you will submit to that URL.
 	var b bytes.Buffer
@@ -70,8 +70,8 @@ func Upload(client *http.Client, url string, filename string, r io.Reader) (err 
 	return
 }
 
-// Handle a serverless request to chian
-func Define(chain *faaschain.Fchain) (err error) {
+// Handle a serverless request to chain
+func Define(chain *fchain.Fchain) (err error) {
 
 	// Define Chain
 	chain.Apply("facedetect").
@@ -85,16 +85,15 @@ func Define(chain *faaschain.Fchain) (err error) {
 			case 0:
 				return nil, fmt.Errorf("No face detected, picture should contain one face")
 			case 1:
-				return faaschain.GetContext().GetPhaseInput(), nil
+				return fchain.GetContext().GetPhaseInput(), nil
 			}
 			return nil, fmt.Errorf("More than one face detected, picture should have single face")
 		}).
-		ApplyAsync("colorization").
-		ApplyAsync("image-resizer").
+		Apply("colorization").
+		Apply("image-resizer").
 		ApplyModifier(func(data []byte) ([]byte, error) {
-			client := &http.Client{}
-			r := bytes.NewReader(data)
-			err = Upload(client, "http://gateway:8080/function/file-storage", "chris.jpg", r)
+			err = Upload(&http.Client{}, "http://gateway:8080/function/file-storage",
+				"chris.jpg", bytes.NewReader(data))
 			if err != nil {
 				return nil, err
 			}
