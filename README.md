@@ -20,7 +20,24 @@ FaaSChain allow you to define your faas functions pipeline and deploy it as a fu
 ## How does it work ?
 Create pipeline with simple call
 ```go
-
+     chain.ApplyModifier(func(data []byte) ([]byte, error) {
+               // Set data in context
+               context.Set("image", data)
+               return data
+        }).
+        Apply("facedetect", Header("method","post")).
+        ApplyModifier(func(data []byte) ([]byte, error) {
+               // perform check
+               // ...
+               // and replay data
+               return context.Get("image")
+        }).
+        Apply("compress", Header("method","post")).
+        Apply("colorify", Header("method","post")).
+        Callback("storage.io/bucket?id=3345612358265349126").
+        OnFailure(func(err error) {
+              // failure handler
+        })
 ```
 
 **One or more `Async` function call results a chain to have multiple phases**
