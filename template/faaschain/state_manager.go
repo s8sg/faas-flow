@@ -40,6 +40,8 @@ func (rstate *requestEmbedStateManager) Get(key string) (interface{}, error) {
 
 // Del delets a value (implement StateManager)
 func (rstate *requestEmbedStateManager) Del(key string) error {
-	delete(rstate.state, key)
+	if _, ok := rstate.state[key]; ok {
+		delete(rstate.state, key)
+	}
 	return nil
 }

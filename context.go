@@ -5,6 +5,7 @@ type Context struct {
 	requestId    string
 	phase        int
 	stateManager StateManager
+	State        string
 }
 
 // StateManager for State Manager
@@ -14,11 +15,18 @@ type StateManager interface {
 	Del(key string) error
 }
 
+const (
+	StateSuccess = "success"
+	StateFailure = "failure"
+	StateOngoing = "ongoing"
+)
+
 // CreateContext create request context (used by template)
 func CreateContext(fchain *Fchain) *Context {
 	context := &Context{}
 	context.requestId = fchain.id
 	context.phase = fchain.chain.ExecutionPosition + 1
+	context.State = StateOngoing
 	return context
 }
 

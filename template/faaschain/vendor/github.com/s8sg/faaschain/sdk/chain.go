@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 )
 
-type Handler func(error)
+type ErrorHandler func(error)
+type Handler func()
 
 type Chain struct {
-	Phases            []*Phase `json:"-"`        // Phases that will be executed in async
-	ExecutionPosition int      `json:"position"` // Position of Executor
-	FailureHandler    Handler  `json:"-"`
+	Phases            []*Phase     `json:"-"`        // Phases that will be executed in async
+	ExecutionPosition int          `json:"position"` // Position of Executor
+	FailureHandler    ErrorHandler `json:"-"`
+	Finally           Handler      `json:"-"`
 }
 
 func CreateChain() *Chain {

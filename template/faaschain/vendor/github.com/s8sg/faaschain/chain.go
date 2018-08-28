@@ -25,6 +25,8 @@ type Option func(*Options)
 var (
 	// Sync can be used instead of SyncCall
 	Sync = SyncCall()
+	// Denote if last phase doesn't contain any function
+	emptyPhase = false
 )
 
 func (o *Options) reset() {
@@ -85,6 +87,7 @@ func (fchain *Fchain) ApplyModifier(mod sdk.Modifier) *Fchain {
 	if len(fchain.chain.Phases) == 0 {
 		phase = sdk.CreateExecutionPhase()
 		fchain.chain.AddPhase(phase)
+		emptyPhase = true
 	} else {
 		phase = fchain.chain.GetLastPhase()
 	}
@@ -120,6 +123,7 @@ func (fchain *Fchain) Callback(url string, opts ...Option) *Fchain {
 	if len(fchain.chain.Phases) == 0 {
 		phase = sdk.CreateExecutionPhase()
 		fchain.chain.AddPhase(phase)
+		emptyPhase = true
 	} else {
 		phase = fchain.chain.GetLastPhase()
 	}
@@ -162,50 +166,60 @@ func (fchain *Fchain) Apply(function string, opts ...Option) *Fchain {
 		} else {
 			phase = fchain.chain.GetLastPhase()
 		}
-		phase.AddFunction(newfunc)
-		return fchain
 	} else {
-		phase := sdk.CreateExecutionPhase()
-		fchain.chain.AddPhase(phase)
-		phase.AddFunction(newfunc)
-		return fchain
-
+		if emptyPhase {
+			phase = fchain.chain.GetLastPhase()
+		} else {
+			phase = sdk.CreateExecutionPhase()
+			fchain.chain.AddPhase(phase)
+		}
 	}
+	emptyPhase = false
+	phase.AddFunction(newfunc)
+
+	return fchain
 }
 
 // OnFailure set a failure handler routine for the chain
-func (fchain *Fchain) OnFailure(handler sdk.Handler) *Fchain {
+func (fchain *Fchain) OnFailure(handler sdk.ErrorHandler) *Fchain {
 	fchain.chain.FailureHandler = handler
 	return fchain
 }
 
-// Build encode a underline faaschain
+// Finally set a cleanup handler routine
+// it will be called once the execution has finished (Success/Failure)
+func (fchain *Fchain) Finally(handler sdk.Handler) *Fchain {
+	fchain.chain.Finally = handler
+	return fchain
+}
+
+// Build encode a underline faaschain (internal)
 func (fchain *Fchain) Build() (err error) {
 	fchain.chainDef, err = fchain.chain.Encode()
 	return err
 }
 
-// GetDefinition provide definition of chain
+// GetDefinition provide definition of chain (internal)
 func (fchain *Fchain) GetDefinition() string {
 	return string(fchain.chainDef)
 }
 
-// GetChain provides the underlying chain object
+// GetChain provides the underlying chain object (internal)
 func (fchain *Fchain) GetChain() *sdk.Chain {
 	return fchain.chain
 }
 
-// GetId returns the current chain id
+// GetId returns the current chain id (internal)
 func (fchain *Fchain) GetId() string {
 	return fchain.id
 }
 
-// GetUrl returns the URL for the faaschain function
+// GetUrl returns the URL for the faaschain function (internal)
 func (fchain *Fchain) GetUrl() string {
 	return fchain.url
 }
 
-// GetAsyncUrl returns the URL for the faaschain async function
+// GetAsyncUrl returns the URL for the faaschain async function (internal)
 func (fchain *Fchain) GetAsyncUrl() string {
 	return fchain.asyncUrl
 }

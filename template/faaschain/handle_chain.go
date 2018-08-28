@@ -288,7 +288,9 @@ func forwardAsync(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
 }
 
 // Handle request Response
-func handleResponse(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
+func handleResponse(fchain *faaschain.Fchain, result []byte) ([]byte, bool, error) {
+
+	end := false
 
 	// get chain
 	chain := fchain.GetChain()
@@ -298,15 +300,15 @@ func handleResponse(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
 	// If chain has only one phase or if the chain has completed excution return
 	case chain.CountPhases() == 1 || chain.GetCurrentPhase() == nil:
 		log.Printf("[request `%s`] Finished successfully ", fchain.GetId())
-
-		return result, nil
+		end = true
+		return result, end, nil
 
 	// In default case we forward the partial chain to same chain-function
 	default:
 		// forward the chain request
 		resp, forwardErr := forwardAsync(fchain, result)
 		if forwardErr != nil {
-			return nil, fmt.Errorf("Phase(%d): error: %v, %s, url %s",
+			return nil, end, fmt.Errorf("Phase(%d): error: %v, %s, url %s",
 				chain.ExecutionPosition, forwardErr,
 				string(resp), fchain.GetAsyncUrl())
 		}
@@ -315,12 +317,13 @@ func handleResponse(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
 			fchain.GetId(), chain.ExecutionPosition)
 	}
 
-	return []byte(""), nil
+	return []byte(""), end, nil
 }
 
 func handleChain(data []byte) string {
 
 	var resp []byte
+	var end bool
 
 	// Get chain name
 	chainName = getChainName()
@@ -343,27 +346,45 @@ func handleChain(data []byte) string {
 		// DEFINE: Get Chain definition from user implemented Define()
 		err := function.Define(fchain, context)
 		if err != nil {
+			context.State = faaschain.StateFailure
 			log.Fatalf("[request `%s`] Failed, %v", fchain.GetId(), err)
 		}
 
 		// EXECUTE: execute the chain based on current phase
 		result, err := execute(fchain, data)
 		if err != nil {
+			context.State = faaschain.StateFailure
 			// call failure handler if available
 			if fchain.GetChain().FailureHandler != nil {
 				fchain.GetChain().FailureHandler(err)
+			}
+			// call finally handler if available
+			if fchain.GetChain().Finally != nil {
+				fchain.GetChain().Finally()
 			}
 			log.Fatalf("[request `%s`] Failed, %v", fchain.GetId(), err)
 		}
 
 		// HANDLE: Handle the execution state of last phase
-		resp, err = handleResponse(fchain, result)
+		resp, end, err = handleResponse(fchain, result)
 		if err != nil {
+			context.State = faaschain.StateFailure
 			// call failure handler if available
 			if fchain.GetChain().FailureHandler != nil {
 				fchain.GetChain().FailureHandler(err)
 			}
+			// call finally handler if available
+			if fchain.GetChain().Finally != nil {
+				fchain.GetChain().Finally()
+			}
 			log.Fatalf("[request `%s`] Failed, %v", fchain.GetId(), err)
+		}
+		if end {
+			context.State = faaschain.StateSuccess
+			// call finally handler if available
+			if fchain.GetChain().Finally != nil {
+				fchain.GetChain().Finally()
+			}
 		}
 	}
 
