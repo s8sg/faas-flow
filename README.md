@@ -5,13 +5,15 @@
 [![OpenTracing Badge](https://img.shields.io/badge/OpenTracing-enabled-blue.svg)](http://opentracing.io)
 [![OpenFaaS](https://img.shields.io/badge/openfaas-serverless-blue.svg)](https://www.openfaas.com)
 
-> - [x] **Pure FaaS**   
-> - [x] **Completely Stateless**   
-> - [x] **Build with `go` over `go-template`**   
-> - [x] **Integrated with `open-tracing`**    
-> - [x] **Available as a template: `faaschain`**   
-> - [x] **Lightweight, leverage `openfaas` platform's capabilities**
-> - [ ] **Secured with HMAC (coming soon)**
+> - [x] **Pure - `FaaS`**    
+> - [x] **Powered By - `openfaas`**
+> - [x] **Fast - build with `go`**    
+> - [x] **Secured - with `HMAC`**
+> - [x] **Stateless - by `design`** (with optional 3rd party integration)   
+> - [x] **Tracing - with `open-tracing`**    
+> - [x] **Available - as a template `faaschain`** 
+
+
      
 ## Overview
 FaaSChain allow you to define your faas functions pipeline and deploy it as a function
