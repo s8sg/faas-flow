@@ -14,7 +14,8 @@ import (
 )
 
 var (
-	chainName = ""
+	chainName    = ""
+	defaultState *requestEmbedStateManager
 )
 
 func getGateway() string {
@@ -99,8 +100,13 @@ func buildUpstreamRequestCallback(callbackUrl string, data []byte, params map[st
 	return httpreq
 }
 
+// createGlobalContext create a context and set it as global
+func createContext(fchain *faaschain.Fchain) *faaschain.Context {
+	return faaschain.CreateContext(fchain)
+}
+
 // builds a chain from request
-func buildChain(data []byte) (fchain *faaschain.Fchain, requestData []byte) {
+func buildChain(data []byte) (fchain *faaschain.Fchain, context *faaschain.Context, requestData []byte) {
 
 	requestId := ""
 
@@ -115,6 +121,8 @@ func buildChain(data []byte) (fchain *faaschain.Fchain, requestData []byte) {
 		fchain.GetChain().ExecutionPosition = 0
 		requestData = data
 
+		defaultState = createStateManager()
+
 		// trace req - mark as start of req
 		startReqSpan(requestId)
 	} else {
@@ -125,6 +133,8 @@ func buildChain(data []byte) (fchain *faaschain.Fchain, requestData []byte) {
 		if err != nil {
 			log.Fatalf("[request `%s`] Failed, error : Failed to parse chain def, %v", requestId, err)
 		}
+		defaultState = retriveStateManager(request.GetState())
+
 		// Get execution position
 		executionPos := chain.ExecutionPosition
 
@@ -137,6 +147,13 @@ func buildChain(data []byte) (fchain *faaschain.Fchain, requestData []byte) {
 		// Continue request span
 		continueReqSpan(requestId)
 	}
+
+	// set global context
+	context = createContext(fchain)
+
+	// set default state manager
+	context.SetStateManager(defaultState)
+
 	// set request ID
 	fchain.SetId(requestId)
 
@@ -155,9 +172,6 @@ func execute(fchain *faaschain.Fchain, request []byte) ([]byte, error) {
 
 	// trace phase - mark as start of phase
 	startPhaseSpan(chain.ExecutionPosition, fchain.GetId())
-
-	// set global context
-	fchain.CreateGlobalContext(request)
 
 	// Execute all function
 	for _, function := range phase.GetFunctions() {
@@ -248,7 +262,7 @@ func forwardAsync(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
 	// Build current chain definition
 	chaindef, _ := chain.Encode()
 	// Build request
-	uprequest := sdk.BuildRequest(id, string(chaindef), result)
+	uprequest := sdk.BuildRequest(id, string(chaindef), result, defaultState.state)
 	// Make request data
 	data, _ := uprequest.Encode()
 
@@ -274,7 +288,9 @@ func forwardAsync(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
 }
 
 // Handle request Response
-func handleResponse(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
+func handleResponse(fchain *faaschain.Fchain, result []byte) ([]byte, bool, error) {
+
+	end := false
 
 	// get chain
 	chain := fchain.GetChain()
@@ -284,15 +300,15 @@ func handleResponse(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
 	// If chain has only one phase or if the chain has completed excution return
 	case chain.CountPhases() == 1 || chain.GetCurrentPhase() == nil:
 		log.Printf("[request `%s`] Finished successfully ", fchain.GetId())
-
-		return result, nil
+		end = true
+		return result, end, nil
 
 	// In default case we forward the partial chain to same chain-function
 	default:
 		// forward the chain request
 		resp, forwardErr := forwardAsync(fchain, result)
 		if forwardErr != nil {
-			return nil, fmt.Errorf("Phase(%d): error: %v, %s, url %s",
+			return nil, end, fmt.Errorf("Phase(%d): error: %v, %s, url %s",
 				chain.ExecutionPosition, forwardErr,
 				string(resp), fchain.GetAsyncUrl())
 		}
@@ -301,12 +317,13 @@ func handleResponse(fchain *faaschain.Fchain, result []byte) ([]byte, error) {
 			fchain.GetId(), chain.ExecutionPosition)
 	}
 
-	return []byte(""), nil
+	return []byte(""), end, nil
 }
 
 func handleChain(data []byte) string {
 
 	var resp []byte
+	var end bool
 
 	// Get chain name
 	chainName = getChainName()
@@ -324,32 +341,50 @@ func handleChain(data []byte) string {
 	// Chain Execution Steps
 	{
 		// BUILD: build the chain based on execution request
-		fchain, data := buildChain(data)
+		fchain, context, data := buildChain(data)
 
 		// DEFINE: Get Chain definition from user implemented Define()
-		err := function.Define(fchain)
+		err := function.Define(fchain, context)
 		if err != nil {
+			context.State = faaschain.StateFailure
 			log.Fatalf("[request `%s`] Failed, %v", fchain.GetId(), err)
 		}
 
 		// EXECUTE: execute the chain based on current phase
 		result, err := execute(fchain, data)
 		if err != nil {
+			context.State = faaschain.StateFailure
 			// call failure handler if available
 			if fchain.GetChain().FailureHandler != nil {
 				fchain.GetChain().FailureHandler(err)
+			}
+			// call finally handler if available
+			if fchain.GetChain().Finally != nil {
+				fchain.GetChain().Finally()
 			}
 			log.Fatalf("[request `%s`] Failed, %v", fchain.GetId(), err)
 		}
 
 		// HANDLE: Handle the execution state of last phase
-		resp, err = handleResponse(fchain, result)
+		resp, end, err = handleResponse(fchain, result)
 		if err != nil {
+			context.State = faaschain.StateFailure
 			// call failure handler if available
 			if fchain.GetChain().FailureHandler != nil {
 				fchain.GetChain().FailureHandler(err)
 			}
+			// call finally handler if available
+			if fchain.GetChain().Finally != nil {
+				fchain.GetChain().Finally()
+			}
 			log.Fatalf("[request `%s`] Failed, %v", fchain.GetId(), err)
+		}
+		if end {
+			context.State = faaschain.StateSuccess
+			// call finally handler if available
+			if fchain.GetChain().Finally != nil {
+				fchain.GetChain().Finally()
+			}
 		}
 	}
 
