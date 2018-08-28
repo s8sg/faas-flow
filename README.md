@@ -177,8 +177,7 @@ Function submitted asynchronously.
 > Phase 1 :    
 >     Apply("yourFunc1")    
 >     ApplyModifier()    
->     Apply("yourFunc2")   
->     Callback()    
+>     Apply("yourFunc2")  
 > ```
           
 ##### Invoke (Sync)
