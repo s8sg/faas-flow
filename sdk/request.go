@@ -6,10 +6,11 @@ import (
 )
 
 type Request struct {
-	Sign     string `json: "sign"`
-	ID       string `json: "id"`
-	Data     []byte `json: "data"`
-	Chaindef string `json: "chain-def"`
+	Sign     string                 `json: "sign"`
+	ID       string                 `json: "id"`
+	Data     []byte                 `json: "data"`
+	Chaindef string                 `json: "chain-def"`
+	State    map[string]interface{} `json: "state"`
 }
 
 const (
@@ -17,8 +18,8 @@ const (
 	SIGN = "D9D98C7EBAA7267BCC4F0280FC5BA4273F361B00D422074985A41AE1338F1B61"
 )
 
-func BuildRequest(id string, chaindef string, data []byte) *Request {
-	request := &Request{Sign: SIGN, ID: id, Chaindef: chaindef, Data: data}
+func BuildRequest(id string, chaindef string, data []byte, state map[string]interface{}) *Request {
+	request := &Request{Sign: SIGN, ID: id, Chaindef: chaindef, Data: data, State: state}
 	return request
 }
 
@@ -48,4 +49,8 @@ func (req *Request) GetData() []byte {
 
 func (req *Request) GetID() string {
 	return req.ID
+}
+
+func (req *Request) GetState() map[string]interface{} {
+	return req.State
 }

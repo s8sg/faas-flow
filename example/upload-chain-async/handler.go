@@ -6,6 +6,7 @@ import (
 	"fmt"
 	fchain "github.com/s8sg/faaschain"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 )
@@ -71,10 +72,18 @@ func Upload(client *http.Client, url string, filename string, r io.Reader) (err 
 }
 
 // Handle a serverless request to chain
-func Define(chain *fchain.Fchain) (err error) {
+func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
 
 	// Define Chain
-	chain.Apply("facedetect").
+	chain.
+		ApplyModifier(func(data []byte) ([]byte, error) {
+			bytes := "12eeee 24   21312312 ddd2d 31e 1 111ddddd23d2 21e 12"
+			context.Set("raw", []byte(bytes))
+			log.Println(bytes)
+			log.Println(len(data))
+			return data, nil
+		}).
+		Apply("facedetect").
 		ApplyModifier(func(data []byte) ([]byte, error) {
 			result := FaceResult{}
 			err := json.Unmarshal(data, &result)
@@ -85,7 +94,16 @@ func Define(chain *fchain.Fchain) (err error) {
 			case 0:
 				return nil, fmt.Errorf("No face detected, picture should contain one face")
 			case 1:
-				return fchain.GetContext().GetPhaseInput(), nil
+				data, err := context.Get("raw")
+				log.Println(len(data))
+				log.Println(data)
+				b, ok := data.(string)
+				if err != nil || !ok {
+					return nil, fmt.Errorf("Failed to retrive picture from state, error %v %v", err, ok)
+				}
+				log.Println(len(b))
+				log.Println(b)
+				return []byte(b), nil
 			}
 			return nil, fmt.Errorf("More than one face detected, picture should have single face")
 		}).

@@ -23,10 +23,15 @@ type FaceResult struct {
 }
 
 // Handle a serverless request to chian
-func Define(chain *fchain.Fchain) (err error) {
+func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
 
 	// define chain
-	chain.Apply("facedetect", fchain.Sync).
+	chain.
+		ApplyModifier(func(data []byte) ([]byte, error) {
+			context.Set("raw", data)
+			return data, nil
+		}).
+		Apply("facedetect", fchain.Sync).
 		ApplyModifier(func(data []byte) ([]byte, error) {
 			result := FaceResult{}
 			err := json.Unmarshal(data, &result)
@@ -37,7 +42,13 @@ func Define(chain *fchain.Fchain) (err error) {
 			case 0:
 				return nil, fmt.Errorf("No face detected, picture should contain one face")
 			case 1:
-				return fchain.GetContext().GetPhaseInput(), nil
+				data, err := context.Get("raw")
+				b, ok := data.([]byte)
+				if err != nil || !ok {
+					return nil, fmt.Errorf("Failed to retrive picture from state, error %v %v", err, ok)
+				}
+
+				return b, nil
 			}
 			return nil, fmt.Errorf("More than one face detected, picture should have single face")
 		}).

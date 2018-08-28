@@ -6,6 +6,12 @@ import (
 	"path"
 )
 
+type Options struct {
+	header map[string]string
+	query  map[string][]string
+	sync   bool
+}
+
 type Fchain struct {
 	chain    *sdk.Chain
 	id       string
@@ -14,22 +20,9 @@ type Fchain struct {
 	chainDef []byte
 }
 
-type Context struct {
-	phaseInput []byte
-	requestId  string
-	phase      int
-}
-
-type Options struct {
-	header map[string]string
-	query  map[string][]string
-	sync   bool
-}
-
 type Option func(*Options)
 
 var (
-	gContext *Context
 	// Sync can be used instead of SyncCall
 	Sync = SyncCall()
 )
@@ -215,35 +208,4 @@ func (fchain *Fchain) GetUrl() string {
 // GetAsyncUrl returns the URL for the faaschain async function
 func (fchain *Fchain) GetAsyncUrl() string {
 	return fchain.asyncUrl
-}
-
-// CreateGlobalContext create a context for the chain (it's
-func (fchain *Fchain) CreateGlobalContext(request []byte) {
-	if gContext == nil {
-		context := &Context{}
-		context.phaseInput = request
-		context.requestId = fchain.id
-		context.phase = fchain.chain.ExecutionPosition + 1
-		gContext = context
-	}
-}
-
-// GetContext returns the global context that was created
-func GetContext() Context {
-	return *gContext
-}
-
-// GetPhaseInput returns the phase input (it allows to user replay a data )
-func (context Context) GetPhaseInput() []byte {
-	return context.phaseInput
-}
-
-// GetRequestId returns the request id
-func (context Context) GetRequestId() string {
-	return context.requestId
-}
-
-// GetPhase return the phase no
-func (context Context) GetPhase() int {
-	return context.phase
 }
