@@ -236,20 +236,65 @@ FaaSChain runs four mejor steps to define and run the pipeline
 | Execute | Execute executes a `Phase` by calling the `Modifier`, `Functions` or `Callback` based on how user defines the pipeline. Only one `Phase` gets executed at a single execution of `faaschain function`. |
 | Repeat Or Response | If pipeline is not yet completed, FaasChain forwards the remaining pipeline with `partial execution state` and the `partial result` to the same `chain function` via `gateway`. If the pipeline has only one phase or completed `faaschain` returns the output to the gateway otherwise it returns `empty`| 
 
-### State Management
-> State Management     
-> The `state` is consist of `requestId` and `execution-position` which denotes the next execution `phase` position. 
-> FaasChain forwards the state as a data along with the partial completion data
-> ```
-> requestData = {
->      data byte[]
->      requestId string
->      executionPosition int
-> }
-> ```
+## State Management
+The main state in faaschain is the **`execution-position` (next-phase)** and the **`partially`** completed data.    
+Apart from that faaschain allow user to define state with `StateManager` interface.   
+```go
+ type StateManager interface {
+	Set(key string, value interface{}) error
+	Get(key string) (interface{}, error)
+	Del(key string) error
+ }
+```
     
+State manager can be implemented and set by user with request context in faaschain `Define()`:
+```go
+func Define(chain *faaschain.Fchain, context *faaschain.Context) (err error) {
+     // initialize my custom StateManager as myStateManager
+     context.SetStateManager(myStateManager)
+}
+```
     
-    
+Once a state manager is set it can be used by calling `Get()` and `Set()` from `context`:
+```
+     chain.ApplyModifier(func(data []byte) {
+          // set the query that was passed to the request
+          context.Set("query", os.Getenv("Http_Query"))
+     }).Apply("myfunc").
+     ApplyModifier(func(data []byte) {
+          // retrived the query in different phase from context
+          query, _ = context.Get("query")
+          httpquery, _ =  query.[string]
+          // use the query
+     })
+```
+Once `StateManager` is overridden, all call to `Set()`, `Get()` and `del()` will call the provided `StateManager`
+
+## Cleanup with `Finally()`
+Finally provides a way to cleanup context and other resources and do post completion work of the pipeline.
+A Finally method can be used on chain as:
+```go
+func Define(chain *faaschain.Fchain, context *faaschain.Context) (err error) {
+     // initialize my custom StateManager as myStateManager
+     context.SetStateManager(myStateManager)
+     
+     // Define chain
+     chain.ApplyModifier(func(data []byte) {
+          // set the query that was passed to the request
+          context.Set("query", os.Getenv("Http_Query"))
+     }).Apply("myfunc").
+     ApplyModifier(func(data []byte) {
+          // retrived the query in different phase from context
+          query, _ = context.Get("query")
+          httpquery, _ =  query.[string]
+          // use the query
+     }).Finally(func() {
+          // delete the state resource
+          context.Del("query")
+     })
+}
+```
+ 
 ## Contribute:
 > **Issue/Suggestion** Create an issue at [faaschain-issue](https://github.com/s8sg/faaschain/issues).  
 > **ReviewPR/Implement** Create Pull Request at [faaschain-pr](https://github.com/s8sg/faaschain/issues).  
