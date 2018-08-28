@@ -15,7 +15,7 @@
      
 ## What is it ?
 FaaSChain allow you to define your faas functions pipeline and deploy it as a function
-![alt overview](https://github.com/s8sg/faaschain/blob/master/doc/overview.jpg)
+![alt overview](https://github.com/s8sg/faaschain/blob/doc/doc/overview.jpg)
      
 ## How does it work ?
 Create pipeline with simple call
@@ -41,10 +41,10 @@ Create pipeline with simple call
 ```
 
 **One or more `Async` function call results a chain to have multiple phases**
-![alt single phase](https://github.com/s8sg/faaschain/blob/master/doc/asynccall.jpg)
+![alt single phase](https://github.com/s8sg/faaschain/blob/doc/doc/asynccall.jpg)
 
 **If all calls are `Sync`, chain will have one phase and return the result to the caller**
-![alt multi phase](https://github.com/s8sg/faaschain/blob/master/doc/synccall.jpg)
+![alt multi phase](https://github.com/s8sg/faaschain/blob/doc/doc/synccall.jpg)
    
     
 | Acronyms |  description |
@@ -195,13 +195,13 @@ docker service create --constraint="node.role==manager" --detach=true \
     
 Below is an example of tracing for an async request with 3 phases    
       
-![alt multi phase](https://github.com/s8sg/faaschain/blob/master/doc/tracing.png)
+![alt multi phase](https://github.com/s8sg/faaschain/blob/doc/doc/tracing.png)
      
      
 ## Internal and State Management
 
 FaaSChain runs four mejor steps to define and run the pipeline
-![alt internal](https://github.com/s8sg/faaschain/blob/master/doc/internal.jpg)
+![alt internal](https://github.com/s8sg/faaschain/blob/doc/doc/internal.jpg)
 
 | Step |  description |
 | ---- | ----- |
