@@ -5,13 +5,12 @@
 [![OpenTracing Badge](https://img.shields.io/badge/OpenTracing-enabled-blue.svg)](http://opentracing.io)
 [![OpenFaaS](https://img.shields.io/badge/openfaas-serverless-blue.svg)](https://www.openfaas.com)
 
-> - [x] **Pure - `FaaS`**    
-> - [x] **Powered By - `openfaas`**
-> - [x] **Fast - build with `go`**    
-> - [x] **Secured - with `HMAC`**
-> - [x] **Stateless - by `design`** (with optional 3rd party integration)   
-> - [x] **Tracing - with `open-tracing`**    
-> - [x] **Available - as a template `faaschain`** 
+> - [x] **Pure**      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **`FaaS`** with **`openfaas`** 
+> - [x] **Fast**      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  build with **`go`**    
+> - [x] **Secured**   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; with **`HMAC`**
+> - [x] **Stateless** &nbsp;&nbsp;&nbsp;&nbsp;  by **`design`** (with optional 3rd party integration)   
+> - [x] **Tracing**   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; with **`open-tracing`**    
+> - [x] **Available** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; as **`faaschain`** template 
 
 
      
