@@ -21,6 +21,8 @@ FaaSChain allow you to define your faas functions pipeline and deploy it as a fu
 ## Pipeline Definition
 Create pipeline with simple call
 ```go
+func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
+
      chain.ApplyModifier(func(data []byte) ([]byte, error) {
                // Set data in context
                context.Set("image", data)
@@ -38,7 +40,11 @@ Create pipeline with simple call
         Callback("storage.io/bucket?id=3345612358265349126").
         OnFailure(func(err error) {
               // failure handler
+        }).
+        Finally(func() {
+              // cleanup code
         })
+}
 ```
 
 ## Sync or Async
@@ -62,7 +68,8 @@ FaaSChain supports sync and async function call. By default all call are async. 
 | Modifier | A inline function. A inline modifier function is applied as ```chain.ApplyModifier(func(data []byte) ([]byte, error) { return data, nil } )``` |
 | Callback | A URL that will be called with the final/partial result. `chain.Callback(url)` |
 | Handler | A Failure handler registered as `chain.OnFailure(func(err error){})`. If registered it is called if an error occured | 
-| Phase | Segment of a pipeline definiton which consist of one or more call to `Function` in Sync, `Modifier` or `Callback`. A pipeline definition has one or more phases. Async call `Apply()` results in a new phase |
+| Finally | A Cleanup handler registered as `chain.Finally(func(){})`. If registered it is called at the end if state is `StateFailure` otherwise `StateSuccess` |
+| Phase | Segment of a pipeline definiton which consist of one or more call to `Function` in Sync, `Modifier` or `Callback`. A pipeline definition has one or more phases. Async call `Apply()` results in a new phase. |
 | Context | Request context has the state of request. It abstracts the `StateHandler` and provide API to manage state of the request. Interface `StateHandler{}` can be set by user to use 3rd party storage to manage state. |
 
 ## Example
