@@ -23,9 +23,12 @@ Create pipeline with simple call
 ```go
 func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
 
+     // use any 3rd party to maintain state
+     context.SetStateManaget(myMinioStatemanager)
+
      chain.ApplyModifier(func(data []byte) ([]byte, error) {
-               // Set data in context
-               context.Set("image", data)
+               // Set value in context with StateManager
+               context.Set("raw-image", data)
                return data
         }).
         Apply("facedetect", Header("method","post")).
@@ -33,7 +36,9 @@ func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
                // perform check
                // ...
                // and replay data
-               return context.Get("image")
+               data, _ :=context.Get("raw-image")
+	       // do modification if needed
+	       return data
         }).
         Apply("compress", Header("method","post")).
         Apply("colorify", Header("method","post")).
@@ -41,8 +46,11 @@ func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
         OnFailure(func(err error) {
               // failure handler
         }).
-        Finally(func() {
+        Finally(func(state string) {
+	      // success - state.State = StateSuccess
+	      // failure - state.State = StateFailure
               // cleanup code
+	      context.del("raw-image")
         })
 }
 ```
