@@ -151,7 +151,7 @@ func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
 			log.Printf("Failed to upload picture for request id %s, error %v",
 				context.GetRequestId(), err)
 		}).
-		Finally(func() {
+		Finally(func(state string) {
 			// Optional (cleanup)
 			context.Del("raw")
 			context.Del("file")

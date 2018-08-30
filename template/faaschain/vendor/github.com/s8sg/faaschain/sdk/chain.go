@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 )
 
+// ErrorHandler the error handler function syntax for OnFailure() registration
 type ErrorHandler func(error)
-type Handler func()
+
+// Handler the handler function syntax for the Handler() registration
+type Handler func(string)
 
 type Chain struct {
-	Phases            []*Phase     `json:"-"`        // Phases that will be executed in async
-	ExecutionPosition int          `json:"position"` // Position of Executor
+	Phases            []*Phase     `json:"phases,omitempty"` // Phases that will be executed in async
+	ExecutionPosition int          `json:"position"`         // Position of Executor
 	FailureHandler    ErrorHandler `json:"-"`
 	Finally           Handler      `json:"-"`
 }
@@ -61,4 +64,17 @@ func (chain *Chain) UpdateExecutionPosition() {
 
 func (chain *Chain) Encode() ([]byte, error) {
 	return json.Marshal(chain)
+}
+
+func (chain *Chain) GetState() string {
+	temp := *chain
+	temp.Phases = nil
+	encode, _ := json.Marshal(&temp)
+	return string(encode)
+}
+
+func (chain *Chain) ApplyState(state string) {
+	var temp Chain
+	json.Unmarshal([]byte(state), &temp)
+	chain.ExecutionPosition = temp.ExecutionPosition
 }

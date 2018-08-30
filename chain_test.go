@@ -14,7 +14,7 @@ var (
 )
 
 func TestChainCreate(t *testing.T) {
-	chain := NewFaaschain("http://127.0.0.1:8080", "mychain")
+	chain := NewFaaschain()
 	if chain == nil {
 		t.Errorf("Creating faas chain: got %v", chain)
 		t.Fail()
@@ -22,11 +22,11 @@ func TestChainCreate(t *testing.T) {
 }
 
 func TestApply(t *testing.T) {
-	chain := NewFaaschain("http://127.0.0.1:8080", "mychain")
+	chain := NewFaaschain()
 	chain.Apply("compress", Header("Method", "Post"), Sync).Apply("upload", Header("Method", "Post"), Query("URL", "my.file.storage/s8sg"), Sync)
 }
 
 func TestApplyAsync(t *testing.T) {
-	chain := NewFaaschain("http://127.0.0.1:8080", "mychain")
+	chain := NewFaaschain()
 	chain.Apply("compress", Header("Method", "Post")).Apply("upload", Header("Method", "Post"), Query("URL", "my.file.storage/s8sg"))
 }

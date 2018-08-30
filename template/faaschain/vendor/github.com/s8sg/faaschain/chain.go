@@ -2,8 +2,6 @@ package faaschain
 
 import (
 	"github.com/s8sg/faaschain/sdk"
-	"net/url"
-	"path"
 )
 
 type Options struct {
@@ -13,11 +11,7 @@ type Options struct {
 }
 
 type Fchain struct {
-	chain    *sdk.Chain
-	id       string
-	url      string
-	asyncUrl string
-	chainDef []byte
+	chain *sdk.Chain // underline chain definition object
 }
 
 type Option func(*Options)
@@ -29,6 +23,7 @@ var (
 	emptyPhase = false
 )
 
+// reset reset the options
 func (o *Options) reset() {
 	o.header = map[string]string{}
 	o.query = map[string][]string{}
@@ -58,24 +53,6 @@ func Query(key string, value ...string) Option {
 		}
 		o.query[key] = array
 	}
-}
-
-// NewFaaschain creates a new faaschain object
-func NewFaaschain(gateway string, chain string) *Fchain {
-	fchain := &Fchain{}
-	fchain.chain = sdk.CreateChain()
-	u, _ := url.Parse(gateway)
-	u.Path = path.Join(u.Path, "function/"+chain)
-	fchain.url = u.String()
-	u, _ = url.Parse(gateway)
-	u.Path = path.Join(u.Path, "async-function/"+chain)
-	fchain.asyncUrl = u.String()
-	return fchain
-}
-
-// SetId set request id to a chain
-func (fchain *Fchain) SetId(id string) {
-	fchain.id = id
 }
 
 // ApplyModifier allows to apply inline callback functionl
@@ -186,40 +163,21 @@ func (fchain *Fchain) OnFailure(handler sdk.ErrorHandler) *Fchain {
 	return fchain
 }
 
-// Finally set a cleanup handler routine
-// it will be called once the execution has finished (Success/Failure)
+// Finally sets a cleanup handler routine
+// it will be called once the execution has finished with state either Success/Failure
 func (fchain *Fchain) Finally(handler sdk.Handler) *Fchain {
 	fchain.chain.Finally = handler
 	return fchain
 }
 
-// Build encode a underline faaschain (internal)
-func (fchain *Fchain) Build() (err error) {
-	fchain.chainDef, err = fchain.chain.Encode()
-	return err
+// CreateFaaschain initiates a faaschain with a chain
+func NewFaaschain() *Fchain {
+	fchain := &Fchain{}
+	fchain.chain = sdk.CreateChain()
+	return fchain
 }
 
-// GetDefinition provide definition of chain (internal)
-func (fchain *Fchain) GetDefinition() string {
-	return string(fchain.chainDef)
-}
-
-// GetChain provides the underlying chain object (internal)
+// GetChain expose the underlying chain object
 func (fchain *Fchain) GetChain() *sdk.Chain {
 	return fchain.chain
-}
-
-// GetId returns the current chain id (internal)
-func (fchain *Fchain) GetId() string {
-	return fchain.id
-}
-
-// GetUrl returns the URL for the faaschain function (internal)
-func (fchain *Fchain) GetUrl() string {
-	return fchain.url
-}
-
-// GetAsyncUrl returns the URL for the faaschain async function (internal)
-func (fchain *Fchain) GetAsyncUrl() string {
-	return fchain.asyncUrl
 }

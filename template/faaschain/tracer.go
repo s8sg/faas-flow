@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
+	"log"
 	//"github.com/opentracing/opentracing-go/log"
 	"github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
@@ -85,13 +86,13 @@ func getTraceServer() string {
 func initGlobalTracer(chainName string) error {
 
 	if !isTracingEnabled() {
-		fmt.Fprintf(os.Stderr, "tracing is disabled\n")
+		log.Printf("tracing is disabled")
 		return nil
 	}
 
 	agentPort := getTraceServer()
 
-	fmt.Fprintf(os.Stderr, "tracing is enabled, agent %s\n", agentPort)
+	log.Printf("tracing is enabled, agent %s", agentPort)
 
 	cfg := config.Configuration{
 		ServiceName: chainName,
