@@ -23,9 +23,12 @@ Create pipeline with simple call
 ```go
 func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
 
+     // use any 3rd party to maintain state
+     context.SetStateManaget(myMinioStatemanager)
+
      chain.ApplyModifier(func(data []byte) ([]byte, error) {
-               // Set data in context
-               context.Set("image", data)
+               // Set value in context with StateManager
+               context.Set("raw-image", data)
                return data
         }).
         Apply("facedetect", Header("method","post")).
@@ -33,7 +36,9 @@ func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
                // perform check
                // ...
                // and replay data
-               return context.Get("image")
+               data, _ :=context.Get("raw-image")
+	       // do modification if needed
+	       return data
         }).
         Apply("compress", Header("method","post")).
         Apply("colorify", Header("method","post")).
@@ -41,8 +46,11 @@ func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
         OnFailure(func(err error) {
               // failure handler
         }).
-        Finally(func() {
+        Finally(func(state string) {
+	      // success - state.State = StateSuccess
+	      // failure - state.State = StateFailure
               // cleanup code
+	      context.del("raw-image")
         })
 }
 ```
@@ -72,6 +80,19 @@ FaaSChain supports sync and async function call. By default all call are async. 
 | Phase | Segment of a pipeline definiton which consist of one or more call to `Function` in Sync, `Modifier` or `Callback`. A pipeline definition has one or more phases. Async call `Apply()` results in a new phase. |
 | Context | Request context has the state of request. It abstracts the `StateHandler` and provide API to manage state of the request. Interface `StateHandler{}` can be set by user to use 3rd party storage to manage state. |
 
+## Internal
+
+FaaSChain runs four mejor steps to define and run the pipeline
+![alt internal](https://github.com/s8sg/faaschain/blob/master/doc/internal.jpg)
+
+| Step |  description |
+| ---- | ----- |
+| Build Chain | Identify a request and build a chain. A incoming request could be a partially finished pipeline or a fresh raw request. For a partial request `faaschain` parse and understand the state of the pipeline from the incoming request |
+| Get Definition |  FaasChain create simple **pipeline-definition** with one or multiple phases based on the chain defined at `Define()` function in `handler.go`. A **pipeline-definition** consist of multiple `phases`. Each `Phase` includes one or more `Function Call`, `Modifier` or `Callback`. Always a single `phase` is executed in a single invokation of the chain. A same chain always outputs to same pipeline definition, which allows `faaschain` to be completly `stateless`|
+| Execute | Execute executes a `Phase` by calling the `Modifier`, `Functions` or `Callback` based on how user defines the pipeline. Only one `Phase` gets executed at a single execution of `faaschain function`. |
+| Repeat Or Response | If pipeline is not yet completed, FaasChain forwards the remaining pipeline with `partial execution state` and the `partial result` to the same `chain function` via `gateway`. If the pipeline has only one phase or completed `faaschain` returns the output to the gateway otherwise it returns `empty`| 
+   
+   
 ## Example
 https://github.com/s8sg/faaschain/tree/master/example
 
@@ -222,20 +243,9 @@ docker service create --constraint="node.role==manager" --detach=true \
 Below is an example of tracing for an async request with 3 phases    
       
 ![alt multi phase](https://github.com/s8sg/faaschain/blob/master/doc/tracing.png)
+    
      
      
-## Internal and State Management
-
-FaaSChain runs four mejor steps to define and run the pipeline
-![alt internal](https://github.com/s8sg/faaschain/blob/master/doc/internal.jpg)
-
-| Step |  description |
-| ---- | ----- |
-| Build Chain | Identify a request and build a chain. A incoming request could be a partially finished pipeline or a fresh raw request. For a partial request `faaschain` parse and understand the state of the pipeline from the incoming request |
-| Get Definition |  FaasChain create simple **pipeline-definition** with one or multiple phases based on the chain defined at `Define()` function in `handler.go`. A **pipeline-definition** consist of multiple `phases`. Each `Phase` includes one or more `Function Call`, `Modifier` or `Callback`. Always a single `phase` is executed in a single invokation of the chain. A same chain always outputs to same pipeline definition, which allows `faaschain` to be completly `stateless`|
-| Execute | Execute executes a `Phase` by calling the `Modifier`, `Functions` or `Callback` based on how user defines the pipeline. Only one `Phase` gets executed at a single execution of `faaschain function`. |
-| Repeat Or Response | If pipeline is not yet completed, FaasChain forwards the remaining pipeline with `partial execution state` and the `partial result` to the same `chain function` via `gateway`. If the pipeline has only one phase or completed `faaschain` returns the output to the gateway otherwise it returns `empty`| 
-
 ## State Management
 The main state in faaschain is the **`execution-position` (next-phase)** and the **`partially`** completed data.    
 Apart from that faaschain allow user to define state with `StateManager` interface.   
