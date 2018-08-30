@@ -167,7 +167,7 @@ func buildChain(data []byte) (chandler *chainHandler, requestData []byte) {
 	case err != nil:
 		// Generate request Id
 		requestId = xid.New().String()
-		log.Printf("[request `%s`] Created", requestId)
+		log.Printf("[Request `%s`] Created", requestId)
 
 		// create chain properties
 		query := os.Getenv("Http_Query")
@@ -276,7 +276,7 @@ func execute(chandler *chainHandler, request []byte) ([]byte, error) {
 
 	phase := chain.GetCurrentPhase()
 
-	log.Printf("[request `%s`] Executing phase %d", chandler.id, chain.ExecutionPosition)
+	log.Printf("[Request `%s`] Executing phase %d", chandler.id, chain.ExecutionPosition)
 
 	// trace phase - mark as start of phase
 	startPhaseSpan(chain.ExecutionPosition, chandler.id)
@@ -287,7 +287,7 @@ func execute(chandler *chainHandler, request []byte) ([]byte, error) {
 		switch {
 		// If function
 		case function.GetName() != "":
-			log.Printf("[request `%s`] Executing function `%s`",
+			log.Printf("[Request `%s`] Executing function `%s`",
 				chandler.id, function.GetName())
 			if result == nil {
 				result, err = executeFunction(chain, function, request)
@@ -300,7 +300,7 @@ func execute(chandler *chainHandler, request []byte) ([]byte, error) {
 			}
 		// If callback
 		case function.CallbackUrl != "":
-			log.Printf("[request `%s`] Executing callback `%s`",
+			log.Printf("[Request `%s`] Executing callback `%s`",
 				chandler.id, function.CallbackUrl)
 			if result == nil {
 				err = executeCallback(chain, function, request)
@@ -314,7 +314,7 @@ func execute(chandler *chainHandler, request []byte) ([]byte, error) {
 
 		// If modifier
 		default:
-			log.Printf("[request `%s`] Executing modifier", chandler.id)
+			log.Printf("[Request `%s`] Executing modifier", chandler.id)
 			if result == nil {
 				result, err = function.Mod(request)
 			} else {
@@ -331,7 +331,7 @@ func execute(chandler *chainHandler, request []byte) ([]byte, error) {
 		}
 	}
 
-	log.Printf("[request `%s`] Phase %d completed successfully", chandler.id, chain.ExecutionPosition)
+	log.Printf("[Request `%s`] Phase %d completed successfully", chandler.id, chain.ExecutionPosition)
 
 	// trace phase - mark as end of phase
 	stopPhaseSpan(chain.ExecutionPosition)
@@ -417,17 +417,17 @@ func handleFailure(chandler *chainHandler, context *faaschain.Context, err error
 	context.State = faaschain.StateFailure
 	// call failure handler if available
 	if chandler.getChain().FailureHandler != nil {
-		log.Printf("[request `%s`] Calling failure handler for error, %v",
+		log.Printf("[Request `%s`] Calling failure handler for error, %v",
 			chandler.id, err)
 		chandler.getChain().FailureHandler(err)
 	}
 	// call finally handler if available
 	if chandler.getChain().Finally != nil {
-		log.Printf("[request `%s`] Calling Finally handler with state: %s",
+		log.Printf("[Request `%s`] Calling Finally handler with state: %s",
 			chandler.id, faaschain.StateFailure)
 		chandler.getChain().Finally(faaschain.StateFailure)
 	}
-	log.Fatalf("[request `%s`] Failed, %v", chandler.id, err)
+	log.Fatalf("[Request `%s`] Failed, %v", chandler.id, err)
 }
 
 // handleChain handle the chain
@@ -460,7 +460,7 @@ func handleChain(data []byte) string {
 		err := function.Define(chandler.fchain, context)
 		if err != nil {
 			context.State = faaschain.StateFailure
-			log.Fatalf("[request `%s`] Failed to define chain, %v", chandler.id, err)
+			log.Fatalf("[Request `%s`] Failed to define chain, %v", chandler.id, err)
 		}
 
 		// EXECUTE: execute the chain based on current phase
@@ -476,11 +476,11 @@ func handleChain(data []byte) string {
 		}
 
 		if chandler.finished {
-			log.Printf("[request `%s`] Completed successfully", chandler.id)
+			log.Printf("[Request `%s`] Completed successfully", chandler.id)
 
 			context.State = faaschain.StateSuccess
 			if chandler.getChain().Finally != nil {
-				log.Printf("[request `%s`] Calling Finally handler with state: %s",
+				log.Printf("[Request `%s`] Calling Finally handler with state: %s",
 					chandler.id, faaschain.StateSuccess)
 				chandler.getChain().Finally(faaschain.StateSuccess)
 			}
