@@ -268,18 +268,34 @@ func Define(chain *faaschain.Fchain, context *faaschain.Context) (err error) {
 Once a state manager is set it can be used by calling `Get()` and `Set()` from `context`:
 ```
      chain.ApplyModifier(func(data []byte) {
-          // set the query that was passed to the request
-          context.Set("query", os.Getenv("Http_Query"))
+	  // parse data and set to be used later
+          // json.Unmarshal(&req, data)
+          context.Set("commitsha", req.Sha)
      }).Apply("myfunc").
      ApplyModifier(func(data []byte) {
-          // retrived the query in different phase from context
-          query, _ = context.Get("query")
-          httpquery, _ =  query.[string]
+          // retrived the data that was set in the context
+          sha, _ = context.Get("commitsha")
+          commitsha, _ =  sha.[string]
           // use the query
      })
 ```
-Once `StateManager` is overridden, all call to `Set()`, `Get()` and `del()` will call the provided `StateManager`
 
+#### Default `requestEmbedStateManager`: 
+By default faaschain template use `requestEmbedStateManager` which embed the state data along with the request for the next phase. For bigger values it is recommended to pass it with custom `StateManager`. 
+    
+     
+Once `StateManager` is overridden, all call to `Set()`, `Get()` and `del()` will call the provided `StateManager`
+    
+#### Geting Http Query to Chain: 
+Http Query to chain can be used from context as
+```go
+    chain.Apply("myfunc", Query("auth-token", context.Query.Get("token"))). // pass as a function query
+     	  ApplyModifier(func(data []byte) {
+          	token = context.Query.Get("token") // get query inside modifier
+     	  })
+```  
+     
+    
 ## Cleanup with `Finally()`
 Finally provides a way to cleanup context and other resources and do post completion work of the pipeline.
 A Finally method can be used on chain as:
@@ -290,17 +306,17 @@ func Define(chain *faaschain.Fchain, context *faaschain.Context) (err error) {
      
      // Define chain
      chain.ApplyModifier(func(data []byte) {
-          // set the query that was passed to the request
-          context.Set("query", os.Getenv("Http_Query"))
+	  // parse data and set to be used later
+          // json.Unmarshal(&req, data)
+          context.Set("commitsha", req.Sha)
      }).Apply("myfunc").
      ApplyModifier(func(data []byte) {
-          // retrived the query in different phase from context
-          query, _ = context.Get("query")
-          httpquery, _ =  query.[string]
-          // use the query
+          // retrived the data in different phase from context
+          sha, _ = context.Get("commitsha")
+          commitsha, _ =  sha.[string]
      }).Finally(func() {
           // delete the state resource
-          context.Del("query")
+          context.Del("commitsha")
      })
 }
 ```

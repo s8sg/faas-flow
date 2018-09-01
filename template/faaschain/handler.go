@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
+	hmac "github.com/alexellis/hmac"
 	"github.com/rs/xid"
 	"github.com/s8sg/faaschain"
 	"github.com/s8sg/faaschain/sdk"
@@ -13,6 +15,12 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strings"
+)
+
+const (
+	// A signature of SHA265 equivalent of "github.com/s8sg/faaschain"
+	defaultHmacKey = "D9D98C7EBAA7267BCC4F0280FC5BA4273F361B00D422074985A41AE1338F1B61"
 )
 
 var (
@@ -56,6 +64,23 @@ func newChainHandler(gateway string, chain string, id string,
 	return chandler
 }
 
+// readSecret reads a secret from /var/openfaas/secrets or from
+// env-var 'secret_mount_path' if set.
+func readSecret(key string) (string, error) {
+	basePath := "/var/openfaas/secrets/"
+	if len(os.Getenv("secret_mount_path")) > 0 {
+		basePath = os.Getenv("secret_mount_path")
+	}
+
+	readPath := path.Join(basePath, key)
+	secretBytes, readErr := ioutil.ReadFile(readPath)
+	if readErr != nil {
+		return "", fmt.Errorf("unable to read secret: %s, error: %s", readPath, readErr)
+	}
+	val := strings.TrimSpace(string(secretBytes))
+	return val, nil
+}
+
 // getGateway return the gateway address from env
 func getGateway() string {
 	gateway := os.Getenv("gateway")
@@ -63,6 +88,39 @@ func getGateway() string {
 		gateway = "gateway:8080"
 	}
 	return gateway
+}
+
+// hmacEnabled check if hmac is enabled
+// hmac is enabled by default
+func hmacEnabled() bool {
+	status := true
+	hmacStatus := os.Getenv("enable_hamc")
+	if strings.ToUpper(hmacStatus) == "FALSE" {
+		status = false
+	}
+	return status
+}
+
+// verifyRequest check if request need to be verified
+// request verification is disabled by default
+func verifyRequest() bool {
+	status := false
+	verifyStatus := os.Getenv("verify_request")
+	if strings.ToUpper(verifyStatus) == "TRUE" {
+		status = true
+	}
+	return status
+}
+
+// getHmacKey returns the value of hmac secret key faaschain-hmac-secret
+// if the key is not provided it uses default hamc key
+func getHmacKey() string {
+	key, keyErr := readSecret("faaschain-hmac-secret")
+	if keyErr != nil {
+		log.Printf("Failed to load faaschain-hmac-secret using default")
+		key = defaultHmacKey
+	}
+	return key
 }
 
 // getChainName returns the chain name from env
@@ -94,8 +152,8 @@ func makeQueryStringFromParam(params map[string][]string) string {
 	return result
 }
 
-// buildUpstreamRequest build upstream request for function
-func buildUpstreamRequest(function string, data []byte, params map[string][]string, headers map[string]string) *http.Request {
+// buildFunctionRequest build upstream request for function
+func buildFunctionRequest(function string, data []byte, params map[string][]string, headers map[string]string) *http.Request {
 	url := "http://" + function + ":8080"
 	queryString := makeQueryStringFromParam(params)
 	if queryString != "" {
@@ -120,8 +178,8 @@ func buildUpstreamRequest(function string, data []byte, params map[string][]stri
 	return httpreq
 }
 
-// buildUpstreamRequestCallback build upstream request for callback
-func buildUpstreamRequestCallback(callbackUrl string, data []byte, params map[string][]string, headers map[string]string) *http.Request {
+// buildCallbackRequest build upstream request for callback
+func buildCallbackRequest(callbackUrl string, data []byte, params map[string][]string, headers map[string]string) *http.Request {
 	url := callbackUrl
 	queryString := makeQueryStringFromParam(params)
 	if queryString != "" {
@@ -159,12 +217,34 @@ func createContext(chandler *chainHandler) *faaschain.Context {
 func buildChain(data []byte) (chandler *chainHandler, requestData []byte) {
 
 	requestId := ""
+	var validateErr error
+
+	if hmacEnabled() {
+		digest := os.Getenv("Http_X_Hub_Signature")
+		key := getHmacKey()
+		if len(digest) > 0 {
+			validateErr = hmac.Validate(data, digest, key)
+		} else {
+			validateErr = fmt.Errorf("Http_X_Hub_Signature is not set")
+		}
+	}
 
 	// decode the request to find if chain definition exists
 	request, err := decodeRequest(data)
 	switch {
 
 	case err != nil:
+
+		if verifyRequest() {
+			if validateErr != nil {
+				log.Fatalf("Failed to verify incoming request with Hmac, %v",
+					validateErr.Error())
+			} else {
+				log.Printf("Incoming request verified successfully")
+			}
+
+		}
+
 		// Generate request Id
 		requestId = xid.New().String()
 		log.Printf("[Request `%s`] Created", requestId)
@@ -187,6 +267,15 @@ func buildChain(data []byte) (chandler *chainHandler, requestData []byte) {
 		// Get the request ID
 		requestId = request.getID()
 		log.Printf("[Request `%s`] Received", requestId)
+
+		if hmacEnabled() {
+			if validateErr != nil {
+				log.Fatalf("[Request `%s`] Invalid Hmac, %v",
+					requestId, validateErr.Error())
+			} else {
+				log.Printf("[Request `%s`] Valid Hmac", requestId)
+			}
+		}
 
 		// get chain properties
 		executionState := request.getExecutionState()
@@ -216,7 +305,7 @@ func executeFunction(chain *sdk.Chain, function *sdk.Function, data []byte) ([]b
 	params := function.GetParams()
 	headers := function.GetHeaders()
 
-	httpreq := buildUpstreamRequest(name, data, params, headers)
+	httpreq := buildFunctionRequest(name, data, params, headers)
 
 	client := &http.Client{}
 	resp, err := client.Do(httpreq)
@@ -248,7 +337,7 @@ func executeCallback(chain *sdk.Chain, function *sdk.Function, data []byte) erro
 	params := function.GetParams()
 	headers := function.GetHeaders()
 
-	httpreq := buildUpstreamRequestCallback(cburl, data, params, headers)
+	httpreq := buildCallbackRequest(cburl, data, params, headers)
 
 	client := &http.Client{}
 	resp, err := client.Do(httpreq)
@@ -344,6 +433,7 @@ func execute(chandler *chainHandler, request []byte) ([]byte, error) {
 
 // forwardAsync forward async request to faaschain
 func forwardAsync(chandler *chainHandler, result []byte) ([]byte, error) {
+	var hash []byte
 
 	// get chain
 	chain := chandler.getChain()
@@ -361,10 +451,21 @@ func forwardAsync(chandler *chainHandler, result []byte) ([]byte, error) {
 	// Make request data
 	data, _ := uprequest.encode()
 
+	// Check if HMAC used
+	if hmacEnabled() {
+		key := getHmacKey()
+		hash = hmac.Sign(data, []byte(key))
+	}
+
 	// build url for calling the chain in async
 	httpreq, _ := http.NewRequest(http.MethodPost, chandler.asyncUrl, bytes.NewReader(data))
 	httpreq.Header.Add("Accept", "application/json")
 	httpreq.Header.Add("Content-Type", "application/json")
+
+	// If hmac is enabled set digest
+	if hmacEnabled() {
+		httpreq.Header.Add("X-Hub-Signature", "sha1="+hex.EncodeToString(hash))
+	}
 
 	// extend req span for async call
 	extendReqSpan(chain.ExecutionPosition-1, chandler.asyncUrl, httpreq)
