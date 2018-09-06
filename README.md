@@ -24,7 +24,7 @@ Create pipeline with simple call
 func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
 
      // use any 3rd party to maintain state
-     context.SetStateManaget(myMinioStatemanager)
+     context.SetStateManager(myMinioStatemanager)
 
      chain.ApplyModifier(func(data []byte) ([]byte, error) {
                // Set value in context with StateManager
