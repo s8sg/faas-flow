@@ -1,17 +1,27 @@
 package sdk
 
 import (
+	"net/http"
 	"strings"
 )
 
+// FuncErrorHandler the error handler for OnFailure() options
+type FuncErrorHandler func(error) error
+
+// Modifier definition for Modify() call
 type Modifier func([]byte) ([]byte, error)
 
+// RespHandler definition for OnResponse() option on function
+type RespHandler func(*http.Response) ([]byte, error)
+
 type Function struct {
-	Function    string              `json:"function"` // The name of the function
-	CallbackUrl string              `json:"callback"` // Callback Url
-	Mod         Modifier            `json:"-"`        // Modifier
-	Header      map[string]string   `json:"header"`   // The HTTP call header
-	Param       map[string][]string `json:"param"`    // The Parameter in Query string
+	Function       string              `json:"function"` // The name of the function
+	CallbackUrl    string              `json:"callback"` // Callback Url
+	Mod            Modifier            `json:"-"`        // Modifier
+	Header         map[string]string   `json:"header"`   // The HTTP call header
+	Param          map[string][]string `json:"param"`    // The Parameter in Query string
+	FailureHandler FuncErrorHandler    `json:"-"`        // The Failure handler of the function
+	OnResphandler  RespHandler         `json:"-"`        // The http Resp handler of the function
 }
 
 // Create a function with execution name
@@ -52,6 +62,14 @@ func (function *Function) Addparam(key string, value string) {
 	} else {
 		function.Param[key] = append(array, value)
 	}
+}
+
+func (function *Function) AddFailureHandler(handler FuncErrorHandler) {
+	function.FailureHandler = handler
+}
+
+func (function *Function) AddResponseHandler(handler RespHandler) {
+	function.OnResphandler = handler
 }
 
 func (function *Function) GetName() string {

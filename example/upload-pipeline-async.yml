@@ -1,5 +1,5 @@
 environment:
-  chain_name: "upload-chain-async"
+  flow_name: "upload-pipeline-async"
   gateway: "gateway:8080"
   enable_tracing: false
   trace_server: "jaegertracing:5775"

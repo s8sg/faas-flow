@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	fchain "github.com/s8sg/faaschain"
+	faasflow "github.com/s8sg/faasflow"
 	"io"
 	"log"
 	"mime/multipart"
@@ -98,12 +98,12 @@ func validateFace(data []byte) error {
 	return fmt.Errorf("More than one face detected, picture should have single face")
 }
 
-// Handle a serverless request to chain
-func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
+// Defines a chain
+func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
 	// Define Chain
-	chain.
-		ApplyModifier(func(data []byte) ([]byte, error) {
+	flow.
+		Modify(func(data []byte) ([]byte, error) {
 			// Set the name of the file (error if not specified)
 			filename := getQuery("file")
 			if filename != "" {
@@ -116,7 +116,7 @@ func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
 			return data, nil
 		}).
 		Apply("facedetect").
-		ApplyModifier(func(data []byte) ([]byte, error) {
+		Modify(func(data []byte) ([]byte, error) {
 			// validate face
 			err := validateFace(data)
 			if err != nil {
@@ -132,7 +132,7 @@ func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
 		}).
 		Apply("colorization").
 		Apply("image-resizer").
-		ApplyModifier(func(data []byte) ([]byte, error) {
+		Modify(func(data []byte) ([]byte, error) {
 			// get file name from context
 			file, err := context.Get("file")
 			filename, ok := file.(string)
@@ -147,9 +147,12 @@ func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
 			}
 			return nil, nil
 		}).
-		OnFailure(func(err error) {
+		OnFailure(func(err error) ([]byte, error) {
 			log.Printf("Failed to upload picture for request id %s, error %v",
 				context.GetRequestId(), err)
+			errdata := fmt.Sprintf("{\"error\": \"%s\"}", err.Error())
+
+			return []byte(errdata), err
 		}).
 		Finally(func(state string) {
 			// Optional (cleanup)

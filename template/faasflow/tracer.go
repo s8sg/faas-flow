@@ -83,7 +83,7 @@ func getTraceServer() string {
 }
 
 // initGlobalTracer init global trace with configuration
-func initGlobalTracer(chainName string) error {
+func initGlobalTracer(flowName string) error {
 
 	if !isTracingEnabled() {
 		log.Printf("tracing is disabled")
@@ -95,7 +95,7 @@ func initGlobalTracer(chainName string) error {
 	log.Printf("tracing is enabled, agent %s", agentPort)
 
 	cfg := config.Configuration{
-		ServiceName: chainName,
+		ServiceName: flowName,
 		Sampler: &config.SamplerConfig{
 			Type:  "const",
 			Param: 1,
