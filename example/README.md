@@ -76,28 +76,28 @@ Function definition
     
 ##### Invoke flow with a image with more than once face
 ```bash
-cat coldplay.jpg | faas-cli invoke -f stack.yml upload-flow
+cat coldplay.jpg | faas-cli invoke -f stack.yml upload-pipeline
 ``` 
 It will result in an error: `More than one face detected, picture should have single face`
 
 ##### Invoke flow with right image
 ```bash
-cat chris.jpg | faas-cli invoke -f stack.yml upload-flow > chris-dp.jpg
+cat chris.jpg | faas-cli invoke -f stack.yml upload-pipeline > chris-dp.jpg
 ``` 
 It will create a color and compressed image
      
      
-#### Invoke Async function `upload-flow-async`  
+#### Invoke Async function `upload-pipeline-async`  
 
 ##### Invoke flow with a image with more than once face
 ```bash
-cat coldplay.jpg | faas-cli invoke --async -f stack.yml upload-flow-async
+cat coldplay.jpg | faas-cli invoke --query file=coldplay.jpg --async -f stack.yml upload-pipeline-async
 ``` 
 It will result in an error: `More than one face detected, picture should have single face`
       
 ##### Invoke flow with right image
 ```bash
-cat chris.jpg | faas-cli invoke --async -f stack.yml upload-flow-async
+cat chris.jpg | faas-cli invoke --query file=chris.jpg --async -f stack.yml upload-pipeline-async
 ```  
 Download from the storage    
 ```bash

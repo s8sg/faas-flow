@@ -4,7 +4,7 @@
 [![GoDoc](https://godoc.org/github.com/s8sg/faasflow?status.svg)](https://godoc.org/github.com/s8sg/faasflow)
 [![OpenTracing Badge](https://img.shields.io/badge/OpenTracing-enabled-blue.svg)](http://opentracing.io)
 [![OpenFaaS](https://img.shields.io/badge/openfaas-serverless-blue.svg)](https://www.openfaas.com)
-
+     
 > - [x] **Pure**      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **`FaaS`** with **`openfaas`** 
 > - [x] **Fast**      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  build with **`go`**    
 > - [x] **Secured**   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; with **`HMAC`**
@@ -12,7 +12,7 @@
 > - [x] **Tracing**   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; with **`open-tracing`**    
 > - [x] **Available** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; as **`faasflow`** template 
 
-
+**FYI**: Faasflow is into conceptual state and API which may change and under active development
      
 ## Overview
 Faasflow allow you to define your faas functions pipeline and deploy it as a function
@@ -24,7 +24,7 @@ Create pipeline with simple call
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
      // use any 3rd party to maintain state
-     context.SetStateManaget(myMinioStatemanager)
+     context.SetStateManager(myMinioStatemanager)
 
      flow.Modify(func(data []byte) ([]byte, error) {
                // Set value in context with StateManager

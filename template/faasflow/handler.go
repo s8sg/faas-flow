@@ -561,8 +561,7 @@ func handleChain(data []byte) string {
 	// Get flow name
 	flowName = getWorkflowName()
 	if flowName == "" {
-		fmt.Errorf("Error: flow name must be provided when deployed as function")
-		os.Exit(1)
+		log.Fatalf("Error: flow name must be provided when deployed as function")
 	}
 
 	// initialize traceserve if tracing enabled

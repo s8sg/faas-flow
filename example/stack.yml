@@ -3,7 +3,6 @@ provider:
   gateway: http://localhost:8080
 
 functions:
-
   upload-pipeline:
     lang: faasflow
     handler: ./upload-pipeline
