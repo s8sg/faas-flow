@@ -3,7 +3,7 @@ package function
 import (
 	"encoding/json"
 	"fmt"
-	fchain "github.com/s8sg/faaschain"
+	faasflow "github.com/s8sg/faasflow"
 )
 
 type Dimention struct {
@@ -23,16 +23,16 @@ type FaceResult struct {
 }
 
 // Handle a serverless request to chian
-func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
+func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
 	// define chain
-	chain.
-		ApplyModifier(func(data []byte) ([]byte, error) {
+	flow.
+		Modify(func(data []byte) ([]byte, error) {
 			context.Set("raw", data)
 			return data, nil
 		}).
-		Apply("facedetect", fchain.Sync).
-		ApplyModifier(func(data []byte) ([]byte, error) {
+		Apply("facedetect", faasflow.Sync).
+		Modify(func(data []byte) ([]byte, error) {
 			result := FaceResult{}
 			err := json.Unmarshal(data, &result)
 			if err != nil {
@@ -52,8 +52,8 @@ func Define(chain *fchain.Fchain, context *fchain.Context) (err error) {
 			}
 			return nil, fmt.Errorf("More than one face detected, picture should have single face")
 		}).
-		Apply("colorization", fchain.Sync).
-		Apply("image-resizer", fchain.Sync)
+		Apply("colorization", faasflow.Sync).
+		Apply("image-resizer", faasflow.Sync)
 
 	return nil
 }

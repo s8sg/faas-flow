@@ -3,30 +3,29 @@ provider:
   gateway: http://localhost:8080
 
 functions:
-
-  upload-chain:
-    lang: faaschain
-    handler: ./upload-chain
-    image: s8sg/upload-chain:latest
+  upload-pipeline:
+    lang: faasflow
+    handler: ./upload-pipeline
+    image: s8sg/upload-pipeline:latest
     environment:
       read_timeout: 120
       write_timeout: 120
       write_debug: true
       combine_output: false
     environment_file:
-      - upload-chain.yml
+      - upload-pipeline.yml
 
-  upload-chain-async:
-    lang: faaschain
-    handler: ./upload-chain-async
-    image: s8sg/upload-chain-async:latest
+  upload-pipeline-async:
+    lang: faasflow
+    handler: ./upload-pipeline-async
+    image: s8sg/upload-pipeline-async:latest
     environment:
       read_timeout: 120
       write_timeout: 120
       write_debug: true
       combine_output: false
     environment_file:
-      - upload-chain-async.yml
+      - upload-pipeline-async.yml
 
   colorization:
     lang: dockerfile

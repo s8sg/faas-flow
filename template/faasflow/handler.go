@@ -6,8 +6,8 @@ import (
 	"fmt"
 	hmac "github.com/alexellis/hmac"
 	"github.com/rs/xid"
-	"github.com/s8sg/faaschain"
-	"github.com/s8sg/faaschain/sdk"
+	"github.com/s8sg/faasflow"
+	"github.com/s8sg/faasflow/sdk"
 	"handler/function"
 	"io/ioutil"
 	"log"
@@ -19,49 +19,49 @@ import (
 )
 
 const (
-	// A signature of SHA265 equivalent of "github.com/s8sg/faaschain"
+	// A signature of SHA265 equivalent of "github.com/s8sg/faasflow"
 	defaultHmacKey = "D9D98C7EBAA7267BCC4F0280FC5BA4273F361B00D422074985A41AE1338F1B61"
 )
 
 var (
-	// chainName the name of the chain
-	chainName = ""
+	// flowName the name of the flow
+	flowName = ""
 )
 
-type chainHandler struct {
-	fchain   *faaschain.Fchain         // the faaschain
-	id       string                    // the request id
-	query    string                    // the query string by user
-	asyncUrl string                    // the async URL of the chain
-	chainDef []byte                    // the chain definition
-	finished bool                      // denots the chain has finished execution
-	stateM   *requestEmbedStateManager // the deafult statemanager
+type flowHandler struct {
+	flow        *faasflow.Workflow        // the faasflow
+	id          string                    // the request id
+	query       string                    // the query string by user
+	asyncUrl    string                    // the async URL of the flow
+	pipelineDef []byte                    // the pipeline definition
+	finished    bool                      // denots the flow has finished execution
+	stateM      *requestEmbedStateManager // the deafult statemanager
 }
 
-// buildURL builds openfaas function execution url for the chain
-func buildURL(gateway, rpath, chain string) string {
+// buildURL builds openfaas function execution url for the flow
+func buildURL(gateway, rpath, flow string) string {
 	u, _ := url.Parse(gateway)
-	u.Path = path.Join(u.Path, rpath+"/"+chain)
+	u.Path = path.Join(u.Path, rpath+"/"+flow)
 	return u.String()
 }
 
-// newFaaschain creates a new faaschain object
-func newChainHandler(gateway string, chain string, id string,
-	query string, stateM *requestEmbedStateManager) *chainHandler {
+// newWorkflowHandler creates a new flow handler object
+func newWorkflowHandler(gateway string, name string, id string,
+	query string, stateM *requestEmbedStateManager) *flowHandler {
 
-	chandler := &chainHandler{}
+	fhandler := &flowHandler{}
 
-	fchain := faaschain.NewFaaschain()
+	flow := faasflow.NewFaasflow()
 
-	chandler.fchain = fchain
+	fhandler.flow = flow
 
-	chandler.asyncUrl = buildURL(gateway, "async-function", chain)
+	fhandler.asyncUrl = buildURL(gateway, "async-function", name)
 
-	chandler.id = id
-	chandler.query = query
-	chandler.stateM = stateM
+	fhandler.id = id
+	fhandler.query = query
+	fhandler.stateM = stateM
 
-	return chandler
+	return fhandler
 }
 
 // readSecret reads a secret from /var/openfaas/secrets or from
@@ -112,25 +112,25 @@ func verifyRequest() bool {
 	return status
 }
 
-// getHmacKey returns the value of hmac secret key faaschain-hmac-secret
+// getHmacKey returns the value of hmac secret key faasflow-hmac-secret
 // if the key is not provided it uses default hamc key
 func getHmacKey() string {
-	key, keyErr := readSecret("faaschain-hmac-secret")
+	key, keyErr := readSecret("faasflow-hmac-secret")
 	if keyErr != nil {
-		log.Printf("Failed to load faaschain-hmac-secret using default")
+		log.Printf("Failed to load faasflow-hmac-secret using default")
 		key = defaultHmacKey
 	}
 	return key
 }
 
-// getChainName returns the chain name from env
-func getChainName() string {
-	return os.Getenv("chain_name")
+// getWorkflowName returns the flow name from env
+func getWorkflowName() string {
+	return os.Getenv("workflow_name")
 }
 
-// getChain returns the underline fchain.chain object
-func (chandler *chainHandler) getChain() *sdk.Chain {
-	return chandler.fchain.GetChain()
+// getPipeline returns the underline flow.pipeline object
+func (fhandler *flowHandler) getPipeline() *sdk.Pipeline {
+	return fhandler.flow.GetPipeline()
 }
 
 // makeQueryStringFromParam create query string from provided query
@@ -205,16 +205,16 @@ func buildCallbackRequest(callbackUrl string, data []byte, params map[string][]s
 }
 
 // createContext create a context from request handler
-func createContext(chandler *chainHandler) *faaschain.Context {
-	context := faaschain.CreateContext(chandler.id,
-		chandler.getChain().ExecutionPosition+1)
-	context.SetStateManager(chandler.stateM)
-	context.Query, _ = url.ParseQuery(chandler.query)
+func createContext(fhandler *flowHandler) *faasflow.Context {
+	context := faasflow.CreateContext(fhandler.id,
+		fhandler.getPipeline().ExecutionPosition+1, flowName)
+	context.SetStateManager(fhandler.stateM)
+	context.Query, _ = url.ParseQuery(fhandler.query)
 	return context
 }
 
-// buildChain builds a chain and context from raw request or partial completed request
-func buildChain(data []byte) (chandler *chainHandler, requestData []byte) {
+// buildChain builds a flow and context from raw request or partial completed request
+func buildChain(data []byte) (fhandler *flowHandler, requestData []byte) {
 
 	requestId := ""
 	var validateErr error
@@ -229,7 +229,7 @@ func buildChain(data []byte) (chandler *chainHandler, requestData []byte) {
 		}
 	}
 
-	// decode the request to find if chain definition exists
+	// decode the request to find if flow definition exists
 	request, err := decodeRequest(data)
 	switch {
 
@@ -249,14 +249,14 @@ func buildChain(data []byte) (chandler *chainHandler, requestData []byte) {
 		requestId = xid.New().String()
 		log.Printf("[Request `%s`] Created", requestId)
 
-		// create chain properties
+		// create flow properties
 		query := os.Getenv("Http_Query")
 		stateM := createStateManager()
 
-		// Create chandler
-		chandler = newChainHandler("http://"+getGateway(), chainName,
+		// Create fhandler
+		fhandler = newWorkflowHandler("http://"+getGateway(), flowName,
 			requestId, query, stateM)
-		chandler.getChain().ExecutionPosition = 0
+		fhandler.getPipeline().ExecutionPosition = 0
 
 		// set request data
 		requestData = data
@@ -277,15 +277,15 @@ func buildChain(data []byte) (chandler *chainHandler, requestData []byte) {
 			}
 		}
 
-		// get chain properties
+		// get flow properties
 		executionState := request.getExecutionState()
 		query := request.getQuery()
 		stateM := retriveStateManager(request.getContextState())
 
-		// Create chain and apply execution state
-		chandler = newChainHandler("http://"+getGateway(), chainName,
+		// Create flow and apply execution state
+		fhandler = newWorkflowHandler("http://"+getGateway(), flowName,
 			requestId, query, stateM)
-		chandler.getChain().ApplyState(executionState)
+		fhandler.getPipeline().ApplyState(executionState)
 
 		// set request data
 		requestData = request.getData()
@@ -298,8 +298,9 @@ func buildChain(data []byte) (chandler *chainHandler, requestData []byte) {
 }
 
 // executeFunction executes a function call
-func executeFunction(chain *sdk.Chain, function *sdk.Function, data []byte) ([]byte, error) {
+func executeFunction(pipeline *sdk.Pipeline, function *sdk.Function, data []byte) ([]byte, error) {
 	var err error
+	var result []byte
 
 	name := function.GetName()
 	params := function.GetParams()
@@ -311,26 +312,33 @@ func executeFunction(chain *sdk.Chain, function *sdk.Function, data []byte) ([]b
 	resp, err := client.Do(httpreq)
 	if err != nil {
 		err = fmt.Errorf("Phase(%d), Function(%s), error: function execution failed, %v",
-			chain.ExecutionPosition, name, err)
-		return nil, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		err = fmt.Errorf("Phase(%d), Function(%s), error: function execution failed, %s",
-			chain.ExecutionPosition, name, resp.Status)
-		return nil, err
+			pipeline.ExecutionPosition, name, err)
+		return []byte{}, err
 	}
 
-	result, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		err = fmt.Errorf("Phase(%d), Function(%s), error: function execution failed, %v",
-			chain.ExecutionPosition, name, err)
-		return nil, err
+	if function.OnResphandler != nil {
+		result, err = function.OnResphandler(resp)
+	} else {
+		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			result, _ = ioutil.ReadAll(resp.Body)
+			err = fmt.Errorf("Phase(%d), Function(%s), error: function execution failed, %s",
+				pipeline.ExecutionPosition, name, resp.Status)
+			return result, err
+		}
+
+		result, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			err = fmt.Errorf("Phase(%d), Function(%s), error: function execution failed, %v",
+				pipeline.ExecutionPosition, name, err)
+			return result, err
+		}
 	}
-	return result, nil
+
+	return result, err
 }
 
 // executeCallback executes a callback
-func executeCallback(chain *sdk.Chain, function *sdk.Function, data []byte) error {
+func executeCallback(pipeline *sdk.Pipeline, function *sdk.Function, data []byte) error {
 	var err error
 
 	cburl := function.CallbackUrl
@@ -344,12 +352,12 @@ func executeCallback(chain *sdk.Chain, function *sdk.Function, data []byte) erro
 	cbresult, _ := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		err = fmt.Errorf("Phase(%d), Callback(%s), error: callback failed, %v %s",
-			chain.ExecutionPosition, cburl, err, string(cbresult))
+			pipeline.ExecutionPosition, cburl, err, string(cbresult))
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		err = fmt.Errorf("Phase(%d), Callback(%s), error: callback failed, %s, %s",
-			chain.ExecutionPosition, cburl, resp.Status, string(cbresult))
+			pipeline.ExecutionPosition, cburl, resp.Status, string(cbresult))
 		return err
 	}
 	return nil
@@ -357,18 +365,18 @@ func executeCallback(chain *sdk.Chain, function *sdk.Function, data []byte) erro
 }
 
 // execute functions for current phase
-func execute(chandler *chainHandler, request []byte) ([]byte, error) {
+func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 	var result []byte
 	var err error
 
-	chain := chandler.getChain()
+	pipeline := fhandler.getPipeline()
 
-	phase := chain.GetCurrentPhase()
+	phase := pipeline.GetCurrentPhase()
 
-	log.Printf("[Request `%s`] Executing phase %d", chandler.id, chain.ExecutionPosition)
+	log.Printf("[Request `%s`] Executing phase %d", fhandler.id, pipeline.ExecutionPosition)
 
 	// trace phase - mark as start of phase
-	startPhaseSpan(chain.ExecutionPosition, chandler.id)
+	startPhaseSpan(pipeline.ExecutionPosition, fhandler.id)
 
 	// Execute all function
 	for _, function := range phase.GetFunctions() {
@@ -377,33 +385,43 @@ func execute(chandler *chainHandler, request []byte) ([]byte, error) {
 		// If function
 		case function.GetName() != "":
 			log.Printf("[Request `%s`] Executing function `%s`",
-				chandler.id, function.GetName())
+				fhandler.id, function.GetName())
 			if result == nil {
-				result, err = executeFunction(chain, function, request)
+				result, err = executeFunction(pipeline, function, request)
 			} else {
-				result, err = executeFunction(chain, function, result)
+				result, err = executeFunction(pipeline, function, result)
 			}
 			if err != nil {
-				stopPhaseSpan(chain.ExecutionPosition)
-				return nil, err
+				if function.FailureHandler != nil {
+					err = function.FailureHandler(err)
+				}
+				if err != nil {
+					stopPhaseSpan(pipeline.ExecutionPosition)
+					return nil, err
+				}
 			}
 		// If callback
 		case function.CallbackUrl != "":
 			log.Printf("[Request `%s`] Executing callback `%s`",
-				chandler.id, function.CallbackUrl)
+				fhandler.id, function.CallbackUrl)
 			if result == nil {
-				err = executeCallback(chain, function, request)
+				err = executeCallback(pipeline, function, request)
 			} else {
-				err = executeCallback(chain, function, result)
+				err = executeCallback(pipeline, function, result)
 			}
 			if err != nil {
-				stopPhaseSpan(chain.ExecutionPosition)
-				return nil, err
+				if function.FailureHandler != nil {
+					err = function.FailureHandler(err)
+				}
+				if err != nil {
+					stopPhaseSpan(pipeline.ExecutionPosition)
+					return nil, err
+				}
 			}
 
 		// If modifier
 		default:
-			log.Printf("[Request `%s`] Executing modifier", chandler.id)
+			log.Printf("[Request `%s`] Executing modifier", fhandler.id)
 			if result == nil {
 				result, err = function.Mod(request)
 			} else {
@@ -411,7 +429,7 @@ func execute(chandler *chainHandler, request []byte) ([]byte, error) {
 			}
 			if err != nil {
 				err = fmt.Errorf("Phase(%d), error: Failed at modifier, %v",
-					chain.ExecutionPosition, err)
+					pipeline.ExecutionPosition, err)
 				return nil, err
 			}
 			if result == nil {
@@ -420,33 +438,33 @@ func execute(chandler *chainHandler, request []byte) ([]byte, error) {
 		}
 	}
 
-	log.Printf("[Request `%s`] Phase %d completed successfully", chandler.id, chain.ExecutionPosition)
+	log.Printf("[Request `%s`] Phase %d completed successfully", fhandler.id, pipeline.ExecutionPosition)
 
 	// trace phase - mark as end of phase
-	stopPhaseSpan(chain.ExecutionPosition)
+	stopPhaseSpan(pipeline.ExecutionPosition)
 
 	// Update execution position
-	chain.UpdateExecutionPosition()
+	pipeline.UpdateExecutionPosition()
 
 	return result, nil
 }
 
-// forwardAsync forward async request to faaschain
-func forwardAsync(chandler *chainHandler, result []byte) ([]byte, error) {
+// forwardAsync forward async request to faasflow
+func forwardAsync(fhandler *flowHandler, result []byte) ([]byte, error) {
 	var hash []byte
 
-	// get chain
-	chain := chandler.getChain()
+	// get pipeline
+	pipeline := fhandler.getPipeline()
 
-	// Get chain state
-	chainState := chain.GetState()
+	// Get pipeline state
+	pipelineState := pipeline.GetState()
 
 	// Build request
-	uprequest := buildRequest(chandler.id,
-		string(chainState),
-		chandler.query,
+	uprequest := buildRequest(fhandler.id,
+		string(pipelineState),
+		fhandler.query,
 		result,
-		chandler.stateM.state)
+		fhandler.stateM.state)
 
 	// Make request data
 	data, _ := uprequest.encode()
@@ -457,8 +475,8 @@ func forwardAsync(chandler *chainHandler, result []byte) ([]byte, error) {
 		hash = hmac.Sign(data, []byte(key))
 	}
 
-	// build url for calling the chain in async
-	httpreq, _ := http.NewRequest(http.MethodPost, chandler.asyncUrl, bytes.NewReader(data))
+	// build url for calling the flow in async
+	httpreq, _ := http.NewRequest(http.MethodPost, fhandler.asyncUrl, bytes.NewReader(data))
 	httpreq.Header.Add("Accept", "application/json")
 	httpreq.Header.Add("Content-Type", "application/json")
 
@@ -468,7 +486,7 @@ func forwardAsync(chandler *chainHandler, result []byte) ([]byte, error) {
 	}
 
 	// extend req span for async call
-	extendReqSpan(chain.ExecutionPosition-1, chandler.asyncUrl, httpreq)
+	extendReqSpan(pipeline.ExecutionPosition-1, fhandler.asyncUrl, httpreq)
 
 	client := &http.Client{}
 	res, resErr := client.Do(httpreq)
@@ -483,107 +501,109 @@ func forwardAsync(chandler *chainHandler, result []byte) ([]byte, error) {
 	return resdata, nil
 }
 
-// handleResponse Handle request Response for a faaschain perform response/asyncforward
-func handleResponse(chandler *chainHandler, result []byte) ([]byte, error) {
+// handleResponse Handle request Response for a faasflow perform response/asyncforward
+func handleResponse(fhandler *flowHandler, result []byte) ([]byte, error) {
 
-	// get chain
-	chain := chandler.getChain()
+	// get pipeline
+	pipeline := fhandler.getPipeline()
 
 	switch {
 
-	// If chain has only one phase or if the chain has completed excution return
-	case chain.CountPhases() == 1 || chain.GetCurrentPhase() == nil:
-		chandler.finished = true
+	// If pipeline has only one phase or if the pipeline has completed excution return
+	case pipeline.CountPhases() == 1 || pipeline.GetCurrentPhase() == nil:
+		fhandler.finished = true
 		return result, nil
 
-	// In default case we forward the partial chain to same chain-function
+	// In default case we forward the partial flow to same flow-function
 	default:
-		// forward the chain request
-		resp, forwardErr := forwardAsync(chandler, result)
+		// forward the flow request
+		resp, forwardErr := forwardAsync(fhandler, result)
 		if forwardErr != nil {
 			return nil, fmt.Errorf("Phase(%d): error: %v, %s, url %s",
-				chain.ExecutionPosition, forwardErr,
-				string(resp), chandler.asyncUrl)
+				pipeline.ExecutionPosition, forwardErr,
+				string(resp), fhandler.asyncUrl)
 		}
 
 		log.Printf("[Request `%s`] Async request submitted for Phase %d",
-			chandler.id, chain.ExecutionPosition)
+			fhandler.id, pipeline.ExecutionPosition)
 	}
 
 	return []byte(""), nil
 }
 
 // handleFailure handles failure with failure handler and call finally
-func handleFailure(chandler *chainHandler, context *faaschain.Context, err error) {
-	context.State = faaschain.StateFailure
+func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) {
+	context.State = faasflow.StateFailure
 	// call failure handler if available
-	if chandler.getChain().FailureHandler != nil {
+	if fhandler.getPipeline().FailureHandler != nil {
 		log.Printf("[Request `%s`] Calling failure handler for error, %v",
-			chandler.id, err)
-		chandler.getChain().FailureHandler(err)
+			fhandler.id, err)
+		_, err = fhandler.getPipeline().FailureHandler(err)
 	}
-	// call finally handler if available
-	if chandler.getChain().Finally != nil {
-		log.Printf("[Request `%s`] Calling Finally handler with state: %s",
-			chandler.id, faaschain.StateFailure)
-		chandler.getChain().Finally(faaschain.StateFailure)
+
+	if err != nil {
+		// call finally handler if available
+		if fhandler.getPipeline().Finally != nil {
+			log.Printf("[Request `%s`] Calling Finally handler with state: %s",
+				fhandler.id, faasflow.StateFailure)
+			fhandler.getPipeline().Finally(faasflow.StateFailure)
+		}
+		log.Fatalf("[Request `%s`] Failed, %v", fhandler.id, err)
 	}
-	log.Fatalf("[Request `%s`] Failed, %v", chandler.id, err)
+	fhandler.finished = true
 }
 
-// handleChain handle the chain
+// handleChain handle the flow
 func handleChain(data []byte) string {
 
 	var resp []byte
 
-	// Get chain name
-	chainName = getChainName()
-	if chainName == "" {
-		fmt.Errorf("Error: chain name must be provided when deployed as function")
-		os.Exit(1)
+	// Get flow name
+	flowName = getWorkflowName()
+	if flowName == "" {
+		log.Fatalf("Error: flow name must be provided when deployed as function")
 	}
 
 	// initialize traceserve if tracing enabled
-	err := initGlobalTracer(chainName)
+	err := initGlobalTracer(flowName)
 	if err != nil {
 		log.Printf(err.Error())
 	}
 
 	// Chain Execution Steps
 	{
-		// BUILD: build the chain based on execution request
-		chandler, data := buildChain(data)
+		// BUILD: build the flow based on execution request
+		fhandler, data := buildChain(data)
 
-		// MAKE CONTEXT: make the request context from chain
-		context := createContext(chandler)
+		// MAKE CONTEXT: make the request context from flow
+		context := createContext(fhandler)
 
 		// DEFINE: Get Chain definition from user implemented Define()
-		err := function.Define(chandler.fchain, context)
+		err := function.Define(fhandler.flow, context)
 		if err != nil {
-			context.State = faaschain.StateFailure
-			log.Fatalf("[Request `%s`] Failed to define chain, %v", chandler.id, err)
+			context.State = faasflow.StateFailure
+			log.Fatalf("[Request `%s`] Failed to define flow, %v", fhandler.id, err)
 		}
 
-		// EXECUTE: execute the chain based on current phase
-		result, err := execute(chandler, data)
+		// EXECUTE: execute the flow based on current phase
+		result, err := execute(fhandler, data)
 		if err != nil {
-			handleFailure(chandler, context, err)
+			handleFailure(fhandler, context, err)
 		}
 
 		// HANDLE: Handle the execution state of last phase
-		resp, err = handleResponse(chandler, result)
+		resp, err = handleResponse(fhandler, result)
 		if err != nil {
-			handleFailure(chandler, context, err)
+			handleFailure(fhandler, context, err)
 		}
 
-		if chandler.finished {
-			log.Printf("[Request `%s`] Completed successfully", chandler.id)
-
-			context.State = faaschain.StateSuccess
-			if chandler.getChain().Finally != nil {
+		if fhandler.finished {
+			log.Printf("[Request `%s`] Completed successfully", fhandler.id)
+			context.State = faasflow.StateSuccess
+			if fhandler.getPipeline().Finally != nil {
 				log.Printf("[Request `%s`] Calling Finally handler with state: %s",
-					chandler.id, faaschain.StateSuccess)
-				chandler.getChain().Finally(faaschain.StateSuccess)
+					fhandler.id, faasflow.StateSuccess)
+				fhandler.getPipeline().Finally(faasflow.StateSuccess)
 			}
 		}
 	}

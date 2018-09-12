@@ -12,8 +12,8 @@ echo "Get face-detect"
 echo "Get opencv template"
 faas-cli template pull https://github.com/alexellis/opencv-openfaas-template
 
-echo "Get faaschain template"
-faas-cli template pull https://github.com/s8sg/faaschain
+echo "Get faasflow template"
+faas-cli template pull https://github.com/s8sg/faasflow
 
 echo "Get faas default template"
 faas-cli template pull

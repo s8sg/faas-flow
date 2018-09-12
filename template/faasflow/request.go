@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// Request defines the body of async forward request to faaschain
+// Request defines the body of async forward request to faasflow
 type Request struct {
 	Sign           string `json: "sign"`  // request signature
 	ID             string `json: "id"`    // request ID
@@ -17,7 +17,7 @@ type Request struct {
 }
 
 const (
-	// A signature of SHA265 equivalent of "github.com/s8sg/faaschain"
+	// A signature of SHA265 equivalent of "github.com/s8sg/faasflow"
 	SIGN = "D9D98C7EBAA7267BCC4F0280FC5BA4273F361B00D422074985A41AE1338F1B61"
 )
 

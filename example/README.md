@@ -1,6 +1,6 @@
 
 ### Overview
-We want to create a chain that handles profile pic upload login for a dating app that mandate the user to use picture with only once face and color.
+We want to create a flow that handles profile pic upload login for a dating app that mandate the user to use picture with only once face and color.
 
 To achive that we use three functions
 
@@ -14,13 +14,13 @@ To achive that we use three functions
 We use two different kind of function  
 **Sync** and **aSync**
 
-#### Writing Sync Function `upload-chain`
+#### Writing Sync Function `upload-pipeline`
 Sync function meant to perform all the operation in Sync and reply the caller once finished
 
 ##### Define Chain:
 ```go
-	chain.Apply("facedetect", fchain.Sync).
-		ApplyModifier(func(data []byte) ([]byte, error) {
+	flow.Apply("facedetect", faasflow.Sync).
+		Modify(func(data []byte) ([]byte, error) {
 			result := FaceResult{}
 			err := json.Unmarshal(data, &result)
 			if err != nil {
@@ -30,22 +30,22 @@ Sync function meant to perform all the operation in Sync and reply the caller on
 			case 0:
 				return nil, fmt.Errorf("No face detected, picture should contain one face")
 			case 1:
-				return faaschain.GetContext().GetPhaseInput(), nil
+				return faasflow.GetContext().GetPhaseInput(), nil
 			}
 			return nil, fmt.Errorf("More than one face detected, picture should have single face")
 		}).
-		Apply("colorization", fchain.Sync).
-		Apply("image-resizer", fchain.Sync)
+		Apply("colorization", faasflow.Sync).
+		Apply("image-resizer", faasflow.Sync)
 ```
 
-#### Writing ASync Function `upload-chain-async`
+#### Writing ASync Function `upload-flow-async`
 ASync function meant to perform all the operation in aSync and upload the result in a storage
 
 ##### Define Chain:
 Function definition
 ```go
-	chain.Apply("facedetect").
-		ApplyModifier(func(data []byte) ([]byte, error) {
+	flow.Apply("facedetect").
+		Modify(func(data []byte) ([]byte, error) {
 			result := FaceResult{}
 			err := json.Unmarshal(data, &result)
 			if err != nil {
@@ -55,13 +55,13 @@ Function definition
 			case 0:
 				return nil, fmt.Errorf("No face detected, picture should contain one face")
 			case 1:
-				return faaschain.GetContext().GetPhaseInput(), nil
+				return faasflow.GetContext().GetPhaseInput(), nil
 			}
 			return nil, fmt.Errorf("More than one face detected, picture should have single face")
 		}).
 		Apply("colorization").
 		Apply("image-resizer").
-		ApplyModifier(func(data []byte) ([]byte, error) {
+		Modify(func(data []byte) ([]byte, error) {
 			client := &http.Client{}
 			r := bytes.NewReader(data)
 			err = Upload(client, "http://gateway:8080/function/file-storage", "chris.jpg", r)
@@ -72,32 +72,32 @@ Function definition
 		})
 ```
 
-#### Invoke sync function `upload-chain`
+#### Invoke sync function `upload-flow`
     
-##### Invoke chain with a image with more than once face
+##### Invoke flow with a image with more than once face
 ```bash
-cat coldplay.jpg | faas-cli invoke -f stack.yml upload-chain
+cat coldplay.jpg | faas-cli invoke -f stack.yml upload-pipeline
 ``` 
 It will result in an error: `More than one face detected, picture should have single face`
 
-##### Invoke chain with right image
+##### Invoke flow with right image
 ```bash
-cat chris.jpg | faas-cli invoke -f stack.yml upload-chain > chris-dp.jpg
+cat chris.jpg | faas-cli invoke -f stack.yml upload-pipeline > chris-dp.jpg
 ``` 
 It will create a color and compressed image
      
      
-#### Invoke Async function `upload-chain-async`  
+#### Invoke Async function `upload-pipeline-async`  
 
-##### Invoke chain with a image with more than once face
+##### Invoke flow with a image with more than once face
 ```bash
-cat coldplay.jpg | faas-cli invoke --async -f stack.yml upload-chain-async
+cat coldplay.jpg | faas-cli invoke --query file=coldplay.jpg --async -f stack.yml upload-pipeline-async
 ``` 
 It will result in an error: `More than one face detected, picture should have single face`
       
-##### Invoke chain with right image
+##### Invoke flow with right image
 ```bash
-cat chris.jpg | faas-cli invoke --async -f stack.yml upload-chain-async
+cat chris.jpg | faas-cli invoke --query file=chris.jpg --async -f stack.yml upload-pipeline-async
 ```  
 Download from the storage    
 ```bash

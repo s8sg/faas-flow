@@ -1,4 +1,4 @@
-package faaschain
+package faasflow
 
 import (
 	"testing"
@@ -14,19 +14,19 @@ var (
 )
 
 func TestChainCreate(t *testing.T) {
-	chain := NewFaaschain()
-	if chain == nil {
-		t.Errorf("Creating faas chain: got %v", chain)
+	flow := NewFaasflow()
+	if flow == nil {
+		t.Errorf("Creating faas flow: got %v", flow)
 		t.Fail()
 	}
 }
 
 func TestApply(t *testing.T) {
-	chain := NewFaaschain()
-	chain.Apply("compress", Header("Method", "Post"), Sync).Apply("upload", Header("Method", "Post"), Query("URL", "my.file.storage/s8sg"), Sync)
+	flow := NewFaasflow()
+	flow.Apply("compress", Header("Method", "Post"), Sync).Apply("upload", Header("Method", "Post"), Query("URL", "my.file.storage/s8sg"), Sync)
 }
 
 func TestApplyAsync(t *testing.T) {
-	chain := NewFaaschain()
-	chain.Apply("compress", Header("Method", "Post")).Apply("upload", Header("Method", "Post"), Query("URL", "my.file.storage/s8sg"))
+	flow := NewFaasflow()
+	flow.Apply("compress", Header("Method", "Post")).Apply("upload", Header("Method", "Post"), Query("URL", "my.file.storage/s8sg"))
 }

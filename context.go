@@ -1,4 +1,4 @@
-package faaschain
+package faasflow
 
 import (
 	"net/url"
@@ -11,6 +11,7 @@ type Context struct {
 	stateManager StateManager // underline StateManager
 	Query        url.Values   // provides request Query
 	State        string       // state of the request
+	Name         string
 }
 
 // StateManager for State Manager
@@ -33,10 +34,11 @@ const (
 )
 
 // CreateContext create request context (used by template)
-func CreateContext(id string, phase int) *Context {
+func CreateContext(id string, phase int, name string) *Context {
 	context := &Context{}
 	context.requestId = id
 	context.phase = phase
+	context.Name = name
 	context.State = StateOngoing
 
 	return context
