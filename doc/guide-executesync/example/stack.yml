@@ -1,0 +1,24 @@
+provider:
+  name: faas
+  gateway: http://127.0.0.1:8080
+
+functions:
+  func2:
+    lang: python
+    handler: ./func2
+    image: func2
+  func1:
+    lang: python
+    handler: ./func1
+    image: func1
+  syncflow:
+    lang: faasflow
+    handler: ./syncflow
+    image: syncflow
+    environment:
+       workflow_name: "helloworld"
+       gateway: "gateway:8080"
+       enable_tracing: false
+       enable_hmac: false
+       write_debug: true
+       combine_output: false

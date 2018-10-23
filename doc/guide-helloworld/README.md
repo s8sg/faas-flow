@@ -1,4 +1,4 @@
-### Hello World
+### [Hello World](./example)
 
 #### Get the faasflow template
 To create a new flow `faasflow` template is needed
