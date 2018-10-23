@@ -133,14 +133,14 @@ faas-cli new test-flow --lang faasflow
 To make the stack.yml look clean we can create a seperate `flow.yml` with faasflow related configuration.
 ```yaml
 environment:
-  flow_name: "test-flow"
+  workflow_name: "test-flow"
   gateway: "gateway:8080"
   enable_tracing: false
   trace_server: ""
   enable_hmac: false
 ```
 
-> `flow_name` : The name of the flow function. Faasflow use this to forward partial request.   
+> `workflow_name` : The name of the flow function. Faasflow use this to forward partial request.   
 > `gateway` : We need to tell faasflow the address of openfaas gateway. All calls are made via gateway
 > ```
 >              # swarm
