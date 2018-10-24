@@ -35,12 +35,17 @@ Its highly `Scalable`, `Stateless`, `Secured` and `Fast`.
 * How to use modifier to update input for next function
 * How to use modifier to validate intermidiate result
     
-     
+    
+**[Using Function Response and Failure Handler](./guide-handler)**
+* How to use Function response handler instead of modifier
+* How to use Function failure handler     
+   
+      
 **[Async Function](./guide-executeasync)**
 * How to use async func
 * Where sync and async function can be used together 
 * How to report result with async function
-   
+    
     
 **[Callback](./guide-callback)**
 * How to use callback with async function
@@ -48,7 +53,7 @@ Its highly `Scalable`, `Stateless`, `Secured` and `Fast`.
    
    
 **[Using failure handler with Finally](./guide-failurehandling)**
-* How to handle failure with failure handler
+* How to handle pipeline failure with failure handler
 * How to use finally to perform on completion job
    
    

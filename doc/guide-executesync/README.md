@@ -55,7 +55,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 ```
    
    
-Build and deploy the faasflow function with dummy function
+Build and deploy the faasflow function with dummy functions
 ```bash
 faas build -f stack.yml
 faas deploy -f stack.yml
@@ -67,7 +67,7 @@ Call the faasflow
 echo bingo | faas invoke -f stack.yml syncflow
 ```
 
-#### Track request with the `requestId`
+#### Track request with the Request Id
 
 Each request to a faasflow is assigned with a auto generated unique request Id. A request can be traced or debuged using the request Id from faasflow log. To get the logs from `syncflow` function 
 ```bash
