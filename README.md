@@ -13,13 +13,25 @@
 > - [x] **Available** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; as **`faasflow`** template 
 
 **FYI**: Faasflow is into conceptual state and API which may change and under active development
-     
+
 ## Overview
-Faasflow allow you to define your faas functions pipeline and deploy it as a function
+
+faasflow allows you to realize OpenFaaS function composition with ease. By defining a simple pipeline, you can orchestrate multiple functions without having to worry about internals.
+
+```go
+func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
+  flow.Apply("yourFunc1", faasflow.Sync).
+       Apply("yourFunc2", faasflow.Sync)
+}
+```
+After building and deploying this, this will give you a function that orchestrates calling "yourFunc2" with the output of "yourFunc1".
+
+By supplying a number of pipeline operators, complex compostion can be achieved with little work:
 ![alt overview](https://github.com/s8sg/faasflow/blob/master/doc/overview.jpg)
      
 ## Pipeline Definition
-Create pipeline with simple call
+The above pipeline can be achieved with little, but powerfull code:
+
 ```go
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
