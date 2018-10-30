@@ -94,7 +94,7 @@ func getGateway() string {
 // hmac is enabled by default
 func hmacEnabled() bool {
 	status := true
-	hmacStatus := os.Getenv("enable_hamc")
+	hmacStatus := os.Getenv("enable_hmac")
 	if strings.ToUpper(hmacStatus) == "FALSE" {
 		status = false
 	}

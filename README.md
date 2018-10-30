@@ -24,12 +24,13 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
        Apply("yourFunc2", faasflow.Sync)
 }
 ```
-After building and deploying this, this will give you a function that orchestrates calling "yourFunc2" with the output of "yourFunc1".
+After building and deploying this, this will give you a function that orchestrates calling `yourFunc2` with the output of `yourFunc1`
 
-By supplying a number of pipeline operators, complex compostion can be achieved with little work:
-![alt overview](https://github.com/s8sg/faasflow/blob/master/doc/overview.jpg)
      
 ## Pipeline Definition
+By supplying a number of pipeline operators, complex compostion can be achieved with little work:
+![alt overview](https://github.com/s8sg/faasflow/blob/master/doc/overview.jpg)
+
 The above pipeline can be achieved with little, but powerfull code:
 
 ```go
