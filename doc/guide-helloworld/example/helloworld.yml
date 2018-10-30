@@ -1,0 +1,16 @@
+provider:
+  name: faas
+  gateway: http://127.0.0.1:8080
+
+functions:
+  helloworld:
+    lang: faasflow
+    handler: ./helloworld
+    image: helloworld
+    environment:
+       workflow_name: "helloworld"
+       gateway: "gateway:8080"
+       enable_tracing: false
+       enable_hmac: false
+       write_debug: true
+       combine_output: false
