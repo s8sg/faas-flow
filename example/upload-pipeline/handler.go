@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	faasflow "github.com/s8sg/faasflow"
+	"log"
 )
 
 type Dimention struct {
@@ -28,7 +29,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 	// define chain
 	flow.
 		Modify(func(data []byte) ([]byte, error) {
-			context.Set("raw", data)
+			context.Set("rawImage", data)
 			return data, nil
 		}).
 		Apply("facedetect", faasflow.Sync).
@@ -42,18 +43,24 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 			case 0:
 				return nil, fmt.Errorf("No face detected, picture should contain one face")
 			case 1:
-				data, err := context.Get("raw")
-				b, ok := data.([]byte)
-				if err != nil || !ok {
-					return nil, fmt.Errorf("Failed to retrive picture from state, error %v %v", err, ok)
+				data, err := context.GetBytes("rawImage")
+				if err != nil {
+					return nil, fmt.Errorf("Failed to retrive picture from state, error %v", err)
 				}
 
-				return b, nil
+				return data, nil
 			}
-			return nil, fmt.Errorf("More than one face detected, picture should have single face")
+			return nil, fmt.Errorf("More than one face detected, picture should contain single face")
 		}).
 		Apply("colorization", faasflow.Sync).
-		Apply("image-resizer", faasflow.Sync)
+		Apply("image-resizer", faasflow.Sync).
+		OnFailure(func(err error) ([]byte, error) {
+			log.Printf("Failed to upload picture for request id %s, error %v",
+				context.GetRequestId(), err)
+			errdata := fmt.Sprintf("{\"error\": \"%s\"}", err.Error())
+
+			return []byte(errdata), err
+		})
 
 	return nil
 }

@@ -107,12 +107,12 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 			// Set the name of the file (error if not specified)
 			filename := getQuery("file")
 			if filename != "" {
-				context.Set("file", filename)
+				context.Set("fileName", filename)
 			} else {
 				return nil, fmt.Errorf("Provide file name with `--query file=<name>`")
 			}
 			// Set data to reuse after facedetect
-			context.Set("raw", data)
+			context.Set("rawImage", data)
 			return data, nil
 		}).
 		Apply("facedetect").
@@ -123,21 +123,19 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 				return nil, err
 			}
 			// Get data from context
-			rawdata, err := context.Get("raw")
-			b, ok := rawdata.([]byte)
-			if err != nil || !ok {
-				return nil, fmt.Errorf("Failed to retrive picture from state, error %v %v", err, ok)
+			rawdata, err := context.GetBytes("rawImage")
+			if err != nil {
+				return nil, fmt.Errorf("Failed to retrive picture from state, error %v", err)
 			}
-			return b, err
+			return rawdata, err
 		}).
 		Apply("colorization").
 		Apply("image-resizer").
 		Modify(func(data []byte) ([]byte, error) {
 			// get file name from context
-			file, err := context.Get("file")
-			filename, ok := file.(string)
-			if err != nil || !ok {
-				return nil, fmt.Errorf("Failed to get file name in context, %s %v", filename, err)
+			filename, err := context.GetString("fileName")
+			if err != nil {
+				return nil, fmt.Errorf("Failed to get file name in context, %v", err)
 			}
 			// upload file to storage
 			err = upload(&http.Client{}, "http://gateway:8080/function/file-storage",
@@ -156,8 +154,9 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 		}).
 		Finally(func(state string) {
 			// Optional (cleanup)
-			context.Del("raw")
-			context.Del("file")
+			// Cleanup is not needed if using default StateManager
+			context.Del("fileName")
+			context.Del("rawImage")
 		})
 
 	return nil

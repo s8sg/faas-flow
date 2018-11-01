@@ -24,7 +24,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
        Apply("yourFunc2", faasflow.Sync)
 }
 ```
-After building and deploying this, this will give you a function that orchestrates calling `yourFunc2` with the output of `yourFunc1`
+After building and deploying, it will give you a function that orchestrates calling `yourFunc2` with the output of `yourFunc1`
 
      
 ## Pipeline Definition
@@ -49,7 +49,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
                // perform check
                // ...
                // and replay data
-               data, _ :=context.Get("raw-image")
+               data, _ := context.GetBytes("raw-image")
 	       // do modification if needed
 	       return data
         }).
@@ -287,8 +287,7 @@ Once a state manager is set it can be used by calling `Get()` and `Set()` from `
      }).Apply("myfunc").
      Modify(func(data []byte) {
           // retrived the data that was set in the context
-          sha, _ = context.Get("commitsha")
-          commitsha, _ =  sha.[string]
+          commitsha, _ = context.GetString("commitsha")
           // use the query
      })
 ```
@@ -325,8 +324,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
      }).Apply("myfunc").
      Modify(func(data []byte) {
           // retrived the data in different phase from context
-          sha, _ = context.Get("commitsha")
-          commitsha, _ =  sha.[string]
+          commitsha, _ = context.GetString("commitsha")
      }).Finally(func() {
           // delete the state resource
           context.Del("commitsha")

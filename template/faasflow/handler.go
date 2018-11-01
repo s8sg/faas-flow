@@ -533,12 +533,14 @@ func handleResponse(fhandler *flowHandler, result []byte) ([]byte, error) {
 
 // handleFailure handles failure with failure handler and call finally
 func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) {
+	var data []byte
+
 	context.State = faasflow.StateFailure
 	// call failure handler if available
 	if fhandler.getPipeline().FailureHandler != nil {
 		log.Printf("[Request `%s`] Calling failure handler for error, %v",
 			fhandler.id, err)
-		_, err = fhandler.getPipeline().FailureHandler(err)
+		data, err = fhandler.getPipeline().FailureHandler(err)
 	}
 
 	if err != nil {
@@ -548,8 +550,12 @@ func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) 
 				fhandler.id, faasflow.StateFailure)
 			fhandler.getPipeline().Finally(faasflow.StateFailure)
 		}
+		if data != nil {
+			fmt.Printf("%s", string(data))
+		}
 		log.Fatalf("[Request `%s`] Failed, %v", fhandler.id, err)
 	}
+
 	fhandler.finished = true
 }
 
@@ -591,7 +597,7 @@ func handleChain(data []byte) string {
 			handleFailure(fhandler, context, err)
 		}
 
-		// HANDLE: Handle the execution state of last phase
+		// HANDLE: Handle the execution state and perform response/asyncforward
 		resp, err = handleResponse(fhandler, result)
 		if err != nil {
 			handleFailure(fhandler, context, err)

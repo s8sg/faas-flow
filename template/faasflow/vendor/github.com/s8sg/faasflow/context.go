@@ -1,6 +1,7 @@
 package faasflow
 
 import (
+	"fmt"
 	"net/url"
 )
 
@@ -59,18 +60,70 @@ func (context *Context) GetPhase() int {
 	return context.phase
 }
 
-// Set put a value in the context with StateManager
+// Set put a value in the context using StateManager
 func (context *Context) Set(key string, data interface{}) error {
 	return context.stateManager.Set(key, data)
 }
 
-// Get retrive a value from the context with StateManager
+// Get retrive a value from the context using StateManager
 func (context *Context) Get(key string) (interface{}, error) {
 	data, err := context.stateManager.Get(key)
 	return data, err
 }
 
-// Del deletes a value from the context with StateManager
+// GetInt retrive a integer value from the context using StateManager
+func (context *Context) GetInt(key string) (int, error) {
+	data, err := context.stateManager.Get(key)
+	if err != nil {
+		return 0, err
+	}
+	intData, ok := data.(int)
+	if !ok {
+		return 0, fmt.Errorf("failed to convert int for key %s", key)
+	}
+	return intData, nil
+}
+
+// GetString retrive a string value from the context using StateManager
+func (context *Context) GetString(key string) (string, error) {
+	data, err := context.stateManager.Get(key)
+	if err != nil {
+		return "", err
+	}
+	stringData, ok := data.(string)
+	if !ok {
+		return "", fmt.Errorf("failed to convert string for key %s", key)
+	}
+	return stringData, nil
+}
+
+// GetBytes retrive a byte array from the context using StateManager
+func (context *Context) GetBytes(key string) ([]byte, error) {
+	data, err := context.stateManager.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	byteData, ok := data.([]byte)
+	if !ok {
+		return nil, fmt.Errorf("failed to convert byte array for key %s", key)
+	}
+	return byteData, nil
+}
+
+// GetBool retrive a boolean value from the context using StateManager
+func (context *Context) GetBool(key string) (bool, error) {
+	data, err := context.stateManager.Get(key)
+	if err != nil {
+		return false, err
+	}
+	boolData, ok := data.(bool)
+	if !ok {
+		return false, fmt.Errorf("failed to convert boolean for key %s", key)
+	}
+	return boolData, nil
+}
+
+// Del deletes a value from the context using StateManager
 func (context *Context) Del(key string) error {
 	return context.stateManager.Del(key)
 }

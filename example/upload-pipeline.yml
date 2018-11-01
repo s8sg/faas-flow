@@ -2,3 +2,4 @@ environment:
   workflow_name: "upload-pipeline"
   gateway: "gateway:8080"
   enable_tracing: false
+  enable_hmac: false
