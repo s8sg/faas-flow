@@ -291,6 +291,7 @@ Once a state manager is set it can be used by calling `Get()` and `Set()` from `
           // use the query
      })
 ```
+* **[MinioStateManager](https://github.com/s8sg/faasflowMinioStateManager)** allows to store state in **amazon s3** or local **minio DB**
 
 #### Default `requestEmbedStateManager`: 
 By default faasflow template use `requestEmbedStateManager` which embed the state data along with the request for the next phase. For bigger values it is recommended to pass it with custom `StateManager`. 
