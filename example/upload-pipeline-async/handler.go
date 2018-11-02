@@ -120,7 +120,8 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 			// validate face
 			err := validateFace(data)
 			if err != nil {
-				return nil, err
+				file, _ := context.GetString("fileName")
+				return nil, fmt.Errorf("File %s, %v", file, err)
 			}
 			// Get data from context
 			rawdata, err := context.GetBytes("rawImage")

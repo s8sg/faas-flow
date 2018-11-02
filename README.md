@@ -264,8 +264,8 @@ The main state in faasflow is the **`execution-position` (next-phase)** and the 
 Apart from that faasflow allow user to define state with `StateManager` interface.   
 ```go
  type StateManager interface {
-	Set(key string, value interface{}) error
-	Get(key string) (interface{}, error)
+	Set(key string, value string) error
+	Get(key string) (string, error)
 	Del(key string) error
  }
 ```
@@ -273,8 +273,8 @@ Apart from that faasflow allow user to define state with `StateManager` interfac
 State manager can be implemented and set by user with request context in faasflow `Define()`:
 ```go
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
-     // initialize my custom StateManager as myStateManager
-     context.SetStateManager(myStateManager)
+     // initialize my custom StateManager as minioStateManager
+     context.SetStateManager(minioStateManager)
 }
 ```
     

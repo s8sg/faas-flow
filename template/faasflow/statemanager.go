@@ -6,34 +6,34 @@ import (
 
 // json to encode
 type requestEmbedStateManager struct {
-	state map[string]interface{}
+	state map[string]string
 }
 
 // CreateStateManager creates a new requestEmbedStateManager
 func createStateManager() *requestEmbedStateManager {
 	rstate := &requestEmbedStateManager{}
-	rstate.state = make(map[string]interface{})
+	rstate.state = make(map[string]string)
 	return rstate
 }
 
 // RetriveStateManager creates a state manager from a map
-func retriveStateManager(state map[string]interface{}) *requestEmbedStateManager {
+func retriveStateManager(state map[string]string) *requestEmbedStateManager {
 	rstate := &requestEmbedStateManager{}
 	rstate.state = state
 	return rstate
 }
 
 // Set sets a value (implement StateManager)
-func (rstate *requestEmbedStateManager) Set(key string, value interface{}) error {
+func (rstate *requestEmbedStateManager) Set(key string, value string) error {
 	rstate.state[key] = value
 	return nil
 }
 
 // Get gets a value (implement StateManager)
-func (rstate *requestEmbedStateManager) Get(key string) (interface{}, error) {
+func (rstate *requestEmbedStateManager) Get(key string) (string, error) {
 	value, ok := rstate.state[key]
 	if !ok {
-		return nil, fmt.Errorf("No field name %s", key)
+		return "", fmt.Errorf("No field name %s", key)
 	}
 	return value, nil
 }
