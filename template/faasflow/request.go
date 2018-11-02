@@ -13,7 +13,7 @@ type Request struct {
 	ExecutionState string `json: "state"` // Execution State
 	Data           []byte `json: "data"`  // Partial execution data
 
-	ContextState map[string]interface{} `json: "state"` // Context State for default StateManager
+	ContextState map[string]string `json: "state"` // Context State for default StateManager
 }
 
 const (
@@ -25,7 +25,7 @@ func buildRequest(id string,
 	state string,
 	query string,
 	data []byte,
-	contextstate map[string]interface{}) *Request {
+	contextstate map[string]string) *Request {
 
 	request := &Request{
 		Sign:           SIGN,
@@ -66,7 +66,7 @@ func (req *Request) getExecutionState() string {
 	return req.ExecutionState
 }
 
-func (req *Request) getContextState() map[string]interface{} {
+func (req *Request) getContextState() map[string]string {
 	return req.ContextState
 }
 

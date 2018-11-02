@@ -1,6 +1,7 @@
 package faasflow
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 )
@@ -18,9 +19,9 @@ type Context struct {
 // StateManager for State Manager
 type StateManager interface {
 	// Set store a value for key, in failure returns error
-	Set(key string, value interface{}) error
+	Set(key string, value string) error
 	// Get retrives a value by key, if failure returns error
-	Get(key string) (interface{}, error)
+	Get(key string) (string, error)
 	// Del delets a value by a key
 	Del(key string) error
 }
@@ -62,13 +63,33 @@ func (context *Context) GetPhase() int {
 
 // Set put a value in the context using StateManager
 func (context *Context) Set(key string, data interface{}) error {
-	return context.stateManager.Set(key, data)
+	c := struct {
+		Key   string      `json:"key"`
+		Value interface{} `json:"value"`
+	}{Key: key, Value: data}
+	b, err := json.Marshal(&c)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal data, error %v", err)
+	}
+
+	return context.stateManager.Set(key, string(b))
 }
 
 // Get retrive a value from the context using StateManager
 func (context *Context) Get(key string) (interface{}, error) {
 	data, err := context.stateManager.Get(key)
-	return data, err
+	if err != nil {
+		return nil, err
+	}
+	c := struct {
+		Key   string      `json:"key"`
+		Value interface{} `json:"value"`
+	}{}
+	err = json.Unmarshal([]byte(data), &c)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to unmarshal data, error %v", err)
+	}
+	return c.Value, err
 }
 
 // GetInt retrive a integer value from the context using StateManager
@@ -77,7 +98,17 @@ func (context *Context) GetInt(key string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	intData, ok := data.(int)
+
+	c := struct {
+		Key   string      `json:"key"`
+		Value interface{} `json:"value"`
+	}{}
+	err = json.Unmarshal([]byte(data), &c)
+	if err != nil {
+		return 0, fmt.Errorf("Failed to unmarshal data, error %v", err)
+	}
+
+	intData, ok := c.Value.(int)
 	if !ok {
 		return 0, fmt.Errorf("failed to convert int for key %s", key)
 	}
@@ -90,7 +121,17 @@ func (context *Context) GetString(key string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	stringData, ok := data.(string)
+
+	c := struct {
+		Key   string      `json:"key"`
+		Value interface{} `json:"value"`
+	}{}
+	err = json.Unmarshal([]byte(data), &c)
+	if err != nil {
+		return "", fmt.Errorf("Failed to unmarshal data, error %v", err)
+	}
+
+	stringData, ok := c.Value.(string)
 	if !ok {
 		return "", fmt.Errorf("failed to convert string for key %s", key)
 	}
@@ -103,7 +144,17 @@ func (context *Context) GetBytes(key string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	byteData, ok := data.([]byte)
+
+	c := struct {
+		Key   string      `json:"key"`
+		Value interface{} `json:"value"`
+	}{}
+	err = json.Unmarshal([]byte(data), &c)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to unmarshal data, error %v", err)
+	}
+
+	byteData, ok := c.Value.([]byte)
 	if !ok {
 		return nil, fmt.Errorf("failed to convert byte array for key %s", key)
 	}
@@ -116,7 +167,17 @@ func (context *Context) GetBool(key string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	boolData, ok := data.(bool)
+
+	c := struct {
+		Key   string      `json:"key"`
+		Value interface{} `json:"value"`
+	}{}
+	err = json.Unmarshal([]byte(data), &c)
+	if err != nil {
+		return false, fmt.Errorf("Failed to unmarshal data, error %v", err)
+	}
+
+	boolData, ok := c.Value.(bool)
 	if !ok {
 		return false, fmt.Errorf("failed to convert boolean for key %s", key)
 	}
