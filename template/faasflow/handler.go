@@ -29,13 +29,14 @@ var (
 )
 
 type flowHandler struct {
-	flow        *faasflow.Workflow        // the faasflow
-	id          string                    // the request id
-	query       string                    // the query string by user
-	asyncUrl    string                    // the async URL of the flow
-	pipelineDef []byte                    // the pipeline definition
-	finished    bool                      // denots the flow has finished execution
-	stateM      *requestEmbedStateManager // the deafult statemanager
+	flow        *faasflow.Workflow // the faasflow
+	id          string             // the request id
+	query       string             // the query string by user
+	asyncUrl    string             // the async URL of the flow
+	pipelineDef []byte             // the pipeline definition
+	finished    bool               // denots the flow has finished execution
+
+	stateM *requestEmbedStateManager // the deafult statemanager
 }
 
 // buildURL builds openfaas function execution url for the flow
@@ -126,6 +127,15 @@ func getHmacKey() string {
 // getWorkflowName returns the flow name from env
 func getWorkflowName() string {
 	return os.Getenv("workflow_name")
+}
+
+// useIntermidiateStorage check if IntermidiateStorage is enabled
+func useIntermidiateStorage() bool {
+	storage := os.Getenv("intermidiate_storage")
+	if strings.ToUpper(storage) == "TRUE" {
+		return true
+	}
+	return false
 }
 
 // getPipeline returns the underline flow.pipeline object
@@ -502,7 +512,7 @@ func forwardAsync(fhandler *flowHandler, result []byte) ([]byte, error) {
 }
 
 // handleResponse Handle request Response for a faasflow perform response/asyncforward
-func handleResponse(fhandler *flowHandler, result []byte) ([]byte, error) {
+func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []byte) ([]byte, error) {
 
 	// get pipeline
 	pipeline := fhandler.getPipeline()
@@ -516,6 +526,15 @@ func handleResponse(fhandler *flowHandler, result []byte) ([]byte, error) {
 
 	// In default case we forward the partial flow to same flow-function
 	default:
+		// If intermidiate storage is enabled
+		if useIntermidiateStorage() {
+			key := fmt.Sprintf("intermidiate-result-%s", pipeline.ExecutionPosition)
+			serr := context.Set(key, result)
+			if serr == nil {
+				return []byte(""), fmt.Errorf("failed to store intermidiate result, error %v", serr)
+			}
+			result = []byte("")
+		}
 		// forward the flow request
 		resp, forwardErr := forwardAsync(fhandler, result)
 		if forwardErr != nil {
@@ -591,6 +610,18 @@ func handleChain(data []byte) string {
 			log.Fatalf("[Request `%s`] Failed to define flow, %v", fhandler.id, err)
 		}
 
+		// If IntermidiateStorage is enabled get the data from stateManager
+		if useIntermidiateStorage() {
+			key := fmt.Sprintf("intermidiate-result-%s", fhandler.getPipeline().ExecutionPosition)
+			idata, gerr := context.GetBytes(key)
+			if gerr == nil {
+				gerr := fmt.Errorf("failed to retrive intermidiate result, error %v", gerr)
+				handleFailure(fhandler, context, gerr)
+			}
+			context.Del(key)
+			data = idata
+		}
+
 		// EXECUTE: execute the flow based on current phase
 		result, err := execute(fhandler, data)
 		if err != nil {
@@ -598,7 +629,7 @@ func handleChain(data []byte) string {
 		}
 
 		// HANDLE: Handle the execution state and perform response/asyncforward
-		resp, err = handleResponse(fhandler, result)
+		resp, err = handleResponse(fhandler, context, result)
 		if err != nil {
 			handleFailure(fhandler, context, err)
 		}

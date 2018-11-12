@@ -18,6 +18,8 @@ type Context struct {
 
 // StateManager for State Manager
 type StateManager interface {
+	// Initialize the StateManager with flow name and request ID
+	Init(flowName string, requestId string) error
 	// Set store a value for key, in failure returns error
 	Set(key string, value string) error
 	// Get retrives a value by key, if failure returns error
@@ -46,9 +48,14 @@ func CreateContext(id string, phase int, name string) *Context {
 	return context
 }
 
-// SetStateManager sets the state manager
-func (context *Context) SetStateManager(state StateManager) {
+// SetStateManager sets and overwrite the state manager
+func (context *Context) SetStateManager(state StateManager) error {
 	context.stateManager = state
+	err := context.stateManager.Init(context.Name, context.requestId)
+	if err != nil {
+		return fmt.Errorf("Failed to initialize StateManager, error %v", err)
+	}
+	return nil
 }
 
 // GetRequestId returns the request id

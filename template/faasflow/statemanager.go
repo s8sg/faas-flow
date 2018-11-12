@@ -23,6 +23,11 @@ func retriveStateManager(state map[string]string) *requestEmbedStateManager {
 	return rstate
 }
 
+// Init initialize the statemanager with requestId and flowname
+func (rstate *requestEmbedStateManager) Init(flowName string, requestId string) error {
+	return nil
+}
+
 // Set sets a value (implement StateManager)
 func (rstate *requestEmbedStateManager) Set(key string, value string) error {
 	rstate.state[key] = value
