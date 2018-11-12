@@ -47,7 +47,6 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 				if err != nil {
 					return nil, fmt.Errorf("Failed to retrive picture from state, error %v", err)
 				}
-
 				return data, nil
 			}
 			return nil, fmt.Errorf("More than one face detected, picture should contain single face")
