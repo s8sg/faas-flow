@@ -528,11 +528,13 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 	default:
 		// If intermidiate storage is enabled
 		if useIntermidiateStorage() {
-			key := fmt.Sprintf("intermidiate-result-%s", pipeline.ExecutionPosition)
+			key := fmt.Sprintf("intermidiate-result-%d", pipeline.ExecutionPosition)
 			serr := context.Set(key, result)
-			if serr == nil {
+			if serr != nil {
 				return []byte(""), fmt.Errorf("failed to store intermidiate result, error %v", serr)
 			}
+			log.Printf("[Request `%s`] Intermidiate result for Phase %d stored as %s",
+				fhandler.id, pipeline.ExecutionPosition, key)
 			result = []byte("")
 		}
 		// forward the flow request
@@ -610,14 +612,17 @@ func handleChain(data []byte) string {
 			log.Fatalf("[Request `%s`] Failed to define flow, %v", fhandler.id, err)
 		}
 
+		// For partially completed requests
 		// If IntermidiateStorage is enabled get the data from stateManager
-		if useIntermidiateStorage() {
-			key := fmt.Sprintf("intermidiate-result-%s", fhandler.getPipeline().ExecutionPosition)
+		if fhandler.getPipeline().ExecutionPosition != 0 && useIntermidiateStorage() {
+			key := fmt.Sprintf("intermidiate-result-%d", fhandler.getPipeline().ExecutionPosition)
 			idata, gerr := context.GetBytes(key)
-			if gerr == nil {
+			if gerr != nil {
 				gerr := fmt.Errorf("failed to retrive intermidiate result, error %v", gerr)
 				handleFailure(fhandler, context, gerr)
 			}
+			log.Printf("[Request `%s`] Intermidiate result for Phase %d retrived from %s",
+				fhandler.id, fhandler.getPipeline().ExecutionPosition, key)
 			context.Del(key)
 			data = idata
 		}

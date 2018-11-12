@@ -3,3 +3,4 @@ environment:
   gateway: "gateway:8080"
   enable_tracing: false
   enable_hmac: false
+  intermidiate_storage: true
