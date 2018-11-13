@@ -54,7 +54,7 @@ faas new --lang faasflow -a stack.yml makeuserid
        combine_output: false
 ```
 
-#### Using modifier to verify and modify intermidiate input
+#### Using modifier to verify and modify intermediate input
 Edit the flow Definition at `makeuserid/handler.go`
 ```golang
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
@@ -83,7 +83,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
         return
 }
 ```
-Here modifier is being used to Both validate the return value of `titleize` function and convert the intermidiate data to the desired xml format for function `format`. 
+Here modifier is being used to Both validate the return value of `titleize` function and convert the intermediate data to the desired xml format for function `format`. 
 
 #### Validate the input with modifier 
 One can validate the input with modifier.

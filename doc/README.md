@@ -33,7 +33,7 @@ Its highly `Scalable`, `Stateless`, `Secured` and `Fast`.
 **[Using Modifier](./guide-modifier)**
 * How use modifier to update or validate result
 * How to use modifier to update input for next function
-* How to use modifier to validate intermidiate result
+* How to use modifier to validate intermediate result
     
     
 **[Using Function Response and Failure Handler](./guide-handler)**
