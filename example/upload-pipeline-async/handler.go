@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	faasflow "github.com/s8sg/faasflow"
+	minioStateManager "github.com/s8sg/faasflowMinioStateManager"
 	"io"
 	"log"
 	"mime/multipart"
@@ -98,10 +99,18 @@ func validateFace(data []byte) error {
 	return fmt.Errorf("More than one face detected, picture should have single face")
 }
 
-// Defines a chain
+// Defines a Pipeline
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
-	// Define Chain
+	// initialize minio StateManager
+	miniosm, err := minioStateManager.GetMinioStateManager()
+	if err != nil {
+		return err
+	}
+	// Set StateManager
+	context.SetStateManager(miniosm)
+
+	// Define Pipeline
 	flow.
 		Modify(func(data []byte) ([]byte, error) {
 			// Set the name of the file (error if not specified)
@@ -112,7 +121,10 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 				return nil, fmt.Errorf("Provide file name with `--query file=<name>`")
 			}
 			// Set data to reuse after facedetect
-			context.Set("rawImage", data)
+			err := context.Set("rawImage", data)
+			if err != nil {
+				return nil, fmt.Errorf("Failed to upload picture to state, error %v", err)
+			}
 			return data, nil
 		}).
 		Apply("facedetect").

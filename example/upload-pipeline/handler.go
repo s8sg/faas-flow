@@ -23,10 +23,10 @@ type FaceResult struct {
 	ImageBase64 string
 }
 
-// Handle a serverless request to chian
+// Define the pipeline definition
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
-	// define chain
+	// define Pipleline
 	flow.
 		Modify(func(data []byte) ([]byte, error) {
 			context.Set("rawImage", data)

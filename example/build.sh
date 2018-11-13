@@ -1,5 +1,7 @@
 #!/bin/bash
 
+docker pull minio/minio:latest
+
 echo "Get image-resizer"
 [ ! "$(ls | grep cdn_faas)" ] && git clone https://github.com/s8sg/cdn_faas.git
 
