@@ -13,5 +13,5 @@ func main() {
 		log.Fatalf("Unable to read standard input: %s", err.Error())
 	}
 
-	fmt.Println(handleChain(input))
+	fmt.Println(handleWorkflow(input))
 }

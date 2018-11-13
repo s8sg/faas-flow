@@ -16,6 +16,14 @@ type Workflow struct {
 	pipeline *sdk.Pipeline // underline pipeline definition object
 }
 
+type DagFlow struct {
+	udag *sdk.Dag
+}
+
+type Vertex struct {
+	function *sdk.Function
+}
+
 type Option func(*Options)
 
 var (
@@ -182,6 +190,15 @@ func (flow *Workflow) Apply(function string, opts ...Option) *Workflow {
 	phase.AddFunction(newfunc)
 
 	return flow
+}
+
+// ExecuteDag apply a predefined dag
+// All operation inside dag are async
+// Note: If applied dag, chain execution is not supported
+func (flow *Workflow) ExecuteDag(dag *DagFlow) {
+	pipeline := flow.pipeline
+	pipeline.Dag = dag.udag
+	pipeline.Phases = make([]*sdk.Phase, 0)
 }
 
 // OnFailure set a failure handler routine for the pipeline

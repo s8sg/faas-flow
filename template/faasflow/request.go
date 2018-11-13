@@ -7,11 +7,12 @@ import (
 
 // Request defines the body of async forward request to faasflow
 type Request struct {
-	Sign           string `json: "sign"`  // request signature
-	ID             string `json: "id"`    // request ID
-	Query          string `json: "query"` // query string
-	ExecutionState string `json: "state"` // Execution State
-	Data           []byte `json: "data"`  // Partial execution data
+	Sign           string `json: "sign"`      // request signature
+	ID             string `json: "id"`        // request ID
+	Query          string `json: "query"`     // query string
+	ExecutionState string `json: "e-state"`   // Execution State
+	DagVertex      string `json: "dag-state"` // Dag Execution State
+	Data           []byte `json: "data"`      // Partial execution data
 
 	ContextState map[string]string `json: "state"` // Context State for default StateManager
 }
@@ -23,6 +24,7 @@ const (
 
 func buildRequest(id string,
 	state string,
+	dagstate string,
 	query string,
 	data []byte,
 	contextstate map[string]string) *Request {
@@ -31,6 +33,7 @@ func buildRequest(id string,
 		Sign:           SIGN,
 		ID:             id,
 		ExecutionState: state,
+		DagVertex:      dagstate,
 		Query:          query,
 		Data:           data,
 		ContextState:   contextstate,
@@ -64,6 +67,10 @@ func (req *Request) getID() string {
 
 func (req *Request) getExecutionState() string {
 	return req.ExecutionState
+}
+
+func (req *Request) getDagState() string {
+	return req.DagVertex
 }
 
 func (req *Request) getContextState() map[string]string {

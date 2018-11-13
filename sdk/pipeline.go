@@ -11,16 +11,22 @@ type PipelineErrorHandler func(error) ([]byte, error)
 type PipelineHandler func(string)
 
 type Pipeline struct {
-	Phases            []*Phase             `json:"phases,omitempty"` // Phases that will be executed in async
-	ExecutionPosition int                  `json:"position"`         // Position of Executor
-	FailureHandler    PipelineErrorHandler `json:"-"`
-	Finally           PipelineHandler      `json:"-"`
+	Phases            []*Phase `json:"-"`        // Phases that will be executed in async
+	ExecutionPosition int      `json:"position"` // Position of Executor
+
+	Dag                  *Dag   `json:"-"`            // Dag that will be executed
+	DagExecutionPosition string `json:"dag-position"` // Position of Executor in Dag
+
+	FailureHandler PipelineErrorHandler `json:"-"`
+	Finally        PipelineHandler      `json:"-"`
 }
 
 func CreatePipeline() *Pipeline {
 	pipeline := &Pipeline{}
 	pipeline.Phases = make([]*Phase, 0)
 	pipeline.ExecutionPosition = 0
+	pipeline.Dag = nil
+	pipeline.DagExecutionPosition = ""
 	return pipeline
 }
 
@@ -62,6 +68,10 @@ func (pipeline *Pipeline) UpdateExecutionPosition() {
 	pipeline.ExecutionPosition = pipeline.ExecutionPosition + 1
 }
 
+func (pipeline *Pipeline) UpdateDagExecutionPosition(vertex string) {
+	pipeline.DagExecutionPosition = vertex
+}
+
 func (pipeline *Pipeline) Encode() ([]byte, error) {
 	return json.Marshal(pipeline)
 }
@@ -77,4 +87,5 @@ func (pipeline *Pipeline) ApplyState(state string) {
 	var temp Pipeline
 	json.Unmarshal([]byte(state), &temp)
 	pipeline.ExecutionPosition = temp.ExecutionPosition
+	pipeline.DagExecutionPosition = temp.DagExecutionPosition
 }

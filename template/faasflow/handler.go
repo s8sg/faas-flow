@@ -223,8 +223,8 @@ func createContext(fhandler *flowHandler) *faasflow.Context {
 	return context
 }
 
-// buildChain builds a flow and context from raw request or partial completed request
-func buildChain(data []byte) (fhandler *flowHandler, requestData []byte) {
+// buildWorkflow builds a flow and context from raw request or partial completed request
+func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 
 	requestId := ""
 	var validateErr error
@@ -472,6 +472,7 @@ func forwardAsync(fhandler *flowHandler, result []byte) ([]byte, error) {
 	// Build request
 	uprequest := buildRequest(fhandler.id,
 		string(pipelineState),
+		"",
 		fhandler.query,
 		result,
 		fhandler.stateM.state)
@@ -580,8 +581,8 @@ func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) 
 	fhandler.finished = true
 }
 
-// handleChain handle the flow
-func handleChain(data []byte) string {
+// handleWorkflow handle the flow
+func handleWorkflow(data []byte) string {
 
 	var resp []byte
 
@@ -600,12 +601,12 @@ func handleChain(data []byte) string {
 	// Chain Execution Steps
 	{
 		// BUILD: build the flow based on execution request
-		fhandler, data := buildChain(data)
+		fhandler, data := buildWorkflow(data)
 
 		// MAKE CONTEXT: make the request context from flow
 		context := createContext(fhandler)
 
-		// DEFINE: Get Chain definition from user implemented Define()
+		// DEFINE: Get Pipeline definition from user implemented Define()
 		err := function.Define(fhandler.flow, context)
 		if err != nil {
 			context.State = faasflow.StateFailure
