@@ -26,6 +26,9 @@ functions:
       combine_output: false
     environment_file:
       - upload-pipeline-async.yml
+    secrets:
+      - s3-secret-key
+      - s3-access-key
 
   colorization:
     lang: dockerfile

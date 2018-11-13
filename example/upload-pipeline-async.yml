@@ -4,3 +4,6 @@ environment:
   enable_tracing: false
   enable_hmac: false
   intermidiate_storage: true
+  s3_url: "minio:9000"
+  s3_bucket: "faasflow"
+  s3_tls: false
