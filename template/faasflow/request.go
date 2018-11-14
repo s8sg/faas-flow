@@ -7,14 +7,17 @@ import (
 
 // Request defines the body of async forward request to faasflow
 type Request struct {
-	Sign           string `json: "sign"`      // request signature
-	ID             string `json: "id"`        // request ID
-	Query          string `json: "query"`     // query string
-	ExecutionState string `json: "e-state"`   // Execution State
-	DagVertex      string `json: "dag-state"` // Dag Execution State
-	Data           []byte `json: "data"`      // Partial execution data
+	Sign  string `json: "sign"`  // request signature
+	ID    string `json: "id"`    // request ID
+	Query string `json: "query"` // query string
 
-	ContextStore map[string]string `json: "state"` // Context State for default StateManager
+	ExecutionState string `json: "e-state"` // Execution State (execution position / execution vertex)
+
+	Data []byte `json: "data"` // Partial execution data
+	// (empty if intermediate_stoarge enabled
+
+	ContextStore map[string]string `json: "state"` // Context State for default DataStore
+	// (empty if external Store is used
 }
 
 const (
@@ -24,7 +27,6 @@ const (
 
 func buildRequest(id string,
 	state string,
-	dagstate string,
 	query string,
 	data []byte,
 	contextstate map[string]string) *Request {
@@ -33,7 +35,6 @@ func buildRequest(id string,
 		Sign:           SIGN,
 		ID:             id,
 		ExecutionState: state,
-		DagVertex:      dagstate,
 		Query:          query,
 		Data:           data,
 		ContextStore:   contextstate,
@@ -67,10 +68,6 @@ func (req *Request) getID() string {
 
 func (req *Request) getExecutionState() string {
 	return req.ExecutionState
-}
-
-func (req *Request) getDagState() string {
-	return req.DagVertex
 }
 
 func (req *Request) getContextStore() map[string]string {

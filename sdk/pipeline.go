@@ -2,6 +2,13 @@ package sdk
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
+)
+
+const (
+	TYPE_CHAIN = "chain"
+	TYPE_DAG   = "dag"
 )
 
 // PipelineErrorHandler the error handler OnFailure() registration on pipeline
@@ -11,6 +18,8 @@ type PipelineErrorHandler func(error) ([]byte, error)
 type PipelineHandler func(string)
 
 type Pipeline struct {
+	PipelineType string `json:"type"` // Pipeline type denotes a dag or a chain
+
 	Phases            []*Phase `json:"-"`        // Phases that will be executed in async
 	ExecutionPosition int      `json:"position"` // Position of Executor
 
@@ -23,6 +32,7 @@ type Pipeline struct {
 
 func CreatePipeline() *Pipeline {
 	pipeline := &Pipeline{}
+	pipeline.PipelineType = TYPE_CHAIN
 	pipeline.Phases = make([]*Phase, 0)
 	pipeline.ExecutionPosition = 0
 	pipeline.Dag = nil
@@ -72,6 +82,11 @@ func (pipeline *Pipeline) UpdateDagExecutionPosition(vertex string) {
 	pipeline.DagExecutionPosition = vertex
 }
 
+func (pipeline *Pipeline) SetDag(dag *Dag) {
+	pipeline.Dag = dag
+	pipeline.PipelineType = TYPE_DAG
+}
+
 func (pipeline *Pipeline) Encode() ([]byte, error) {
 	return json.Marshal(pipeline)
 }
@@ -88,4 +103,59 @@ func (pipeline *Pipeline) ApplyState(state string) {
 	json.Unmarshal([]byte(state), &temp)
 	pipeline.ExecutionPosition = temp.ExecutionPosition
 	pipeline.DagExecutionPosition = temp.DagExecutionPosition
+	pipeline.PipelineType = temp.PipelineType
+}
+
+// MakeDotGraph create a dot graph of the pipeline
+func (pipeline *Pipeline) MakeDotGraph() string {
+	switch pipeline.PipelineType {
+	case TYPE_DAG:
+		return pipeline.Dag.makeDagDotGraph()
+	case TYPE_CHAIN:
+		return pipeline.makeChainDotGraoh()
+	}
+	return ""
+}
+
+func (this *Pipeline) makeChainDotGraoh() string {
+	var sb strings.Builder
+	sb.WriteString("digraph depgraph {\n\trankdir=LR;\n")
+	for index, phase := range this.Phases {
+		if index == len(this.Phases)-1 {
+			sb.WriteString(fmt.Sprintf("\t\"phase-%d\";\n", index+1))
+			continue
+		}
+		modifierTypes := ""
+		for _, function := range phase.Functions {
+			switch {
+			case function.GetName() != "":
+				modifierTypes += " func:" + function.GetName()
+			case function.CallbackUrl != "":
+				modifierTypes += " callback:" + function.CallbackUrl
+			default:
+				modifierTypes += " modifier"
+			}
+		}
+		sb.WriteString(fmt.Sprintf(`phase-%d -> phase-%d [label="%s"]`, index+1, index+2, modifierTypes))
+	}
+	sb.WriteString("}\n")
+	return sb.String()
+}
+
+func (this *Dag) makeDagDotGraph() string {
+	var sb strings.Builder
+	sb.WriteString("digraph depgraph {\n\trankdir=LR;\n")
+	for _, node := range this.nodes {
+		if len(node.children) == 0 {
+			sb.WriteString(fmt.Sprintf("\t\"%s\";\n", node.id))
+			continue
+		}
+
+		for _, child := range node.children {
+			sb.WriteString(fmt.Sprintf(`%s -> %s [label="%v"]`, node.id, child.id, node.val))
+			sb.WriteString("\r\n")
+		}
+	}
+	sb.WriteString("}\n")
+	return sb.String()
 }

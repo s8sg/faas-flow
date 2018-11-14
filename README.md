@@ -95,7 +95,7 @@ Faasflow supports sync and async function call. By default all call are async. T
 
 ## Internal
 
-Faasflow runs four mejor steps to define and run the pipeline
+Faasflow runs four major steps to define and run the pipeline
 ![alt internal](https://github.com/s8sg/faasflow/blob/master/doc/internal.jpg)
 
 | Step |  description |

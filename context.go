@@ -8,12 +8,13 @@ import (
 
 // Context execution context and execution state
 type Context struct {
-	requestId string     // the request id
-	phase     int        // the execution position
-	dataStore DataStore  // underline DataStore
-	Query     url.Values // provides request Query
-	State     string     // state of the request
-	Name      string
+	requestId  string     // the request id
+	phase      int        // the execution position
+	dataStore  DataStore  // underline DataStore
+	stateStore StateStore // StateStore to store dag execution state
+	Query      url.Values // provides request Query
+	State      string     // state of the request
+	Name       string
 }
 
 // DataStore for Storing Data
@@ -26,6 +27,18 @@ type DataStore interface {
 	Get(key string) (string, error)
 	// Del delets a value by a key
 	Del(key string) error
+}
+
+// StateStore for saving execution state
+type StateStore interface {
+	// Initialize the StateStore with flow name and request ID
+	Init(flowName string, requestId string) error
+	// create Vertexis for request
+	// creates a map[<vertexId>]<Indegree Completion Count>
+	Create(vertexs []string) error
+	// Increment Vertex Indegree Completion
+	// synchronously increment map[<vertexId>] Indegree Completion Count by 1 and return updated count
+	IncrementCompletionCount(vertex string) (int, error)
 }
 
 const (
@@ -48,12 +61,22 @@ func CreateContext(id string, phase int, name string) *Context {
 	return context
 }
 
-// SetDataStore sets and overwrite the state manager
+// SetDataStore sets and overwrite the data store
 func (context *Context) SetDataStore(store DataStore) error {
 	context.dataStore = store
 	err := context.dataStore.Init(context.Name, context.requestId)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize DataStore, error %v", err)
+	}
+	return nil
+}
+
+// SetStateStore sets the state store
+func (context *Context) SetStateStore(store StateStore) error {
+	context.stateStore = store
+	err := context.stateStore.Init(context.Name, context.requestId)
+	if err != nil {
+		return fmt.Errorf("Failed to initialize StateStore, error %v", err)
 	}
 	return nil
 }

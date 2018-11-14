@@ -18,10 +18,11 @@ type Node struct {
 	id  string
 	val *Function
 
-	outdegree int
-	indegree  int
+	//outdegree int
+	indegree int
 
 	children []*Node
+	// dependsOn []*Node
 	//childrenSync map[string]bool
 
 	next []*Node
@@ -75,9 +76,10 @@ func (this *Dag) AddEdge(from, to string) error {
 	}
 
 	fromNode.children = append(fromNode.children, toNode)
+	// toNode.dependsOn = append(toNode.dependsOn, fromNode)
 	//fromNode.childrenSync = sync
 
-	fromNode.outdegree++
+	// fromNode.outdegree++
 	toNode.indegree++
 
 	return nil
@@ -86,36 +88,6 @@ func (this *Dag) AddEdge(from, to string) error {
 func (this *Dag) Node(id string) *Node {
 	return this.nodes[id]
 }
-
-/*
-func (this *Dag) MakeDotGraph(fileName string) string {
-	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-
-	sb := str.NewStringBuilder()
-	sb.WriteString("digraph depgraph {\n\trankdir=LR;\n")
-	for _, node := range this.nodes {
-		node.dotGraph(sb)
-	}
-	sb.WriteString("}\n")
-	file.WriteString(sb.String())
-	return sb.String()
-}
-
-func (this *Node) dotGraph(sb *str.StringBuilder) {
-	if len(this.children) == 0 {
-		sb.WriteString(fmt.Sprintf("\t\"%s\";\n", this.id))
-		return
-	}
-
-	for _, child := range this.children {
-		sb.WriteString(fmt.Sprintf(`%s -> %s [label="%v"]`, this.id, child.id, this.val))
-		sb.WriteString("\r\n")
-	}
-}*/
 
 func (this *Node) Children() []*Node {
 	return this.children

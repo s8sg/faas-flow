@@ -472,7 +472,6 @@ func forwardAsync(fhandler *flowHandler, result []byte) ([]byte, error) {
 	// Build request
 	uprequest := buildRequest(fhandler.id,
 		string(pipelineState),
-		"",
 		fhandler.query,
 		result,
 		fhandler.stateM.store)
