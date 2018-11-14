@@ -264,6 +264,7 @@ The main state in faasflow is the **`execution-position` (next-phase)** and the 
 Apart from that faasflow allow user to define state with `StateManager` interface.   
 ```go
  type StateManager interface {
+        Init(flowName string, requestId string) error
 	Set(key string, value string) error
 	Get(key string) (string, error)
 	Del(key string) error
@@ -307,7 +308,12 @@ Http Query to flow can be used from context as
           	token = context.Query.Get("token") // get query inside modifier
      	  })
 ```  
-     
+
+### Use **StateManager** to store intermediate result
+By default **`partially`** completed data gets forwarded along with the async request. When using external `StateManager` it can be saved and retrived from the `StateManager` if the flag `intermediate_storage` is set. Default is `false`
+```yaml
+   intermediate_storage: true
+```
     
 ## Cleanup with `Finally()`
 Finally provides a way to cleanup context and other resources and do post completion work of the pipeline.
