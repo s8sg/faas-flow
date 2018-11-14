@@ -36,7 +36,7 @@ type flowHandler struct {
 	pipelineDef []byte             // the pipeline definition
 	finished    bool               // denots the flow has finished execution
 
-	stateM *requestEmbedStateManager // the deafult statemanager
+	stateM *requestEmbedDataStore // the deafult statemanager
 }
 
 // buildURL builds openfaas function execution url for the flow
@@ -48,7 +48,7 @@ func buildURL(gateway, rpath, flow string) string {
 
 // newWorkflowHandler creates a new flow handler object
 func newWorkflowHandler(gateway string, name string, id string,
-	query string, stateM *requestEmbedStateManager) *flowHandler {
+	query string, stateM *requestEmbedDataStore) *flowHandler {
 
 	fhandler := &flowHandler{}
 
@@ -218,7 +218,7 @@ func buildCallbackRequest(callbackUrl string, data []byte, params map[string][]s
 func createContext(fhandler *flowHandler) *faasflow.Context {
 	context := faasflow.CreateContext(fhandler.id,
 		fhandler.getPipeline().ExecutionPosition+1, flowName)
-	context.SetStateManager(fhandler.stateM)
+	context.SetDataStore(fhandler.stateM)
 	context.Query, _ = url.ParseQuery(fhandler.query)
 	return context
 }
@@ -261,7 +261,7 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 
 		// create flow properties
 		query := os.Getenv("Http_Query")
-		stateM := createStateManager()
+		stateM := createDataStore()
 
 		// Create fhandler
 		fhandler = newWorkflowHandler("http://"+getGateway(), flowName,
@@ -290,7 +290,7 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 		// get flow properties
 		executionState := request.getExecutionState()
 		query := request.getQuery()
-		stateM := retriveStateManager(request.getContextState())
+		stateM := retriveDataStore(request.getContextStore())
 
 		// Create flow and apply execution state
 		fhandler = newWorkflowHandler("http://"+getGateway(), flowName,
@@ -475,7 +475,7 @@ func forwardAsync(fhandler *flowHandler, result []byte) ([]byte, error) {
 		"",
 		fhandler.query,
 		result,
-		fhandler.stateM.state)
+		fhandler.stateM.store)
 
 	// Make request data
 	data, _ := uprequest.encode()
@@ -614,7 +614,7 @@ func handleWorkflow(data []byte) string {
 		}
 
 		// For partially completed requests
-		// If IntermidiateStorage is enabled get the data from stateManager
+		// If IntermidiateStorage is enabled get the data from dataStore
 		if fhandler.getPipeline().ExecutionPosition != 0 && useIntermidiateStorage() {
 			key := fmt.Sprintf("intermediate-result-%d", fhandler.getPipeline().ExecutionPosition)
 			idata, gerr := context.GetBytes(key)

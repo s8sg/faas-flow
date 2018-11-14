@@ -21,7 +21,8 @@ type Node struct {
 	outdegree int
 	indegree  int
 
-	children []*Node
+	children  []*Node
+	dependsOn []*Node
 	//childrenSync map[string]bool
 
 	next []*Node
@@ -75,6 +76,7 @@ func (this *Dag) AddEdge(from, to string) error {
 	}
 
 	fromNode.children = append(fromNode.children, toNode)
+	toNode.dependsOn = append(toNode.dependsOn, fromNode)
 	//fromNode.childrenSync = sync
 
 	fromNode.outdegree++

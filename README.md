@@ -37,10 +37,10 @@ The above pipeline can be achieved with little, but powerfull code:
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
      // use any 3rd party to maintain state
-     context.SetStateManager(myMinioStatemanager)
+     context.SetDataStore(myMinioStatemanager)
 
      flow.Modify(func(data []byte) ([]byte, error) {
-               // Set value in context with StateManager
+               // Set value in context with DataStore
                context.Set("raw-image", data)
                return data
         }).
@@ -258,12 +258,20 @@ Below is an example of tracing for an async request with 3 phases
 ![alt multi phase](https://github.com/s8sg/faasflow/blob/master/doc/tracing.png)
     
      
-     
-## State Management
+    
+## Using request context
+Request context provide verious function such as:   
+  **DataStore** to store data,    
+  **HttpQuery** to retrivbe request query,  
+  **State*** to get flow state,  
+  **phase** to execution phase 
+etc.  
+
+### Manage Data Accross Phase with `DataStore`
 The main state in faasflow is the **`execution-position` (next-phase)** and the **`partially`** completed data.    
-Apart from that faasflow allow user to define state with `StateManager` interface.   
+Apart from that faasflow allow user to define state with `DataStore` interface.   
 ```go
- type StateManager interface {
+ type DataStore interface {
         Init(flowName string, requestId string) error
 	Set(key string, value string) error
 	Get(key string) (string, error)
@@ -274,8 +282,8 @@ Apart from that faasflow allow user to define state with `StateManager` interfac
 State manager can be implemented and set by user with request context in faasflow `Define()`:
 ```go
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
-     // initialize my custom StateManager as minioStateManager
-     context.SetStateManager(minioStateManager)
+     // initialize my custom DataStore as minioDataStore
+     context.SetDataStore(minioDataStore)
 }
 ```
     
@@ -292,15 +300,22 @@ Once a state manager is set it can be used by calling `Get()` and `Set()` from `
           // use the query
      })
 ```
-* **[MinioStateManager](https://github.com/s8sg/faasflowMinioStateManager)** allows to store state in **amazon s3** or local **minio DB**
+* **[MinioDataStore](https://github.com/s8sg/faasflowMinioDataStore)** allows to store state in **amazon s3** or local **minio DB**
 
-#### Default `requestEmbedStateManager`: 
-By default faasflow template use `requestEmbedStateManager` which embed the state data along with the request for the next phase. For bigger values it is recommended to pass it with custom `StateManager`. 
+> **Default `requestEmbedDataStore`:**   
+> By default faasflow template use `requestEmbedDataStore` which embed the state data along with the request for the next phase. For bigger values it is recommended to pass it with custom `DataStore`. 
     
      
-Once `StateManager` is overridden, all call to `Set()`, `Get()` and `del()` will call the provided `StateManager`
-    
-#### Geting Http Query to Workflow: 
+Once `DataStore` is overridden, all call to `Set()`, `Get()` and `del()` will call the provided `DataStore`
+
+### Use **DataStore** to store intermediate result
+By default **`partially`** completed data gets forwarded along with the async request. When using external `DataStore` it can be saved and retrived from the `DataStore` if the flag `intermediate_storage` is set. Default is `false`
+```yaml
+   intermediate_storage: true
+```
+Due to **nats** `1mb` storage limitation, async call may fail. In such scenario using `intermediate_storage` is recommended
+
+### Geting Http Query to Workflow: 
 Http Query to flow can be used from context as
 ```go
     flow.Apply("myfunc", Query("auth-token", context.Query.Get("token"))). // pass as a function query
@@ -309,19 +324,24 @@ Http Query to flow can be used from context as
      	  })
 ```  
 
-### Use **StateManager** to store intermediate result
-By default **`partially`** completed data gets forwarded along with the async request. When using external `StateManager` it can be saved and retrived from the `StateManager` if the flag `intermediate_storage` is set. Default is `false`
-```yaml
-   intermediate_storage: true
+### Other from context:
+Phase, requestId, State is provided by the `context`
+```go
+   currentPhase := context.GetPhase()
+   requestId := context.GetRequestId()
+   state := context.State
 ```
+for more details check `[faasflow-GoDoc](https://godoc.org/github.com/s8sg/faasflow)
+   
     
+     
 ## Cleanup with `Finally()`
 Finally provides a way to cleanup context and other resources and do post completion work of the pipeline.
 A Finally method can be used on flow as:
 ```go
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
-     // initialize my custom StateManager as myStateManager
-     context.SetStateManager(myStateManager)
+     // initialize my custom DataStore as myDataStore
+     context.SetDataStore(myDataStore)
      
      // Define flow
      flow.Modify(func(data []byte) {

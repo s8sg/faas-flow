@@ -1,4 +1,4 @@
-package faasflowMinioStateManager
+package faasflowMinioDataStore
 
 import (
 	"bytes"
@@ -12,18 +12,18 @@ import (
 	"strings"
 )
 
-type MinioStateManager struct {
+type MinioDataStore struct {
 	bucketName  string
 	flowName    string
 	requestId   string
 	minioClient *minio.Client
 }
 
-// GetMinioStateManager Initialize a minio StateManager object based on configuration
+// GetMinioDataStore Initialize a minio DataStore object based on configuration
 // Depends on s3_url, s3-secret-key, s3-access-key, [s3_bucket, s3_region](optional), workflow_name
-func GetMinioStateManager() (faasflow.StateManager, error) {
+func GetMinioDataStore() (faasflow.DataStore, error) {
 
-	minioStateManager := &MinioStateManager{}
+	minioDataStore := &MinioDataStore{}
 
 	region := regionName()
 	bucketName := bucketName()
@@ -34,28 +34,28 @@ func GetMinioStateManager() (faasflow.StateManager, error) {
 	}
 
 	minioClient.MakeBucket(bucketName, region)
-	minioStateManager.bucketName = bucketName
+	minioDataStore.bucketName = bucketName
 
-	minioStateManager.minioClient = minioClient
+	minioDataStore.minioClient = minioClient
 
-	return minioStateManager, nil
+	return minioDataStore, nil
 }
 
-func (minioState *MinioStateManager) Init(flowName string, requestId string) error {
-	minioState.flowName = flowName
-	minioState.requestId = requestId
+func (minioStore *MinioDataStore) Init(flowName string, requestId string) error {
+	minioStore.flowName = flowName
+	minioStore.requestId = requestId
 
 	return nil
 }
 
-func (minioState *MinioStateManager) Set(key string, value string) error {
-	if minioState.minioClient == nil {
-		return fmt.Errorf("minio client not initialized, use GetMinioStateManager()")
+func (minioStore *MinioDataStore) Set(key string, value string) error {
+	if minioStore.minioClient == nil {
+		return fmt.Errorf("minio client not initialized, use GetMinioDataStore()")
 	}
 
-	fullPath := getPath(minioState.bucketName, minioState.flowName, minioState.requestId, key)
+	fullPath := getPath(minioStore.bucketName, minioStore.flowName, minioStore.requestId, key)
 	reader := bytes.NewReader([]byte(value))
-	_, err := minioState.minioClient.PutObject(minioState.bucketName,
+	_, err := minioStore.minioClient.PutObject(minioStore.bucketName,
 		fullPath,
 		reader,
 		int64(reader.Len()),
@@ -67,13 +67,13 @@ func (minioState *MinioStateManager) Set(key string, value string) error {
 	return nil
 }
 
-func (minioState *MinioStateManager) Get(key string) (string, error) {
-	if minioState.minioClient == nil {
-		return "", fmt.Errorf("minio client not initialized, use GetMinioStateManager()")
+func (minioStore *MinioDataStore) Get(key string) (string, error) {
+	if minioStore.minioClient == nil {
+		return "", fmt.Errorf("minio client not initialized, use GetMinioDataStore()")
 	}
 
-	fullPath := getPath(minioState.bucketName, minioState.flowName, minioState.requestId, key)
-	obj, err := minioState.minioClient.GetObject(minioState.bucketName, fullPath, minio.GetObjectOptions{})
+	fullPath := getPath(minioStore.bucketName, minioStore.flowName, minioStore.requestId, key)
+	obj, err := minioStore.minioClient.GetObject(minioStore.bucketName, fullPath, minio.GetObjectOptions{})
 	if err != nil {
 		return "", fmt.Errorf("error reading: %s, error: %s", fullPath, err.Error())
 	}
@@ -83,13 +83,13 @@ func (minioState *MinioStateManager) Get(key string) (string, error) {
 	return string(data), nil
 }
 
-func (minioState *MinioStateManager) Del(key string) error {
-	if minioState.minioClient == nil {
-		return fmt.Errorf("minio client not initialized, use GetMinioStateManager()")
+func (minioStore *MinioDataStore) Del(key string) error {
+	if minioStore.minioClient == nil {
+		return fmt.Errorf("minio client not initialized, use GetMinioDataStore()")
 	}
 
-	fullPath := getPath(minioState.bucketName, minioState.flowName, minioState.requestId, key)
-	err := minioState.minioClient.RemoveObject(minioState.bucketName, fullPath)
+	fullPath := getPath(minioStore.bucketName, minioStore.flowName, minioStore.requestId, key)
+	err := minioStore.minioClient.RemoveObject(minioStore.bucketName, fullPath)
 	if err != nil {
 		return fmt.Errorf("error removing: %s, error: %s", fullPath, err.Error())
 	}

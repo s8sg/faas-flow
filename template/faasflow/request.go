@@ -14,7 +14,7 @@ type Request struct {
 	DagVertex      string `json: "dag-state"` // Dag Execution State
 	Data           []byte `json: "data"`      // Partial execution data
 
-	ContextState map[string]string `json: "state"` // Context State for default StateManager
+	ContextStore map[string]string `json: "state"` // Context State for default StateManager
 }
 
 const (
@@ -36,7 +36,7 @@ func buildRequest(id string,
 		DagVertex:      dagstate,
 		Query:          query,
 		Data:           data,
-		ContextState:   contextstate,
+		ContextStore:   contextstate,
 	}
 	return request
 }
@@ -73,8 +73,8 @@ func (req *Request) getDagState() string {
 	return req.DagVertex
 }
 
-func (req *Request) getContextState() map[string]string {
-	return req.ContextState
+func (req *Request) getContextStore() map[string]string {
+	return req.ContextStore
 }
 
 func (req *Request) getQuery() string {

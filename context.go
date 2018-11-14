@@ -8,17 +8,17 @@ import (
 
 // Context execution context and execution state
 type Context struct {
-	requestId    string       // the request id
-	phase        int          // the execution position
-	stateManager StateManager // underline StateManager
-	Query        url.Values   // provides request Query
-	State        string       // state of the request
-	Name         string
+	requestId string     // the request id
+	phase     int        // the execution position
+	dataStore DataStore  // underline DataStore
+	Query     url.Values // provides request Query
+	State     string     // state of the request
+	Name      string
 }
 
-// StateManager for State Manager
-type StateManager interface {
-	// Initialize the StateManager with flow name and request ID
+// DataStore for Storing Data
+type DataStore interface {
+	// Initialize the DataStore with flow name and request ID
 	Init(flowName string, requestId string) error
 	// Set store a value for key, in failure returns error
 	Set(key string, value string) error
@@ -48,12 +48,12 @@ func CreateContext(id string, phase int, name string) *Context {
 	return context
 }
 
-// SetStateManager sets and overwrite the state manager
-func (context *Context) SetStateManager(state StateManager) error {
-	context.stateManager = state
-	err := context.stateManager.Init(context.Name, context.requestId)
+// SetDataStore sets and overwrite the state manager
+func (context *Context) SetDataStore(store DataStore) error {
+	context.dataStore = store
+	err := context.dataStore.Init(context.Name, context.requestId)
 	if err != nil {
-		return fmt.Errorf("Failed to initialize StateManager, error %v", err)
+		return fmt.Errorf("Failed to initialize DataStore, error %v", err)
 	}
 	return nil
 }
@@ -68,7 +68,7 @@ func (context *Context) GetPhase() int {
 	return context.phase
 }
 
-// Set put a value in the context using StateManager
+// Set put a value in the context using DataStore
 func (context *Context) Set(key string, data interface{}) error {
 	c := struct {
 		Key   string      `json:"key"`
@@ -79,12 +79,12 @@ func (context *Context) Set(key string, data interface{}) error {
 		return fmt.Errorf("Failed to marshal data, error %v", err)
 	}
 
-	return context.stateManager.Set(key, string(b))
+	return context.dataStore.Set(key, string(b))
 }
 
-// Get retrive a value from the context using StateManager
+// Get retrive a value from the context using DataStore
 func (context *Context) Get(key string) (interface{}, error) {
-	data, err := context.stateManager.Get(key)
+	data, err := context.dataStore.Get(key)
 	if err != nil {
 		return nil, err
 	}
@@ -99,9 +99,9 @@ func (context *Context) Get(key string) (interface{}, error) {
 	return c.Value, err
 }
 
-// GetInt retrive a integer value from the context using StateManager
+// GetInt retrive a integer value from the context using DataStore
 func (context *Context) GetInt(key string) (int, error) {
-	data, err := context.stateManager.Get(key)
+	data, err := context.dataStore.Get(key)
 	if err != nil {
 		return 0, err
 	}
@@ -115,17 +115,12 @@ func (context *Context) GetInt(key string) (int, error) {
 		return 0, fmt.Errorf("Failed to unmarshal data, error %v", err)
 	}
 
-	/*
-		intData, ok := c.Value.(int)
-		if !ok {
-			return 0, fmt.Errorf("failed to convert int for key %s", key)
-		}*/
 	return c.Value, nil
 }
 
-// GetString retrive a string value from the context using StateManager
+// GetString retrive a string value from the context using DataStore
 func (context *Context) GetString(key string) (string, error) {
-	data, err := context.stateManager.Get(key)
+	data, err := context.dataStore.Get(key)
 	if err != nil {
 		return "", err
 	}
@@ -139,17 +134,12 @@ func (context *Context) GetString(key string) (string, error) {
 		return "", fmt.Errorf("Failed to unmarshal data, error %v", err)
 	}
 
-	/*
-		stringData, ok := c.Value.(string)
-		if !ok {
-			return "", fmt.Errorf("failed to convert string for key %s", key)
-		}*/
 	return c.Value, nil
 }
 
-// GetBytes retrive a byte array from the context using StateManager
+// GetBytes retrive a byte array from the context using DataStore
 func (context *Context) GetBytes(key string) ([]byte, error) {
-	data, err := context.stateManager.Get(key)
+	data, err := context.dataStore.Get(key)
 	if err != nil {
 		return nil, err
 	}
@@ -163,17 +153,12 @@ func (context *Context) GetBytes(key string) ([]byte, error) {
 		return nil, fmt.Errorf("Failed to unmarshal data, error %v", err)
 	}
 
-	/*
-		byteData, ok := c.Value.(string)
-		if !ok {
-			return nil, fmt.Errorf("failed to convert byte array for key %s", key)
-		}*/
 	return c.Value, nil
 }
 
-// GetBool retrive a boolean value from the context using StateManager
+// GetBool retrive a boolean value from the context using DataStore
 func (context *Context) GetBool(key string) (bool, error) {
-	data, err := context.stateManager.Get(key)
+	data, err := context.dataStore.Get(key)
 	if err != nil {
 		return false, err
 	}
@@ -187,15 +172,10 @@ func (context *Context) GetBool(key string) (bool, error) {
 		return false, fmt.Errorf("Failed to unmarshal data, error %v", err)
 	}
 
-	/*
-		boolData, ok := c.Value.(bool)
-		if !ok {
-			return false, fmt.Errorf("failed to convert boolean for key %s", key)
-		}*/
 	return c.Value, nil
 }
 
-// Del deletes a value from the context using StateManager
+// Del deletes a value from the context using DataStore
 func (context *Context) Del(key string) error {
-	return context.stateManager.Del(key)
+	return context.dataStore.Del(key)
 }

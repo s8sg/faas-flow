@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	faasflow "github.com/s8sg/faasflow"
-	minioStateManager "github.com/s8sg/faasflowMinioStateManager"
+	minioDataStore "github.com/s8sg/faasflowMinioDataStore"
 	"io"
 	"log"
 	"mime/multipart"
@@ -102,13 +102,13 @@ func validateFace(data []byte) error {
 // Defines a Pipeline
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
-	// initialize minio StateManager
-	miniosm, err := minioStateManager.GetMinioStateManager()
+	// initialize minio DataStore
+	miniods, err := minioDataStore.GetMinioDataStore()
 	if err != nil {
 		return err
 	}
-	// Set StateManager
-	context.SetStateManager(miniosm)
+	// Set DataStore
+	context.SetDataStore(miniods)
 
 	// Define Pipeline
 	flow.
@@ -167,7 +167,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 		}).
 		Finally(func(state string) {
 			// Optional (cleanup)
-			// Cleanup is not needed if using default StateManager
+			// Cleanup is not needed if using default DataStore
 			context.Del("fileName")
 			context.Del("rawImage")
 		})

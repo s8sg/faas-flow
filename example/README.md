@@ -62,13 +62,13 @@ ASync function meant to perform all the operation in aSync and upload the result
 ##### Define Chain:
 Function definition
 ```go
-      // initialize minio StateManager
-      miniosm, err := minioStateManager.GetMinioStateManager()
+      // initialize minio DataStore
+      miniosm, err := minioDataStore.GetMinioDataStore()
       if err != nil {
             return err
       }
-      // Set StateManager
-      context.SetStateManager(miniosm)
+      // Set DataStore
+      context.SetDataStore(miniosm)
 
       // define Pipleline
       flow.
@@ -127,7 +127,7 @@ Function definition
                 }).
                 Finally(func(state string) {
                         // Optional (cleanup)
-                        // Cleanup is not needed if using default StateManager
+                        // Cleanup is not needed if using default DataStore
                         context.Del("fileName")
                         context.Del("rawImage")
                 })
