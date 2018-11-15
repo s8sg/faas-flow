@@ -129,8 +129,8 @@ func getWorkflowName() string {
 	return os.Getenv("workflow_name")
 }
 
-// useIntermidiateStorage check if IntermidiateStorage is enabled
-func useIntermidiateStorage() bool {
+// useIntermediateStorage check if IntermidiateStorage is enabled
+func useIntermediateStorage() bool {
 	storage := os.Getenv("intermediate_storage")
 	if strings.ToUpper(storage) == "TRUE" {
 		return true
@@ -321,8 +321,6 @@ func executeFunction(pipeline *sdk.Pipeline, function *sdk.Function, data []byte
 	client := &http.Client{}
 	resp, err := client.Do(httpreq)
 	if err != nil {
-		err = fmt.Errorf("Phase(%d), Function(%s), error: function execution failed, %v",
-			pipeline.ExecutionPosition, name, err)
 		return []byte{}, err
 	}
 
@@ -331,15 +329,11 @@ func executeFunction(pipeline *sdk.Pipeline, function *sdk.Function, data []byte
 	} else {
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
 			result, _ = ioutil.ReadAll(resp.Body)
-			err = fmt.Errorf("Phase(%d), Function(%s), error: function execution failed, %s",
-				pipeline.ExecutionPosition, name, resp.Status)
 			return result, err
 		}
 
 		result, err = ioutil.ReadAll(resp.Body)
 		if err != nil {
-			err = fmt.Errorf("Phase(%d), Function(%s), error: function execution failed, %v",
-				pipeline.ExecutionPosition, name, err)
 			return result, err
 		}
 	}
@@ -361,26 +355,23 @@ func executeCallback(pipeline *sdk.Pipeline, function *sdk.Function, data []byte
 	resp, err := client.Do(httpreq)
 	cbresult, _ := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		err = fmt.Errorf("Phase(%d), Callback(%s), error: callback failed, %v %s",
-			pipeline.ExecutionPosition, cburl, err, string(cbresult))
+		err := fmt.Errorf("%v:%s", err, string(cbresult))
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		err = fmt.Errorf("Phase(%d), Callback(%s), error: callback failed, %s, %s",
-			pipeline.ExecutionPosition, cburl, resp.Status, string(cbresult))
+		err := fmt.Errorf("%v:%s", err, string(cbresult))
 		return err
 	}
 	return nil
 
 }
 
-// execute functions for current phase
-func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
+// executePhase executes a phase on a faas chain
+func executeChain(fhandler *flowHandler, request []byte) ([]byte, error) {
 	var result []byte
 	var err error
 
 	pipeline := fhandler.getPipeline()
-
 	phase := pipeline.GetCurrentPhase()
 
 	log.Printf("[Request `%s`] Executing phase %d", fhandler.id, pipeline.ExecutionPosition)
@@ -401,6 +392,8 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 			} else {
 				result, err = executeFunction(pipeline, function, result)
 			}
+			err = fmt.Errorf("Phase(%d), Function(%s), error: function execution failed, %v",
+				pipeline.ExecutionPosition, function.GetName(), err)
 			if err != nil {
 				if function.FailureHandler != nil {
 					err = function.FailureHandler(err)
@@ -420,6 +413,8 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 				err = executeCallback(pipeline, function, result)
 			}
 			if err != nil {
+				err = fmt.Errorf("Phase(%d), Callback(%s), error: callback failed, %v",
+					pipeline.ExecutionPosition, function.CallbackUrl, err)
 				if function.FailureHandler != nil {
 					err = function.FailureHandler(err)
 				}
@@ -457,6 +452,103 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 	pipeline.UpdateExecutionPosition()
 
 	return result, nil
+}
+
+// executeDag executes a node on a faas chain
+func executeDag(fhandler *flowHandler, request []byte) ([]byte, error) {
+	var result []byte
+	var err error
+
+	pipeline := fhandler.getPipeline()
+	node := pipeline.GetCurrentNode()
+
+	log.Printf("[Request `%s`] Executing node %s", fhandler.id, pipeline.DagExecutionPosition)
+
+	// trace phase - mark as start of phase
+	startNodeSpan(pipeline.DagExecutionPosition, fhandler.id)
+
+	// Executes the node function
+	function := node.Value()
+
+	switch {
+	// If function
+	case function.GetName() != "":
+		log.Printf("[Request `%s`] Executing function `%s`",
+			fhandler.id, function.GetName())
+		if result == nil {
+			result, err = executeFunction(pipeline, function, request)
+		} else {
+			result, err = executeFunction(pipeline, function, result)
+		}
+		if err != nil {
+			err = fmt.Errorf("Phase(%d), Function(%s), error: function execution failed, %v",
+				pipeline.ExecutionPosition, function.GetName(), err)
+			if function.FailureHandler != nil {
+				err = function.FailureHandler(err)
+			}
+			if err != nil {
+				stopPhaseSpan(pipeline.ExecutionPosition)
+				return nil, err
+			}
+		}
+	// If callback
+	case function.CallbackUrl != "":
+		log.Printf("[Request `%s`] Executing callback `%s`",
+			fhandler.id, function.CallbackUrl)
+		if result == nil {
+			err = executeCallback(pipeline, function, request)
+		} else {
+			err = executeCallback(pipeline, function, result)
+		}
+		if err != nil {
+			err = fmt.Errorf("Phase(%d), Callback(%s), error: callback failed, %v",
+				pipeline.ExecutionPosition, function.CallbackUrl, err)
+			if function.FailureHandler != nil {
+				err = function.FailureHandler(err)
+			}
+			if err != nil {
+				stopPhaseSpan(pipeline.ExecutionPosition)
+				return nil, err
+			}
+		}
+
+	// If modifier
+	default:
+		log.Printf("[Request `%s`] Executing modifier", fhandler.id)
+		if result == nil {
+			result, err = function.Mod(request)
+		} else {
+			result, err = function.Mod(result)
+		}
+		if err != nil {
+			err = fmt.Errorf("Phase(%d), error: Failed at modifier, %v",
+				pipeline.ExecutionPosition, err)
+			return nil, err
+		}
+		if result == nil {
+			result = []byte("")
+		}
+	}
+
+	log.Printf("[Request `%s`] Node %s completed successfully", fhandler.id, pipeline.DagExecutionPosition)
+
+	// trace phase - mark as end of phase
+	stopNodeSpan(pipeline.DagExecutionPosition)
+
+	// Update execution position
+	//pipeline.UpdateExecutionPosition()
+
+	return result, nil
+}
+
+// execute functions for current phase
+func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
+	switch fhandler.getPipeline().PipelineType {
+	case sdk.TYPE_CHAIN:
+		return executeChain(fhandler, request)
+	case sdk.TYPE_DAG:
+		return executeDag(fhandler, request)
+	}
 }
 
 // forwardAsync forward async request to faasflow
@@ -511,9 +603,8 @@ func forwardAsync(fhandler *flowHandler, result []byte) ([]byte, error) {
 	return resdata, nil
 }
 
-// handleResponse Handle request Response for a faasflow perform response/asyncforward
-func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []byte) ([]byte, error) {
-
+// handlePhaseResponse handle response of a pipeline of type chain
+func handleChainResponse(fhandler *flowHandler, context *faasflow.Context, result []byte) ([]byte, error) {
 	// get pipeline
 	pipeline := fhandler.getPipeline()
 
@@ -537,6 +628,7 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 				fhandler.id, pipeline.ExecutionPosition, key)
 			result = []byte("")
 		}
+
 		// forward the flow request
 		resp, forwardErr := forwardAsync(fhandler, result)
 		if forwardErr != nil {
@@ -550,6 +642,39 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 	}
 
 	return []byte(""), nil
+
+}
+
+// handlePhaseResponse handle response of a pipeline of type chain
+func handleDagResponse(fhandler *flowHandler, context *faasflow.Context, result []byte) ([]byte, error) {
+
+	// get pipeline
+	pipeline := fhandler.getPipeline()
+
+	switch {
+
+	// Check if pipeline has only one node or if the pipeline has completed excution return
+	case pipeline.CountNodes() == 1 || pipeline.GetNextNodes() == nil:
+		fhandler.finished = true
+		return result, nil
+
+	default:
+		// If intermediate storage is enabled
+
+	}
+
+	return []byte(""), nil
+}
+
+// handleResponse Handle request Response for a faasflow perform response/asyncforward
+func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []byte) ([]byte, error) {
+
+	switch fhandler.getPipeline().PipelineType {
+	case sdk.TYPE_CHAIN:
+		return handleiChainResponse(fhandler, context, result)
+	case sdk.TYPE_DAG:
+		return handleDagResponse(fhandler, context, result)
+	}
 }
 
 // handleFailure handles failure with failure handler and call finally
@@ -578,6 +703,35 @@ func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) 
 	}
 
 	fhandler.finished = true
+}
+
+// getIntermediateData gets the intermidiate data if intermidiateStorage is enabled
+func getIntermediateData(fhandler *flowHandler, context *faasflow.Context, data []byte) ([]byte, error) {
+	switch fhandler.getPipeline().PipelineType {
+	case sdk.TYPE_CHAIN:
+		// For partially completed requests
+		// If IntermidiateStorage is enabled get the data from dataStore
+		if fhandler.getPipeline().ExecutionPosition != 0 {
+			key := fmt.Sprintf("intermediate-result-%d", fhandler.getPipeline().ExecutionPosition)
+			idata, gerr := context.GetBytes(key)
+			if gerr != nil {
+				return data, gerr
+			}
+			log.Printf("[Request `%s`] Intermidiate result for Phase %d retrived from %s",
+				fhandler.id, fhandler.getPipeline().ExecutionPosition, key)
+			context.Del(key)
+			data = idata
+		}
+
+	case sdk.TYPE_DAG:
+		// For partially completed requests
+		// If IntermidiateStorage is enabled get the data from dataStore
+		if !fhandler.getPipeline().IsInitialNode() {
+
+		}
+
+	}
+	return data, nil
 }
 
 // handleWorkflow handle the flow
@@ -612,19 +766,15 @@ func handleWorkflow(data []byte) string {
 			log.Fatalf("[Request `%s`] Failed to define flow, %v", fhandler.id, err)
 		}
 
-		// For partially completed requests
-		// If IntermidiateStorage is enabled get the data from dataStore
-		if fhandler.getPipeline().ExecutionPosition != 0 && useIntermidiateStorage() {
-			key := fmt.Sprintf("intermediate-result-%d", fhandler.getPipeline().ExecutionPosition)
-			idata, gerr := context.GetBytes(key)
+		// GETDATA: Get intermediate data from data store if
+		if useIntermediateStorage() {
+			data, gerr := getIntermediateData(fhandler, context, data)
 			if gerr != nil {
 				gerr := fmt.Errorf("failed to retrive intermediate result, error %v", gerr)
 				handleFailure(fhandler, context, gerr)
 			}
 			log.Printf("[Request `%s`] Intermidiate result for Phase %d retrived from %s",
 				fhandler.id, fhandler.getPipeline().ExecutionPosition, key)
-			context.Del(key)
-			data = idata
 		}
 
 		// EXECUTE: execute the flow based on current phase

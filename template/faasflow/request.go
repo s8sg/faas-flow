@@ -11,12 +11,12 @@ type Request struct {
 	ID    string `json: "id"`    // request ID
 	Query string `json: "query"` // query string
 
-	ExecutionState string `json: "e-state"` // Execution State (execution position / execution vertex)
+	ExecutionState string `json: "state"` // Execution State (execution position / execution vertex)
 
 	Data []byte `json: "data"` // Partial execution data
 	// (empty if intermediate_stoarge enabled
 
-	ContextStore map[string]string `json: "state"` // Context State for default DataStore
+	ContextStore map[string]string `json: "store"` // Context State for default DataStore
 	// (empty if external Store is used
 }
 

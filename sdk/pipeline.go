@@ -40,15 +40,7 @@ func CreatePipeline() *Pipeline {
 	return pipeline
 }
 
-func DecodePipeline(data []byte) (*Pipeline, error) {
-	pipeline := &Pipeline{}
-	err := json.Unmarshal(data, pipeline)
-	if err != nil {
-		return nil, err
-	}
-	return pipeline, nil
-}
-
+// Phase
 func (pipeline *Pipeline) CountPhases() int {
 	return len(pipeline.Phases)
 }
@@ -78,6 +70,26 @@ func (pipeline *Pipeline) UpdateExecutionPosition() {
 	pipeline.ExecutionPosition = pipeline.ExecutionPosition + 1
 }
 
+// Node
+func (pipeline *Pipeline) CountNodes() int {
+	return len(pipeline.Dag.nodes)
+}
+
+func (pipeline *Pipeline) GetNextNodes() []*Node {
+	return pipeline.GetCurrentNode().Children()
+}
+
+func (pipeline *Pipeline) IsInitialNode() bool {
+	if pipeline.GetCurrentNode().indegree == 0 {
+		return true
+	}
+	return false
+}
+
+func (pipeline *Pipeline) GetCurrentNode() *Node {
+	return pipeline.Dag.Node(pipeline.DagExecutionPosition)
+}
+
 func (pipeline *Pipeline) UpdateDagExecutionPosition(vertex string) {
 	pipeline.DagExecutionPosition = vertex
 }
@@ -87,8 +99,18 @@ func (pipeline *Pipeline) SetDag(dag *Dag) {
 	pipeline.PipelineType = TYPE_DAG
 }
 
+// Common
 func (pipeline *Pipeline) Encode() ([]byte, error) {
 	return json.Marshal(pipeline)
+}
+
+func DecodePipeline(data []byte) (*Pipeline, error) {
+	pipeline := &Pipeline{}
+	err := json.Unmarshal(data, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	return pipeline, nil
 }
 
 func (pipeline *Pipeline) GetState() string {
@@ -147,12 +169,21 @@ func (this *Dag) makeDagDotGraph() string {
 	sb.WriteString("digraph depgraph {\n\trankdir=LR;\n")
 	for _, node := range this.nodes {
 		if len(node.children) == 0 {
-			sb.WriteString(fmt.Sprintf("\t\"%s\";\n", node.id))
+			sb.WriteString(fmt.Sprintf("\t\"%s\";\n", node.Id))
 			continue
+		}
+		modifierType := ""
+		switch {
+		case node.val.GetName() != "":
+			modifierType += " func:" + node.val.GetName()
+		case node.val.CallbackUrl != "":
+			modifierType += " callback:" + node.val.CallbackUrl
+		default:
+			modifierType += " modifier"
 		}
 
 		for _, child := range node.children {
-			sb.WriteString(fmt.Sprintf(`%s -> %s [label="%v"]`, node.id, child.id, node.val))
+			sb.WriteString(fmt.Sprintf(`%s -> %s [label="%v"]`, node.Id, child.Id, modifierType))
 			sb.WriteString("\r\n")
 		}
 	}
