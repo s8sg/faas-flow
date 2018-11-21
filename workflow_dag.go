@@ -1,7 +1,7 @@
 package faasflow
 
 import (
-	"github.com/s8sg/faasflow/sdk"
+	sdk "github.com/s8sg/faas-flow/sdk"
 )
 
 func CreateDag() *DagFlow {
@@ -13,8 +13,16 @@ func CreateDag() *DagFlow {
 }
 
 // ModifierVertex create a new modifier that can be added in dag
-func (this *DagFlow) ModifierVertex(id string, mod sdk.Modifier) {
+func (this *DagFlow) ModifierVertex(id string, mod sdk.Modifier, opts ...Option) {
 	newMod := sdk.CreateModifier(mod)
+	o := &Options{}
+	for _, opt := range opts {
+		o.reset()
+		opt(o)
+		if o.serializer != nil {
+			newMod.AddSerializer(o.serializer)
+		}
+	}
 	this.udag.AddVertex(id, newMod)
 }
 
@@ -43,6 +51,10 @@ func (this *DagFlow) FunctionVertex(id string, function string, opts ...Option) 
 		if o.responseHandler != nil {
 			newfunc.AddResponseHandler(o.responseHandler)
 		}
+
+		if o.serializer != nil {
+			newfunc.AddSerializer(o.serializer)
+		}
 	}
 	this.udag.AddVertex(id, newfunc)
 }
@@ -69,6 +81,9 @@ func (this *DagFlow) CallbackVertex(id string, url string, opts ...Option) {
 		}
 		if o.failureHandler != nil {
 			newCallback.AddFailureHandler(o.failureHandler)
+		}
+		if o.serializer != nil {
+			newCallback.AddSerializer(o.serializer)
 		}
 	}
 	this.udag.AddVertex(id, newCallback)

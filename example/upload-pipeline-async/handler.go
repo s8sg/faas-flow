@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	faasflow "github.com/s8sg/faasflow"
-	minioDataStore "github.com/s8sg/faasflowMinioDataStore"
+	faasflow "github.com/s8sg/faas-flow"
+	minioDataStore "github.com/s8sg/faas-flow-minio-datastore"
 	"io"
 	"log"
 	"mime/multipart"
@@ -102,14 +102,6 @@ func validateFace(data []byte) error {
 // Defines a Pipeline
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
-	// initialize minio DataStore
-	miniods, err := minioDataStore.GetMinioDataStore()
-	if err != nil {
-		return err
-	}
-	// Set DataStore
-	context.SetDataStore(miniods)
-
 	// Define Pipeline
 	flow.
 		Modify(func(data []byte) ([]byte, error) {
@@ -173,4 +165,20 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 		})
 
 	return nil
+}
+
+// DefineStateStore provides the override of the default StateStore
+func DefineStateStore() (faasflow.StateStore, error) {
+	return nil, nil
+}
+
+// ProvideDataStore provides the override of the default DataStore
+func DefineDataStore() (faasflow.DataStore, error) {
+	// initialize minio DataStore
+	miniods, err := minioDataStore.InitFromEnv()
+	if err != nil {
+		return nil, err
+	}
+
+	return miniods, nil
 }

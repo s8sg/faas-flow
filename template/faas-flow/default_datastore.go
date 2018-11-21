@@ -50,3 +50,8 @@ func (rstore *requestEmbedDataStore) Del(key string) error {
 	}
 	return nil
 }
+
+// Cleanup
+func (rstore *requestEmbedDataStore) Cleanup() error {
+	return nil
+}

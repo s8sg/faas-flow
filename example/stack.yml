@@ -4,7 +4,7 @@ provider:
 
 functions:
   upload-pipeline:
-    lang: faasflow
+    lang: faas-flow
     handler: ./upload-pipeline
     image: s8sg/upload-pipeline:latest
     environment:
@@ -16,7 +16,7 @@ functions:
       - upload-pipeline.yml
 
   upload-pipeline-async:
-    lang: faasflow
+    lang: faas-flow
     handler: ./upload-pipeline-async
     image: s8sg/upload-pipeline-async:latest
     environment:

@@ -1,49 +1,71 @@
-package faasflowMinioDataStore
+package MinioDataStore
 
 import (
 	"bytes"
 	"fmt"
 	minio "github.com/minio/minio-go"
-	faasflow "github.com/s8sg/faasflow"
+	faasflow "github.com/s8sg/faas-flow"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"strings"
 )
 
 type MinioDataStore struct {
+	region      string
 	bucketName  string
-	flowName    string
-	requestId   string
 	minioClient *minio.Client
 }
 
-// GetMinioDataStore Initialize a minio DataStore object based on configuration
-// Depends on s3_url, s3-secret-key, s3-access-key, [s3_bucket, s3_region](optional), workflow_name
-func GetMinioDataStore() (faasflow.DataStore, error) {
+// InitFromEnv Initialize a minio DataStore object based on configuration
+// Depends on s3_url, s3-secret-key, s3-access-key, s3_region(optional), workflow_name
+func InitFromEnv() (faasflow.DataStore, error) {
 
 	minioDataStore := &MinioDataStore{}
 
-	region := regionName()
-	bucketName := bucketName()
+	minioDataStore.region = regionName()
 
-	minioClient, connectErr := connectToMinio(region)
+	endpoint := os.Getenv("s3_url")
+
+	tlsEnabled := tlsEnabled()
+
+	minioClient, connectErr := connectToMinio(endpoint, "s3-secret-key", "s3-access-key", tlsEnabled)
 	if connectErr != nil {
 		return nil, fmt.Errorf("Failed to initialize minio, error %s", connectErr.Error())
 	}
+	minioDataStore.minioClient = minioClient
 
-	minioClient.MakeBucket(bucketName, region)
-	minioDataStore.bucketName = bucketName
+	return minioDataStore, nil
+}
 
+// InitFromEnv Initialize a minio DataStore object based on configuration
+// Depends on s3_url, s3-secret-key, s3-access-key, s3_region(optional), workflow_name
+func Init(endpoint, region, secretKeySecretPath, accessKeySecretPath string, tlsEnabled bool) (faasflow.DataStore, error) {
+	minioDataStore := &MinioDataStore{}
+
+	minioDataStore.region = region
+
+	minioClient, connectErr := connectToMinio(endpoint, secretKeySecretPath, accessKeySecretPath, tlsEnabled)
+	if connectErr != nil {
+		return nil, fmt.Errorf("Failed to initialize minio, error %s", connectErr.Error())
+	}
 	minioDataStore.minioClient = minioClient
 
 	return minioDataStore, nil
 }
 
 func (minioStore *MinioDataStore) Init(flowName string, requestId string) error {
-	minioStore.flowName = flowName
-	minioStore.requestId = requestId
+	if minioStore.minioClient == nil {
+		return fmt.Errorf("minio client not initialized, use GetMinioDataStore()")
+	}
+
+	bucketName := fmt.Sprintf("faasflow-%s-%s", flowName, requestId)
+
+	minioStore.bucketName = bucketName
+	err := minioStore.minioClient.MakeBucket(bucketName, minioStore.region)
+	if err != nil {
+		return fmt.Errorf("error creating: %s, error: %s", minioStore.bucketName, err.Error())
+	}
 
 	return nil
 }
@@ -53,7 +75,7 @@ func (minioStore *MinioDataStore) Set(key string, value string) error {
 		return fmt.Errorf("minio client not initialized, use GetMinioDataStore()")
 	}
 
-	fullPath := getPath(minioStore.bucketName, minioStore.flowName, minioStore.requestId, key)
+	fullPath := getPath(minioStore.bucketName, key)
 	reader := bytes.NewReader([]byte(value))
 	_, err := minioStore.minioClient.PutObject(minioStore.bucketName,
 		fullPath,
@@ -72,7 +94,7 @@ func (minioStore *MinioDataStore) Get(key string) (string, error) {
 		return "", fmt.Errorf("minio client not initialized, use GetMinioDataStore()")
 	}
 
-	fullPath := getPath(minioStore.bucketName, minioStore.flowName, minioStore.requestId, key)
+	fullPath := getPath(minioStore.bucketName, key)
 	obj, err := minioStore.minioClient.GetObject(minioStore.bucketName, fullPath, minio.GetObjectOptions{})
 	if err != nil {
 		return "", fmt.Errorf("error reading: %s, error: %s", fullPath, err.Error())
@@ -88,10 +110,18 @@ func (minioStore *MinioDataStore) Del(key string) error {
 		return fmt.Errorf("minio client not initialized, use GetMinioDataStore()")
 	}
 
-	fullPath := getPath(minioStore.bucketName, minioStore.flowName, minioStore.requestId, key)
+	fullPath := getPath(minioStore.bucketName, key)
 	err := minioStore.minioClient.RemoveObject(minioStore.bucketName, fullPath)
 	if err != nil {
 		return fmt.Errorf("error removing: %s, error: %s", fullPath, err.Error())
+	}
+	return nil
+}
+
+func (minioStore *MinioDataStore) Cleanup() error {
+	err := minioStore.minioClient.RemoveBucket(minioStore.bucketName)
+	if err != nil {
+		return fmt.Errorf("error removing: %s, error: %s", minioStore.bucketName, err.Error())
 	}
 	return nil
 }
@@ -111,14 +141,10 @@ func readSecret(key string) (string, error) {
 	return val, nil
 }
 
-func connectToMinio(region string) (*minio.Client, error) {
+func connectToMinio(endpoint, secretKeySecretPath, accessKeySecretPath string, tlsEnabled bool) (*minio.Client, error) {
 
-	endpoint := os.Getenv("s3_url")
-
-	tlsEnabled := tlsEnabled()
-
-	secretKey, err := readSecret("s3-secret-key")
-	accessKey, err := readSecret("s3-access-key")
+	secretKey, err := readSecret(secretKeySecretPath)
+	accessKey, err := readSecret(accessKeySecretPath)
 	if err != nil {
 		return nil, err
 	}
@@ -126,10 +152,10 @@ func connectToMinio(region string) (*minio.Client, error) {
 	return minio.New(endpoint, accessKey, secretKey, tlsEnabled)
 }
 
-// getPath produces a string as <bucketname>/<flowname>/<requestId>/<key>.value
-func getPath(bucket, flowName, requestId, key string) string {
+// getPath produces a string as <bucketname>/key/<key>.value
+func getPath(bucket, key string) string {
 	fileName := fmt.Sprintf("%s.value", key)
-	return fmt.Sprintf("%s/%s/%s/%s", bucket, flowName, requestId, fileName)
+	return fmt.Sprintf("%s/key/%s", bucket, fileName)
 }
 
 func tlsEnabled() bool {
@@ -137,15 +163,6 @@ func tlsEnabled() bool {
 		return true
 	}
 	return false
-}
-
-func bucketName() string {
-	bucketName, exist := os.LookupEnv("s3_bucket")
-	if exist == false || len(bucketName) == 0 {
-		bucketName = "pipeline"
-		log.Printf("Bucket name not found, set to default: %v\n", bucketName)
-	}
-	return bucketName
 }
 
 func regionName() string {

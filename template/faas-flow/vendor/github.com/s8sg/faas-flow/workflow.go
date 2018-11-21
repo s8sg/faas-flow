@@ -1,7 +1,7 @@
 package faasflow
 
 import (
-	"github.com/s8sg/faasflow/sdk"
+	"github.com/s8sg/faas-flow/sdk"
 )
 
 type Options struct {
@@ -10,6 +10,7 @@ type Options struct {
 	sync            bool
 	failureHandler  sdk.FuncErrorHandler
 	responseHandler sdk.RespHandler
+	serializer      sdk.Serializer
 }
 
 type Workflow struct {
@@ -40,6 +41,13 @@ func (o *Options) reset() {
 	o.sync = false
 	o.failureHandler = nil
 	o.responseHandler = nil
+}
+
+// Serializer specify a data serializer
+func Serializer(serializer sdk.Serializer) Option {
+	return func(o *Options) {
+		o.serializer = serializer
+	}
 }
 
 // SyncCall Set sync flag

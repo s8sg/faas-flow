@@ -1,2 +1,2 @@
-language: faasflow
+language: faas-flow
 fprocess: ./handler

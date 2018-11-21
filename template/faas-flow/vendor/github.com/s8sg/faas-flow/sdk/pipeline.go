@@ -79,6 +79,16 @@ func (pipeline *Pipeline) GetNextNodes() []*Node {
 	return pipeline.GetCurrentNode().Children()
 }
 
+func (pipeline *Pipeline) GetAllNodesId() []string {
+	nodes := make([]string, len(pipeline.Dag.nodes))
+	i := 0
+	for id, _ := range pipeline.Dag.nodes {
+		nodes[i] = id
+		i++
+	}
+	return nodes
+}
+
 func (pipeline *Pipeline) IsInitialNode() bool {
 	if pipeline.GetCurrentNode().indegree == 0 {
 		return true

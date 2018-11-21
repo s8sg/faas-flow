@@ -6,8 +6,8 @@ import (
 	"fmt"
 	hmac "github.com/alexellis/hmac"
 	"github.com/rs/xid"
-	"github.com/s8sg/faasflow"
-	"github.com/s8sg/faasflow/sdk"
+	faasflow "github.com/s8sg/faas-flow"
+	sdk "github.com/s8sg/faas-flow/sdk"
 	"handler/function"
 	"io/ioutil"
 	"log"
@@ -34,9 +34,11 @@ type flowHandler struct {
 	query       string             // the query string by user
 	asyncUrl    string             // the async URL of the flow
 	pipelineDef []byte             // the pipeline definition
-	finished    bool               // denots the flow has finished execution
+	partial     bool
+	finished    bool // denots the flow has finished execution
 
-	stateM *requestEmbedDataStore // the deafult statemanager
+	stateStore faasflow.StateStore // the state store
+	dataStore  faasflow.DataStore  // the data store
 }
 
 // buildURL builds openfaas function execution url for the flow
@@ -48,7 +50,7 @@ func buildURL(gateway, rpath, flow string) string {
 
 // newWorkflowHandler creates a new flow handler object
 func newWorkflowHandler(gateway string, name string, id string,
-	query string, stateM *requestEmbedDataStore) *flowHandler {
+	query string, dataStore faasflow.DataStore) *flowHandler {
 
 	fhandler := &flowHandler{}
 
@@ -60,7 +62,7 @@ func newWorkflowHandler(gateway string, name string, id string,
 
 	fhandler.id = id
 	fhandler.query = query
-	fhandler.stateM = stateM
+	fhandler.dataStore = dataStore
 
 	return fhandler
 }
@@ -216,10 +218,10 @@ func buildCallbackRequest(callbackUrl string, data []byte, params map[string][]s
 
 // createContext create a context from request handler
 func createContext(fhandler *flowHandler) *faasflow.Context {
-	context := faasflow.CreateContext(fhandler.id,
-		fhandler.getPipeline().ExecutionPosition+1, flowName)
-	context.SetDataStore(fhandler.stateM)
+	context := faasflow.CreateContext(fhandler.id, fhandler.getPipeline().ExecutionPosition+1,
+		flowName, fhandler.dataStore)
 	context.Query, _ = url.ParseQuery(fhandler.query)
+
 	return context
 }
 
@@ -242,9 +244,8 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 	// decode the request to find if flow definition exists
 	request, err := decodeRequest(data)
 	switch {
-
 	case err != nil:
-
+		// New Request
 		if verifyRequest() {
 			if validateErr != nil {
 				log.Fatalf("Failed to verify incoming request with Hmac, %v",
@@ -261,19 +262,22 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 
 		// create flow properties
 		query := os.Getenv("Http_Query")
-		stateM := createDataStore()
+		dataStore := createDataStore()
 
 		// Create fhandler
 		fhandler = newWorkflowHandler("http://"+getGateway(), flowName,
-			requestId, query, stateM)
+			requestId, query, dataStore)
 		fhandler.getPipeline().ExecutionPosition = 0
 
 		// set request data
 		requestData = data
 
+		fhandler.partial = false
+
 		// trace req - mark as start of req
 		startReqSpan(requestId)
 	default:
+		// Partial Request
 		// Get the request ID
 		requestId = request.getID()
 		log.Printf("[Request `%s`] Received", requestId)
@@ -290,15 +294,17 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 		// get flow properties
 		executionState := request.getExecutionState()
 		query := request.getQuery()
-		stateM := retriveDataStore(request.getContextStore())
+		dataStore := retriveDataStore(request.getContextStore())
 
 		// Create flow and apply execution state
 		fhandler = newWorkflowHandler("http://"+getGateway(), flowName,
-			requestId, query, stateM)
+			requestId, query, dataStore)
 		fhandler.getPipeline().ApplyState(executionState)
 
 		// set request data
 		requestData = request.getData()
+
+		fhandler.partial = true
 
 		// Continue request span
 		continueReqSpan(requestId)
@@ -549,11 +555,13 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 	case sdk.TYPE_DAG:
 		return executeDag(fhandler, request)
 	}
+	return nil, nil
 }
 
 // forwardAsync forward async request to faasflow
 func forwardAsync(fhandler *flowHandler, result []byte) ([]byte, error) {
 	var hash []byte
+	store := make(map[string]string)
 
 	// get pipeline
 	pipeline := fhandler.getPipeline()
@@ -561,12 +569,13 @@ func forwardAsync(fhandler *flowHandler, result []byte) ([]byte, error) {
 	// Get pipeline state
 	pipelineState := pipeline.GetState()
 
+	defaultStore, ok := fhandler.dataStore.(*requestEmbedDataStore)
+	if ok {
+		store = defaultStore.store
+	}
+
 	// Build request
-	uprequest := buildRequest(fhandler.id,
-		string(pipelineState),
-		fhandler.query,
-		result,
-		fhandler.stateM.store)
+	uprequest := buildRequest(fhandler.id, string(pipelineState), fhandler.query, result, store)
 
 	// Make request data
 	data, _ := uprequest.encode()
@@ -618,7 +627,7 @@ func handleChainResponse(fhandler *flowHandler, context *faasflow.Context, resul
 	// In default case we forward the partial flow to same flow-function
 	default:
 		// If intermediate storage is enabled
-		if useIntermidiateStorage() {
+		if useIntermediateStorage() {
 			key := fmt.Sprintf("intermediate-result-%d", pipeline.ExecutionPosition)
 			serr := context.Set(key, result)
 			if serr != nil {
@@ -660,10 +669,63 @@ func handleDagResponse(fhandler *flowHandler, context *faasflow.Context, result 
 
 	default:
 		// If intermediate storage is enabled
+		if useIntermediateStorage() {
+			key := fmt.Sprintf("intermediate-result-%s", pipeline.DagExecutionPosition)
+			serr := context.Set(key, result)
+			if serr != nil {
+				return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
+			}
+			log.Printf("[Request `%s`] Intermidiate result for Node %s stored as %s",
+				fhandler.id, pipeline.DagExecutionPosition, key)
+			result = []byte("")
+		}
 
+		// Check if pipeline is active
+		if !isActive(fhandler) {
+			return []byte(""), fmt.Errorf("flow has been terminated")
+		}
+
+		nodes := pipeline.GetNextNodes()
+		for _, node := range nodes {
+			// Get node Indegree
+			inDegree := node.Indegree()
+			// Update the state of indegree completion
+			inDegreeUpdatedCount, err := fhandler.stateStore.IncrementCounter(node.Id)
+			if err != nil {
+				return []byte(""), fmt.Errorf("failed to update inDegree counter for node %s", node.Id)
+			}
+			// If all indegree has finished
+			if inDegree == inDegreeUpdatedCount {
+				// Set the DagExecutionPosition as of next Node
+				pipeline.DagExecutionPosition = node.Id
+				// forward the flow request
+				resp, forwardErr := forwardAsync(fhandler, result)
+				if forwardErr != nil {
+					return nil, fmt.Errorf("Node(%s): error: %v, %s, url %s",
+						node.Id, forwardErr,
+						string(resp), fhandler.asyncUrl)
+				}
+
+				log.Printf("[Request `%s`] Async request submitted for Node %s",
+					fhandler.id, node.Id)
+			}
+		}
+		fhandler.finished = true
 	}
 
 	return []byte(""), nil
+}
+
+// isActive Cheks if pipeline is active
+func isActive(fhandler *flowHandler) bool {
+
+	state, err := fhandler.stateStore.GetState()
+	if err != nil {
+		log.Printf("[Request `%s`] Failed to obtain pipeline state", fhandler.id)
+		return false
+	}
+
+	return state
 }
 
 // handleResponse Handle request Response for a faasflow perform response/asyncforward
@@ -671,10 +733,11 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 
 	switch fhandler.getPipeline().PipelineType {
 	case sdk.TYPE_CHAIN:
-		return handleiChainResponse(fhandler, context, result)
+		return handleChainResponse(fhandler, context, result)
 	case sdk.TYPE_DAG:
 		return handleDagResponse(fhandler, context, result)
 	}
+	return nil, nil
 }
 
 // handleFailure handles failure with failure handler and call finally
@@ -689,20 +752,36 @@ func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) 
 		data, err = fhandler.getPipeline().FailureHandler(err)
 	}
 
-	if err != nil {
-		// call finally handler if available
-		if fhandler.getPipeline().Finally != nil {
-			log.Printf("[Request `%s`] Calling Finally handler with state: %s",
-				fhandler.id, faasflow.StateFailure)
-			fhandler.getPipeline().Finally(faasflow.StateFailure)
+	// If pipeline type is dag mark the state as failure
+	if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG {
+		serr := fhandler.stateStore.SetState(false)
+		if serr != nil {
+			log.Printf("[Request `%s`] Failed to mark dag state, error %v", fhandler.id, serr)
 		}
-		if data != nil {
-			fmt.Printf("%s", string(data))
-		}
-		log.Fatalf("[Request `%s`] Failed, %v", fhandler.id, err)
 	}
 
 	fhandler.finished = true
+
+	// call finally handler if available
+	if fhandler.getPipeline().Finally != nil {
+		log.Printf("[Request `%s`] Calling Finally handler with state: %s",
+			fhandler.id, faasflow.StateFailure)
+		fhandler.getPipeline().Finally(faasflow.StateFailure)
+	}
+	if data != nil {
+		fmt.Printf("%s", string(data))
+	}
+
+	fhandler.stateStore.Cleanup()
+	fhandler.dataStore.Cleanup()
+
+	// stop req span if request has finished
+	stopReqSpan()
+
+	// flash any pending trace item if tracing enabled
+	flushTracer()
+
+	log.Fatalf("[Request `%s`] Failed, %v", fhandler.id, err)
 }
 
 // getIntermediateData gets the intermidiate data if intermidiateStorage is enabled
@@ -710,7 +789,7 @@ func getIntermediateData(fhandler *flowHandler, context *faasflow.Context, data 
 	switch fhandler.getPipeline().PipelineType {
 	case sdk.TYPE_CHAIN:
 		// For partially completed requests
-		// If IntermidiateStorage is enabled get the data from dataStore
+		// If IntermidiateStorage is enabled get the data from dataStoretore
 		if fhandler.getPipeline().ExecutionPosition != 0 {
 			key := fmt.Sprintf("intermediate-result-%d", fhandler.getPipeline().ExecutionPosition)
 			idata, gerr := context.GetBytes(key)
@@ -725,19 +804,69 @@ func getIntermediateData(fhandler *flowHandler, context *faasflow.Context, data 
 
 	case sdk.TYPE_DAG:
 		// For partially completed requests
-		// If IntermidiateStorage is enabled get the data from dataStore
+		// If IntermidiateStorage is enabled get the data from dataStoretore
 		if !fhandler.getPipeline().IsInitialNode() {
-
+			key := fmt.Sprintf("intermediate-result-%s", fhandler.getPipeline().DagExecutionPosition)
+			idata, gerr := context.GetBytes(key)
+			if gerr != nil {
+				return data, gerr
+			}
+			log.Printf("[Request `%s`] Intermidiate result for Node %s retrived from %s",
+				fhandler.id, fhandler.getPipeline().DagExecutionPosition, key)
+			context.Del(key)
+			data = idata
 		}
 
 	}
 	return data, nil
 }
 
+// initializeStore initialize the store and return true if both store if overriden
+func initializeStore(fhandler *flowHandler) (bool, error) {
+
+	stateSOverride := false
+	dataSOverride := false
+
+	// Initialize the stateS
+	stateS, err := function.DefineStateStore()
+	if err != nil {
+		return false, err
+	}
+	if stateS != nil {
+		fhandler.stateStore = stateS
+		stateSOverride = true
+	}
+	err = fhandler.stateStore.Init(flowName, fhandler.id)
+	if err != nil {
+		return false, err
+	}
+
+	// Initialize the dataS
+	dataS, err := function.DefineDataStore()
+	if err != nil {
+		return false, err
+	}
+	if dataS != nil {
+		fhandler.dataStore = dataS
+		dataSOverride = true
+	}
+	err = fhandler.dataStore.Init(flowName, fhandler.id)
+	if err != nil {
+		return false, err
+	}
+
+	if stateSOverride && dataSOverride {
+		return true, nil
+	}
+
+	return false, nil
+}
+
 // handleWorkflow handle the flow
 func handleWorkflow(data []byte) string {
 
 	var resp []byte
+	var gerr error
 
 	// Get flow name
 	flowName = getWorkflowName()
@@ -756,25 +885,45 @@ func handleWorkflow(data []byte) string {
 		// BUILD: build the flow based on execution request
 		fhandler, data := buildWorkflow(data)
 
+		// INIT STORE: Get definition of StateStore and DataStore
+		storeOverride, err := initializeStore(fhandler)
+		if err != nil {
+			log.Fatalf("[Request `%s`] Failed to init flow, %v", fhandler.id, err)
+		}
+
 		// MAKE CONTEXT: make the request context from flow
 		context := createContext(fhandler)
 
 		// DEFINE: Get Pipeline definition from user implemented Define()
-		err := function.Define(fhandler.flow, context)
+		err = function.Define(fhandler.flow, context)
 		if err != nil {
-			context.State = faasflow.StateFailure
 			log.Fatalf("[Request `%s`] Failed to define flow, %v", fhandler.id, err)
 		}
 
-		// GETDATA: Get intermediate data from data store if
+		// In case of DAG Store need to be external
+		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG && !storeOverride {
+			log.Fatalf("[Request `%s`] DAG flow need external State and Data Store", fhandler.id)
+		}
+
+		// For a new dag pipeline Create the vertex in
+		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG && !fhandler.partial {
+			err = fhandler.stateStore.Create(fhandler.getPipeline().GetAllNodesId())
+			if err != nil {
+				log.Fatalf("[Request `%s`] DAG state can not be initiated at StateStore, %v", fhandler.id, err)
+			}
+			serr := fhandler.stateStore.SetState(true)
+			if serr != nil {
+				log.Fatalf("[Request `%s`] Failed to mark dag state, error %v", fhandler.id, serr)
+			}
+		}
+
+		// GETDATA: Get intermediate data from data store if not using default
 		if useIntermediateStorage() {
-			data, gerr := getIntermediateData(fhandler, context, data)
+			data, gerr = getIntermediateData(fhandler, context, data)
 			if gerr != nil {
 				gerr := fmt.Errorf("failed to retrive intermediate result, error %v", gerr)
 				handleFailure(fhandler, context, gerr)
 			}
-			log.Printf("[Request `%s`] Intermidiate result for Phase %d retrived from %s",
-				fhandler.id, fhandler.getPipeline().ExecutionPosition, key)
 		}
 
 		// EXECUTE: execute the flow based on current phase
@@ -797,6 +946,8 @@ func handleWorkflow(data []byte) string {
 					fhandler.id, faasflow.StateSuccess)
 				fhandler.getPipeline().Finally(faasflow.StateSuccess)
 			}
+			fhandler.stateStore.Cleanup()
+			fhandler.dataStore.Cleanup()
 		}
 	}
 

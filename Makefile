@@ -7,4 +7,4 @@ build-lib:
 	./ci/script/buildlib.sh
 
 build-template:
-	docker build -t faasflow:test template/faasflow 
+	docker build -t faas-flow:test template/faas-flow 
