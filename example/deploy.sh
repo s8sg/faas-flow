@@ -29,7 +29,7 @@ docker service create --constraint="node.role==manager" \
  --secret s3-secret-key \
  --env MINIO_SECRET_KEY_FILE=s3-secret-key \
  --env MINIO_ACCESS_KEY_FILE=s3-access-key \
-minio/minio:latest server /export
+minio/minio:RELEASE.2018-11-17T01-23-48Z server /export
 
 
 faas-cli deploy -f stack.yml

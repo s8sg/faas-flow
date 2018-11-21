@@ -23,8 +23,13 @@ func retriveDataStore(store map[string]string) *requestEmbedDataStore {
 	return rstore
 }
 
-// Init initialize the storemanager with requestId and flowname
-func (rstore *requestEmbedDataStore) Init(flowName string, requestId string) error {
+// Configure Configure with requestId and flowname
+func (rstore *requestEmbedDataStore) Configure(flowName string, requestId string) {
+
+}
+
+// Init initialize the storemanager (called only once in a request span)
+func (rstore *requestEmbedDataStore) Init() error {
 	return nil
 }
 

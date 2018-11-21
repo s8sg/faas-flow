@@ -1,6 +1,6 @@
 #!/bin/bash
 
-docker pull minio/minio:latest
+docker pull minio/minio:RELEASE.2018-11-17T01-23-48Z
 
 echo "Get image-resizer"
 [ ! "$(ls | grep cdn_faas)" ] && git clone https://github.com/s8sg/cdn_faas.git
@@ -15,7 +15,7 @@ echo "Get opencv template"
 faas-cli template pull https://github.com/alexellis/opencv-openfaas-template
 
 echo "Get faasflow template"
-faas-cli template pull https://github.com/s8sg/faasflow
+faas-cli template pull https://github.com/s8sg/faas-flow
 
 echo "Get faas default template"
 faas-cli template pull

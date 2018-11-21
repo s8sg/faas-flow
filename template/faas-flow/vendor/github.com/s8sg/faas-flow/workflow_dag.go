@@ -12,8 +12,8 @@ func CreateDag() *DagFlow {
 	return dag
 }
 
-// ModifierVertex create a new modifier that can be added in dag
-func (this *DagFlow) ModifierVertex(id string, mod sdk.Modifier, opts ...Option) {
+// CreateModifierVertex create a new modifier that can be added in dag
+func (this *DagFlow) CreateModifierVertex(id string, mod sdk.Modifier, opts ...Option) {
 	newMod := sdk.CreateModifier(mod)
 	o := &Options{}
 	for _, opt := range opts {
@@ -26,8 +26,8 @@ func (this *DagFlow) ModifierVertex(id string, mod sdk.Modifier, opts ...Option)
 	this.udag.AddVertex(id, newMod)
 }
 
-// FunctionVertex create a new function that can be added in the dag
-func (this *DagFlow) FunctionVertex(id string, function string, opts ...Option) {
+// CreateFunctionVertex create a new function that can be added in the dag
+func (this *DagFlow) CreateFunctionVertex(id string, function string, opts ...Option) {
 	newfunc := sdk.CreateFunction(function)
 	o := &Options{}
 	for _, opt := range opts {
@@ -59,8 +59,8 @@ func (this *DagFlow) FunctionVertex(id string, function string, opts ...Option) 
 	this.udag.AddVertex(id, newfunc)
 }
 
-// CallbackVertex create a new callback that can be added as a dag
-func (this *DagFlow) CallbackVertex(id string, url string, opts ...Option) {
+// CreateCallbackVertex create a new callback that can be added as a dag
+func (this *DagFlow) CreateCallbackVertex(id string, url string, opts ...Option) {
 	newCallback := sdk.CreateCallback(url)
 
 	o := &Options{}

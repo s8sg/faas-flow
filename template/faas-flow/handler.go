@@ -398,9 +398,9 @@ func executeChain(fhandler *flowHandler, request []byte) ([]byte, error) {
 			} else {
 				result, err = executeFunction(pipeline, function, result)
 			}
-			err = fmt.Errorf("Phase(%d), Function(%s), error: function execution failed, %v",
-				pipeline.ExecutionPosition, function.GetName(), err)
 			if err != nil {
+				err = fmt.Errorf("Phase(%d), Function(%s), error: function execution failed, %v%s",
+					pipeline.ExecutionPosition, function.GetName(), err, string(result))
 				if function.FailureHandler != nil {
 					err = function.FailureHandler(err)
 				}
@@ -772,7 +772,9 @@ func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) 
 		fmt.Printf("%s", string(data))
 	}
 
-	fhandler.stateStore.Cleanup()
+	if fhandler.stateStore != nil {
+		fhandler.stateStore.Cleanup()
+	}
 	fhandler.dataStore.Cleanup()
 
 	// stop req span if request has finished
@@ -824,7 +826,7 @@ func getIntermediateData(fhandler *flowHandler, context *faasflow.Context, data 
 // initializeStore initialize the store and return true if both store if overriden
 func initializeStore(fhandler *flowHandler) (bool, error) {
 
-	stateSOverride := false
+	stateSDefined := false
 	dataSOverride := false
 
 	// Initialize the stateS
@@ -834,11 +836,15 @@ func initializeStore(fhandler *flowHandler) (bool, error) {
 	}
 	if stateS != nil {
 		fhandler.stateStore = stateS
-		stateSOverride = true
-	}
-	err = fhandler.stateStore.Init(flowName, fhandler.id)
-	if err != nil {
-		return false, err
+		stateSDefined = true
+		fhandler.stateStore.Configure(flowName, fhandler.id)
+		// If request is not partial initialize the stateStore
+		if !fhandler.partial {
+			err = fhandler.stateStore.Init()
+			if err != nil {
+				return false, err
+			}
+		}
 	}
 
 	// Initialize the dataS
@@ -850,12 +856,16 @@ func initializeStore(fhandler *flowHandler) (bool, error) {
 		fhandler.dataStore = dataS
 		dataSOverride = true
 	}
-	err = fhandler.dataStore.Init(flowName, fhandler.id)
-	if err != nil {
-		return false, err
+	fhandler.dataStore.Configure(flowName, fhandler.id)
+	// If request is not partial initialize the dataStore
+	if !fhandler.partial {
+		err = fhandler.dataStore.Init()
+		if err != nil {
+			return false, err
+		}
 	}
 
-	if stateSOverride && dataSOverride {
+	if stateSDefined && dataSOverride {
 		return true, nil
 	}
 
@@ -946,7 +956,9 @@ func handleWorkflow(data []byte) string {
 					fhandler.id, faasflow.StateSuccess)
 				fhandler.getPipeline().Finally(faasflow.StateSuccess)
 			}
-			fhandler.stateStore.Cleanup()
+			if fhandler.stateStore != nil {
+				fhandler.stateStore.Cleanup()
+			}
 			fhandler.dataStore.Cleanup()
 		}
 	}

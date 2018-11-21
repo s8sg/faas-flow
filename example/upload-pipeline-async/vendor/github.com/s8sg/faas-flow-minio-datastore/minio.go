@@ -54,15 +54,18 @@ func Init(endpoint, region, secretKeySecretPath, accessKeySecretPath string, tls
 	return minioDataStore, nil
 }
 
-func (minioStore *MinioDataStore) Init(flowName string, requestId string) error {
+func (minioStore *MinioDataStore) Configure(flowName string, requestId string) {
+	bucketName := fmt.Sprintf("faasflow-%s-%s", flowName, requestId)
+
+	minioStore.bucketName = bucketName
+}
+
+func (minioStore *MinioDataStore) Init() error {
 	if minioStore.minioClient == nil {
 		return fmt.Errorf("minio client not initialized, use GetMinioDataStore()")
 	}
 
-	bucketName := fmt.Sprintf("faasflow-%s-%s", flowName, requestId)
-
-	minioStore.bucketName = bucketName
-	err := minioStore.minioClient.MakeBucket(bucketName, minioStore.region)
+	err := minioStore.minioClient.MakeBucket(minioStore.bucketName, minioStore.region)
 	if err != nil {
 		return fmt.Errorf("error creating: %s, error: %s", minioStore.bucketName, err.Error())
 	}

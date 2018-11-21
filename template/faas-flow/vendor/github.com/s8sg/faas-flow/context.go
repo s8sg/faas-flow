@@ -18,8 +18,10 @@ type Context struct {
 
 // DataStore for Storing Data
 type DataStore interface {
-	// Initialize the DataStore with flow name and request ID
-	Init(flowName string, requestId string) error
+	// Configure the DaraStore with flow name and request ID
+	Configure(flowName string, requestId string)
+	// Initialize the DataStore (called only once in a request span)
+	Init() error
 	// Set store a value for key, in failure returns error
 	Set(key string, value string) error
 	// Get retrives a value by key, if failure returns error
@@ -32,8 +34,10 @@ type DataStore interface {
 
 // StateStore for saving execution state
 type StateStore interface {
-	// Initialize the StateStore with flow name and request ID
-	Init(flowName string, requestId string) error
+	// Configure the StateStore with flow name and request ID
+	Configure(flowName string, requestId string)
+	// Initialize the StateStore (called only once in a request span)
+	Init() error
 	// create Vertexes for request
 	// creates a map[<vertexId>]<Indegree Completion Count>
 	Create(vertexs []string) error
@@ -44,7 +48,7 @@ type StateStore interface {
 	SetState(state bool) error
 	// Get State of pipeline
 	GetState() (bool, error)
-	// Cleanup all the resorces in StateStore
+	// Cleanup all the resorces in StateStore (called only once in a request span)
 	Cleanup() error
 }
 

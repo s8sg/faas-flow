@@ -5,5 +5,4 @@ environment:
   enable_hmac: false
   intermediate_storage: true
   s3_url: "minio:9000"
-  s3_bucket: "faasflow"
   s3_tls: false
