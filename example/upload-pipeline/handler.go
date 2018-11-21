@@ -3,7 +3,7 @@ package function
 import (
 	"encoding/json"
 	"fmt"
-	faasflow "github.com/s8sg/faasflow"
+	faasflow "github.com/s8sg/faas-flow"
 	"log"
 )
 
@@ -62,4 +62,14 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 		})
 
 	return nil
+}
+
+// DefineStateStore provides the override of the default StateStore
+func DefineStateStore() (faasflow.StateStore, error) {
+	return nil, nil
+}
+
+// ProvideDataStore provides the override of the default DataStore
+func DefineDataStore() (faasflow.DataStore, error) {
+	return nil, nil
 }

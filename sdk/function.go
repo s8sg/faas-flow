@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// Serializer defintion for the data serilizer of function
+type Serializer func(...[]byte) ([]byte, error)
+
 // FuncErrorHandler the error handler for OnFailure() options
 type FuncErrorHandler func(error) error
 
@@ -15,13 +18,18 @@ type Modifier func([]byte) ([]byte, error)
 type RespHandler func(*http.Response) ([]byte, error)
 
 type Function struct {
-	Function       string              `json:"function"` // The name of the function
-	CallbackUrl    string              `json:"callback"` // Callback Url
-	Mod            Modifier            `json:"-"`        // Modifier
-	Header         map[string]string   `json:"header"`   // The HTTP call header
-	Param          map[string][]string `json:"param"`    // The Parameter in Query string
-	FailureHandler FuncErrorHandler    `json:"-"`        // The Failure handler of the function
-	OnResphandler  RespHandler         `json:"-"`        // The http Resp handler of the function
+	Function    string `json:"function"` // The name of the function
+	CallbackUrl string `json:"callback"` // Callback Url
+
+	Mod Modifier `json:"-"` // Modifier
+
+	Header map[string]string   `json:"header"` // The HTTP call header
+	Param  map[string][]string `json:"param"`  // The Parameter in Query string
+
+	serializer Serializer `json:"-"`
+
+	FailureHandler FuncErrorHandler `json:"-"` // The Failure handler of the function
+	OnResphandler  RespHandler      `json:"-"` // The http Resp handler of the function
 }
 
 // Create a function with execution name
@@ -62,6 +70,10 @@ func (function *Function) Addparam(key string, value string) {
 	} else {
 		function.Param[key] = append(array, value)
 	}
+}
+
+func (function *Function) AddSerializer(serializer Serializer) {
+	function.serializer = serializer
 }
 
 func (function *Function) AddFailureHandler(handler FuncErrorHandler) {

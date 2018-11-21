@@ -21,6 +21,7 @@ var (
 	reqSpanCtx        opentracing.SpanContext
 	tracerInitialized bool
 	phaseSpans        map[int]opentracing.Span
+	nodeSpans         map[string]opentracing.Span
 )
 
 // EnvHeadersCarrier satisfies both TextMapWriter and TextMapReader
@@ -229,6 +230,30 @@ func stopPhaseSpan(phase int) {
 	}
 
 	phaseSpans[phase].Finish()
+}
+
+// startNodeSpan starts a node span
+func startNodeSpan(node string, reqId string) {
+	var nodeSpan opentracing.Span
+	if !isTracingEnabled() || !tracerInitialized {
+		return
+	}
+
+	nodeSpan = opentracing.GlobalTracer().StartSpan(
+		node, ext.RPCServerOption(reqSpanCtx))
+	nodeSpan.SetTag("async", "true")
+	nodeSpan.SetTag("request", reqId)
+	nodeSpan.SetTag("node", node)
+	nodeSpans[node] = nodeSpan
+}
+
+// stopNodeSpan terminates a phase span
+func stopNodeSpan(node string) {
+	if !isTracingEnabled() || !tracerInitialized {
+		return
+	}
+
+	nodeSpans[node].Finish()
 }
 
 // flushTracer flush all pending traces

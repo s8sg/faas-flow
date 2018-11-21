@@ -1,7 +1,7 @@
 package faasflow
 
 import (
-	"github.com/s8sg/faasflow/sdk"
+	"github.com/s8sg/faas-flow/sdk"
 )
 
 type Options struct {
@@ -10,10 +10,19 @@ type Options struct {
 	sync            bool
 	failureHandler  sdk.FuncErrorHandler
 	responseHandler sdk.RespHandler
+	serializer      sdk.Serializer
 }
 
 type Workflow struct {
 	pipeline *sdk.Pipeline // underline pipeline definition object
+}
+
+type DagFlow struct {
+	udag *sdk.Dag
+}
+
+type Vertex struct {
+	function *sdk.Function
 }
 
 type Option func(*Options)
@@ -32,6 +41,13 @@ func (o *Options) reset() {
 	o.sync = false
 	o.failureHandler = nil
 	o.responseHandler = nil
+}
+
+// Serializer specify a data serializer
+func Serializer(serializer sdk.Serializer) Option {
+	return func(o *Options) {
+		o.serializer = serializer
+	}
 }
 
 // SyncCall Set sync flag
@@ -182,6 +198,15 @@ func (flow *Workflow) Apply(function string, opts ...Option) *Workflow {
 	phase.AddFunction(newfunc)
 
 	return flow
+}
+
+// ExecuteDag apply a predefined dag
+// All operation inside dag are async
+// Note: If applied dag, chain execution is not supported
+func (flow *Workflow) ExecuteDag(dag *DagFlow) {
+	pipeline := flow.pipeline
+	pipeline.Dag = dag.udag
+	pipeline.Phases = make([]*sdk.Phase, 0)
 }
 
 // OnFailure set a failure handler routine for the pipeline

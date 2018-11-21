@@ -1,7 +1,7 @@
 # Faasflow - FaaS pipeline as a function
-[![Build Status](https://travis-ci.org/s8sg/faasflow.svg?branch=master)](https://travis-ci.org/s8sg/faasflow)
+[![Build Status](https://travis-ci.org/s8sg/faas-flow.svg?branch=master)](https://travis-ci.org/s8sg/faas-flow)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GoDoc](https://godoc.org/github.com/s8sg/faasflow?status.svg)](https://godoc.org/github.com/s8sg/faasflow)
+[![GoDoc](https://godoc.org/github.com/s8sg/faas-flow?status.svg)](https://godoc.org/github.com/s8sg/faas-flow)
 [![OpenTracing Badge](https://img.shields.io/badge/OpenTracing-enabled-blue.svg)](http://opentracing.io)
 [![OpenFaaS](https://img.shields.io/badge/openfaas-serverless-blue.svg)](https://www.openfaas.com)
      
@@ -10,15 +10,17 @@
 > - [x] **Secured**   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; with **`HMAC`**
 > - [x] **Stateless** &nbsp;&nbsp;&nbsp;&nbsp;  by **`design`** (with optional 3rd party integration)   
 > - [x] **Tracing**   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; with **`open-tracing`**    
-> - [x] **Available** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; as **`faasflow`** template 
+> - [x] **Available** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; as **`faas-flow`** template 
 
 **FYI**: Faasflow is into conceptual state and API which may change and under active development
 
 ## Overview
 
-faasflow allows you to realize OpenFaaS function composition with ease. By defining a simple pipeline, you can orchestrate multiple functions without having to worry about internals.
+faas-flow allows you to realize OpenFaaS function composition with ease. By defining a simple pipeline, you can orchestrate multiple functions without having to worry about internals.
 
 ```go
+import faasflow "github.com/s8sg/faas-flow"
+
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
   flow.Apply("yourFunc1", faasflow.Sync).
        Apply("yourFunc2", faasflow.Sync)
@@ -29,7 +31,7 @@ After building and deploying, it will give you a function that orchestrates call
      
 ## Pipeline Definition
 By supplying a number of pipeline operators, complex compostion can be achieved with little work:
-![alt overview](https://github.com/s8sg/faasflow/blob/master/doc/overview.jpg)
+![alt overview](https://github.com/s8sg/faas-flow/blob/master/doc/overview.jpg)
 
 The above pipeline can be achieved with little, but powerfull code:
 
@@ -37,10 +39,10 @@ The above pipeline can be achieved with little, but powerfull code:
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
      // use any 3rd party to maintain state
-     context.SetStateManager(myMinioStatemanager)
+     context.SetDataStore(myMinioStatemanager)
 
      flow.Modify(func(data []byte) ([]byte, error) {
-               // Set value in context with StateManager
+               // Set value in context with DataStore
                context.Set("raw-image", data)
                return data
         }).
@@ -70,16 +72,16 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
 ## Sync or Async
 
-Faasflow supports sync and async function call. By default all call are async. To call a function in Sync, faasflow provide option `faasflow.Sync`:
+Faasflow supports sync and async function call. By default all call are async. To call a function in Sync, faas-flow provide option `faasflow.Sync`:
 ```
  flow.Apply("function", faasflow.Sync)
 ```
 
 **One or more `Async` function call results a pipeline to have multiple phases**
-![alt single phase](https://github.com/s8sg/faasflow/blob/master/doc/asynccall.jpg)
+![alt single phase](https://github.com/s8sg/faas-flow/blob/master/doc/asynccall.jpg)
 
 **If all calls are `Sync`, pipeline will have one phase and return the result to the caller**
-![alt multi phase](https://github.com/s8sg/faasflow/blob/master/doc/synccall.jpg)
+![alt multi phase](https://github.com/s8sg/faas-flow/blob/master/doc/synccall.jpg)
    
     
 | Acronyms |  description |
@@ -95,37 +97,37 @@ Faasflow supports sync and async function call. By default all call are async. T
 
 ## Internal
 
-Faasflow runs four mejor steps to define and run the pipeline
-![alt internal](https://github.com/s8sg/faasflow/blob/master/doc/internal.jpg)
+Faasflow runs four major steps to define and run the pipeline
+![alt internal](https://github.com/s8sg/faas-flow/blob/master/doc/internal.jpg)
 
 | Step |  description |
 | ---- | ----- |
-| Build Workflow | Identify a request and build a flow. A incoming request could be a partially finished pipeline or a fresh raw request. For a partial request `faasflow` parse and understand the state of the pipeline from the incoming request |
-| Get Definition |  FaasWorkflow create simple **pipeline-definition** with one or multiple phases based on the flow defined at `Define()` function in `handler.go`. A **pipeline-definition** consist of multiple `phases`. Each `Phase` includes one or more `Function Call`, `Modifier` or `Callback`. Always a single `phase` is executed in a single invokation of the flow. A same flow always outputs to same pipeline definition, which allows `faasflow` to be completly `stateless`|
-| Execute | Execute executes a `Phase` by calling the `Modifier`, `Functions` or `Callback` based on how user defines the pipeline. Only one `Phase` gets executed at a single execution of `faasflow function`. |
-| Repeat Or Response | If pipeline is not yet completed, FaasWorkflow forwards the remaining pipeline with `partial execution state` and the `partial result` to the same `flow function` via `gateway`. If the pipeline has only one phase or completed `faasflow` returns the output to the gateway otherwise it returns `empty`| 
+| Build Workflow | Identify a request and build a flow. A incoming request could be a partially finished pipeline or a fresh raw request. For a partial request `faas-flow` parse and understand the state of the pipeline from the incoming request |
+| Get Definition |  FaasWorkflow create simple **pipeline-definition** with one or multiple phases based on the flow defined at `Define()` function in `handler.go`. A **pipeline-definition** consist of multiple `phases`. Each `Phase` includes one or more `Function Call`, `Modifier` or `Callback`. Always a single `phase` is executed in a single invokation of the flow. A same flow always outputs to same pipeline definition, which allows `faas-flow` to be completly `stateless`|
+| Execute | Execute executes a `Phase` by calling the `Modifier`, `Functions` or `Callback` based on how user defines the pipeline. Only one `Phase` gets executed at a single execution of `faas-flow function`. |
+| Repeat Or Response | If pipeline is not yet completed, FaasWorkflow forwards the remaining pipeline with `partial execution state` and the `partial result` to the same `flow function` via `gateway`. If the pipeline has only one phase or completed `faas-flow` returns the output to the gateway otherwise it returns `empty`| 
    
    
 ## Example
-https://github.com/s8sg/faasflow/tree/master/example
+https://github.com/s8sg/faas-flow/tree/master/example
 
 
 ## Getting Started
     
-#### Get the `faasflow` template with `faas-cli`
+#### Get the `faas-flow` template with `faas-cli`
 ```
-faas-cli template pull https://github.com/s8sg/faasflow
+faas-cli template pull https://github.com/s8sg/faas-flow
 ```
    
-#### Create a new `func` with `faasflow` template 
+#### Create a new `func` with `faas-flow` template 
 ```bash
-faas-cli new test-flow --lang faasflow
+faas-cli new test-flow --lang faas-flow
 ```
    
 #### Edit the `test-flow.yml`
 ```yaml
   test-flow:
-    lang: faasflow
+    lang: faas-flow
     handler: ./test-flow
     image: test-flow:latest
     environment:
@@ -142,8 +144,8 @@ faas-cli new test-flow --lang faasflow
 > `combine_output` : It allows debug msg to be excluded from `output`.  
      
      
-#### Add `flow.yml` with faasflow configuration
-To make the stack.yml look clean we can create a seperate `flow.yml` with faasflow related configuration.
+#### Add `flow.yml` with faas-flow configuration
+To make the stack.yml look clean we can create a seperate `flow.yml` with faas-flow related configuration.
 ```yaml
 environment:
   workflow_name: "test-flow"
@@ -154,7 +156,7 @@ environment:
 ```
 
 > `workflow_name` : The name of the flow function. Faasflow use this to forward partial request.   
-> `gateway` : We need to tell faasflow the address of openfaas gateway. All calls are made via gateway
+> `gateway` : We need to tell faas-flow the address of openfaas gateway. All calls are made via gateway
 > ```
 >              # swarm
 >              gateway: "gateway:8080"
@@ -255,15 +257,23 @@ docker service create --constraint="node.role==manager" --detach=true \
     
 Below is an example of tracing for an async request with 3 phases    
       
-![alt multi phase](https://github.com/s8sg/faasflow/blob/master/doc/tracing.png)
+![alt multi phase](https://github.com/s8sg/faas-flow/blob/master/doc/tracing.png)
     
      
-     
-## State Management
-The main state in faasflow is the **`execution-position` (next-phase)** and the **`partially`** completed data.    
-Apart from that faasflow allow user to define state with `StateManager` interface.   
+    
+## Using request context
+Request context provide verious function such as:   
+  **DataStore** to store data,    
+  **HttpQuery** to retrivbe request query,  
+  **State*** to get flow state,  
+  **phase** to execution phase 
+etc.  
+
+### Manage Data Accross Phase with `DataStore`
+The main state in faas-flow is the **`execution-position` (next-phase)** and the **`partially`** completed data.    
+Apart from that faas-flow allow user to define state with `DataStore` interface.   
 ```go
- type StateManager interface {
+ type DataStore interface {
         Init(flowName string, requestId string) error
 	Set(key string, value string) error
 	Get(key string) (string, error)
@@ -271,11 +281,11 @@ Apart from that faasflow allow user to define state with `StateManager` interfac
  }
 ```
     
-State manager can be implemented and set by user with request context in faasflow `Define()`:
+State manager can be implemented and set by user with request context in faas-flow `Define()`:
 ```go
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
-     // initialize my custom StateManager as minioStateManager
-     context.SetStateManager(minioStateManager)
+     // initialize my custom DataStore as minioDataStore
+     context.SetDataStore(minioDataStore)
 }
 ```
     
@@ -292,15 +302,22 @@ Once a state manager is set it can be used by calling `Get()` and `Set()` from `
           // use the query
      })
 ```
-* **[MinioStateManager](https://github.com/s8sg/faasflowMinioStateManager)** allows to store state in **amazon s3** or local **minio DB**
+* **[MinioDataStore](https://github.com/s8sg/faas-flow-minio-datastore)** allows to store state in **amazon s3** or local **minio DB**
 
-#### Default `requestEmbedStateManager`: 
-By default faasflow template use `requestEmbedStateManager` which embed the state data along with the request for the next phase. For bigger values it is recommended to pass it with custom `StateManager`. 
+> **Default `requestEmbedDataStore`:**   
+> By default faas-flow template use `requestEmbedDataStore` which embed the state data along with the request for the next phase. For bigger values it is recommended to pass it with custom `DataStore`. 
     
      
-Once `StateManager` is overridden, all call to `Set()`, `Get()` and `del()` will call the provided `StateManager`
-    
-#### Geting Http Query to Workflow: 
+Once `DataStore` is overridden, all call to `Set()`, `Get()` and `del()` will call the provided `DataStore`
+
+### Use **DataStore** to store intermediate result
+By default **`partially`** completed data gets forwarded along with the async request. When using external `DataStore` it can be saved and retrived from the `DataStore` if the flag `intermediate_storage` is set. Default is `false`
+```yaml
+   intermediate_storage: true
+```
+Due to **nats** `1mb` storage limitation, async call may fail. In such scenario using `intermediate_storage` is recommended
+
+### Geting Http Query to Workflow: 
 Http Query to flow can be used from context as
 ```go
     flow.Apply("myfunc", Query("auth-token", context.Query.Get("token"))). // pass as a function query
@@ -309,19 +326,24 @@ Http Query to flow can be used from context as
      	  })
 ```  
 
-### Use **StateManager** to store intermediate result
-By default **`partially`** completed data gets forwarded along with the async request. When using external `StateManager` it can be saved and retrived from the `StateManager` if the flag `intermediate_storage` is set. Default is `false`
-```yaml
-   intermediate_storage: true
+### Other from context:
+Phase, requestId, State is provided by the `context`
+```go
+   currentPhase := context.GetPhase()
+   requestId := context.GetRequestId()
+   state := context.State
 ```
+for more details check `[faas-flow-GoDoc](https://godoc.org/github.com/s8sg/faas-flow)
+   
     
+     
 ## Cleanup with `Finally()`
 Finally provides a way to cleanup context and other resources and do post completion work of the pipeline.
 A Finally method can be used on flow as:
 ```go
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
-     // initialize my custom StateManager as myStateManager
-     context.SetStateManager(myStateManager)
+     // initialize my custom DataStore as myDataStore
+     context.SetDataStore(myDataStore)
      
      // Define flow
      flow.Modify(func(data []byte) {
@@ -340,5 +362,5 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 ```
  
 ## Contribute:
-> **Issue/Suggestion** Create an issue at [faasflow-issue](https://github.com/s8sg/faasflow/issues).  
-> **ReviewPR/Implement** Create Pull Request at [faasflow-pr](https://github.com/s8sg/faasflow/issues).  
+> **Issue/Suggestion** Create an issue at [faas-flow-issue](https://github.com/s8sg/faas-flow/issues).  
+> **ReviewPR/Implement** Create Pull Request at [faas-flow-pr](https://github.com/s8sg/faas-flow/issues).  

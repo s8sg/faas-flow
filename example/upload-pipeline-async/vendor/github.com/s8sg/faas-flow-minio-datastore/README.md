@@ -1,5 +1,5 @@
-# faasflow-minio-statemanager
-A **[faasflow](https://github.com/s8sg/faasflow)** statemanager implementation that uses minio DB to store state  
+# faasflow-minio-datastore
+A **[faasflow](https://github.com/s8sg/faasflow)** datastore implementation that uses minio DB to store data  
 which can also be used with s3 bucket
 
 ## Getting Stated
@@ -49,29 +49,28 @@ minio/minio:latest server /export
 ```
 > Note: For debugging and testing. You can expose the port of Minio with docker service update minio --publish-add 9000:9000, but this is not recommended on the public internet.
 
-### Use Minio stateManager in `faasflow`
+### Use Minio dataStore in `faasflow`
 * Set the `stack.yml` with the necessary environments
 ```yaml
       s3_url: "minio:9000"
-      s3_bucket: "faasflow"
       s3_tls: false
     secrets:
       - s3-secret-key
       - s3-access-key
 ```
-* Use the `faasflowMinioStateManager` as a StateManager
+* Use the `faasflowMinioDataStore` as a DataStore
 ```go
-minioStateManager "github.com/s8sg/faasflowMinioStateManager"
+minioDataStore "github.com/s8sg/faas-flow-minio-datastore"
 
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
  
-       // initialize minio StateManager
-       miniosm, err := minioStateManager.GetMinioStateManager()
+       // initialize minio DataStore
+       miniods, err := minioDataStore.GetMinioDataStore()
        if err != nil {
                return err
        }
-       // Set StateManager
-       context.SetStateManager(miniosm)
+       // Set DataStore
+       context.SetDataStore(miniods)
        
        // Define pipeline
        ...

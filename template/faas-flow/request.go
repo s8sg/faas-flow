@@ -7,13 +7,17 @@ import (
 
 // Request defines the body of async forward request to faasflow
 type Request struct {
-	Sign           string `json: "sign"`  // request signature
-	ID             string `json: "id"`    // request ID
-	Query          string `json: "query"` // query string
-	ExecutionState string `json: "state"` // Execution State
-	Data           []byte `json: "data"`  // Partial execution data
+	Sign  string `json: "sign"`  // request signature
+	ID    string `json: "id"`    // request ID
+	Query string `json: "query"` // query string
 
-	ContextState map[string]string `json: "state"` // Context State for default StateManager
+	ExecutionState string `json: "state"` // Execution State (execution position / execution vertex)
+
+	Data []byte `json: "data"` // Partial execution data
+	// (empty if intermediate_stoarge enabled
+
+	ContextStore map[string]string `json: "store"` // Context State for default DataStore
+	// (empty if external Store is used
 }
 
 const (
@@ -33,7 +37,7 @@ func buildRequest(id string,
 		ExecutionState: state,
 		Query:          query,
 		Data:           data,
-		ContextState:   contextstate,
+		ContextStore:   contextstate,
 	}
 	return request
 }
@@ -66,8 +70,8 @@ func (req *Request) getExecutionState() string {
 	return req.ExecutionState
 }
 
-func (req *Request) getContextState() map[string]string {
-	return req.ContextState
+func (req *Request) getContextStore() map[string]string {
+	return req.ContextStore
 }
 
 func (req *Request) getQuery() string {
