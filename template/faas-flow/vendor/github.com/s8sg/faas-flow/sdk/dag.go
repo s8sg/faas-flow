@@ -42,16 +42,6 @@ func (this *Dag) AddVertex(id string, operations []*Operation) *Node {
 	return node
 }
 
-// inSlice check if a node belongs in a slice
-func (this *Node) inSlice(list []*Node) bool {
-	for _, b := range list {
-		if b.Id == this.Id {
-			return true
-		}
-	}
-	return false
-}
-
 // AddEdge add a directed edge as (from)->(to)
 func (this *Dag) AddEdge(from, to string) error {
 	fromNode := this.nodes[from]
@@ -88,6 +78,26 @@ func (this *Dag) GetNode(id string) *Node {
 	return this.nodes[id]
 }
 
+// GetInitialNode get the initial node
+func (this *Dag) GetInitialNode() *Node {
+	for _, b := range this.nodes {
+		if b.indegree == 0 {
+			return b
+		}
+	}
+	return nil
+}
+
+// inSlice check if a node belongs in a slice
+func (this *Node) inSlice(list []*Node) bool {
+	for _, b := range list {
+		if b.Id == this.Id {
+			return true
+		}
+	}
+	return false
+}
+
 // Children get all children node for a node
 func (this *Node) Children() []*Node {
 	return this.children
@@ -106,4 +116,9 @@ func (this *Node) Operations() []*Operation {
 // Indegree returns the no of input in a node
 func (this *Node) Indegree() int {
 	return this.indegree
+}
+
+// AddOperation add an operation
+func (this *Node) AddOperation(operation *Operation) {
+	this.operations = append(this.operations, operation)
 }
