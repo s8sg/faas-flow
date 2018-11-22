@@ -16,20 +16,24 @@ func CreateDag() *DagFlow {
 func (this *DagFlow) CreateModifierVertex(id string, mod sdk.Modifier, opts ...Option) {
 	newMod := sdk.CreateModifier(mod)
 	o := &Options{}
+	this.udag.AddVertex(id, []*sdk.Operation{newMod})
+	node := this.udag.GetNode(id)
 	for _, opt := range opts {
 		o.reset()
 		opt(o)
 		if o.serializer != nil {
-			newMod.AddSerializer(o.serializer)
+			node.AddSerializer(o.serializer)
 		}
 	}
-	this.udag.AddVertex(id, []*sdk.Operation{newMod})
+
 }
 
 // CreateFunctionVertex create a new function that can be added in the dag
 func (this *DagFlow) CreateFunctionVertex(id string, function string, opts ...Option) {
 	newfunc := sdk.CreateFunction(function)
 	o := &Options{}
+	this.udag.AddVertex(id, []*sdk.Operation{newfunc})
+	node := this.udag.GetNode(id)
 	for _, opt := range opts {
 		o.reset()
 		opt(o)
@@ -53,16 +57,16 @@ func (this *DagFlow) CreateFunctionVertex(id string, function string, opts ...Op
 		}
 
 		if o.serializer != nil {
-			newfunc.AddSerializer(o.serializer)
+			node.AddSerializer(o.serializer)
 		}
 	}
-	this.udag.AddVertex(id, []*sdk.Operation{newfunc})
 }
 
 // CreateCallbackVertex create a new callback that can be added as a dag
 func (this *DagFlow) CreateCallbackVertex(id string, url string, opts ...Option) {
 	newCallback := sdk.CreateCallback(url)
-
+	this.udag.AddVertex(id, []*sdk.Operation{newCallback})
+	node := this.udag.GetNode(id)
 	o := &Options{}
 	for _, opt := range opts {
 		o.reset()
@@ -83,10 +87,9 @@ func (this *DagFlow) CreateCallbackVertex(id string, url string, opts ...Option)
 			newCallback.AddFailureHandler(o.failureHandler)
 		}
 		if o.serializer != nil {
-			newCallback.AddSerializer(o.serializer)
+			node.AddSerializer(o.serializer)
 		}
 	}
-	this.udag.AddVertex(id, []*sdk.Operation{newCallback})
 }
 
 // AddEdge adds a directed edge as <from>-><to>

@@ -9,6 +9,9 @@ var (
 	ERR_CYCLIC = fmt.Errorf("dag has cyclic dependency")
 )
 
+// Serializer defintion for the data serilizer of function
+type Serializer func(map[string][]byte) ([]byte, error)
+
 // Dag The whole dag
 type Dag struct {
 	nodes map[string]*Node
@@ -16,13 +19,14 @@ type Dag struct {
 
 // Node The vertex
 type Node struct {
-	Id         string
-	operations []*Operation
+	Id string // The id of the vertex
 
-	indegree int
+	operations []*Operation // The list of operations
+	serializer Serializer   // The serializer serialize multiple input to a node into one
 
-	children  []*Node
-	dependsOn []*Node
+	indegree  int     // The vertex dag indegree
+	children  []*Node // The children of the vertex
+	dependsOn []*Node // The parents of the vertex
 
 	next []*Node
 	prev []*Node
@@ -121,4 +125,9 @@ func (this *Node) Indegree() int {
 // AddOperation add an operation
 func (this *Node) AddOperation(operation *Operation) {
 	this.operations = append(this.operations, operation)
+}
+
+// AddSerializer add a serializer to a node
+func (this *Node) AddSerializer(serializer Serializer) {
+	this.serializer = serializer
 }

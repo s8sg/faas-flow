@@ -753,6 +753,11 @@ func handleWorkflow(data []byte) string {
 			log.Fatalf("[Request `%s`] Failed to init flow, %v", fhandler.id, err)
 		}
 
+		// Check if the pipeline is active
+		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG && fhandler.partial && !isActive(fhandler) {
+			log.Fatalf("flow has been terminated")
+		}
+
 		// MAKE CONTEXT: make the request context from flow
 		context := createContext(fhandler)
 
@@ -796,7 +801,7 @@ func handleWorkflow(data []byte) string {
 					handleFailure(fhandler, context, gerr)
 				}
 			case sdk.TYPE_DAG:
-
+				// TODO: Handle with Serializer
 			}
 		}
 
