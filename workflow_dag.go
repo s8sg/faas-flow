@@ -23,7 +23,7 @@ func (this *DagFlow) CreateModifierVertex(id string, mod sdk.Modifier, opts ...O
 			newMod.AddSerializer(o.serializer)
 		}
 	}
-	this.udag.AddVertex(id, newMod)
+	this.udag.AddVertex(id, []*sdk.Operation{newMod})
 }
 
 // CreateFunctionVertex create a new function that can be added in the dag
@@ -56,7 +56,7 @@ func (this *DagFlow) CreateFunctionVertex(id string, function string, opts ...Op
 			newfunc.AddSerializer(o.serializer)
 		}
 	}
-	this.udag.AddVertex(id, newfunc)
+	this.udag.AddVertex(id, []*sdk.Operation{newfunc})
 }
 
 // CreateCallbackVertex create a new callback that can be added as a dag
@@ -86,7 +86,7 @@ func (this *DagFlow) CreateCallbackVertex(id string, url string, opts ...Option)
 			newCallback.AddSerializer(o.serializer)
 		}
 	}
-	this.udag.AddVertex(id, newCallback)
+	this.udag.AddVertex(id, []*sdk.Operation{newCallback})
 }
 
 // AddEdge adds a directed edge as <from>-><to>

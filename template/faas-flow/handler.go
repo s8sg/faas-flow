@@ -314,13 +314,13 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 }
 
 // executeFunction executes a function call
-func executeFunction(pipeline *sdk.Pipeline, function *sdk.Function, data []byte) ([]byte, error) {
+func executeFunction(pipeline *sdk.Pipeline, operation *sdk.Operation, data []byte) ([]byte, error) {
 	var err error
 	var result []byte
 
-	name := function.GetName()
-	params := function.GetParams()
-	headers := function.GetHeaders()
+	name := operation.Function
+	params := operation.GetParams()
+	headers := operation.GetHeaders()
 
 	httpreq := buildFunctionRequest(name, data, params, headers)
 
@@ -330,8 +330,8 @@ func executeFunction(pipeline *sdk.Pipeline, function *sdk.Function, data []byte
 		return []byte{}, err
 	}
 
-	if function.OnResphandler != nil {
-		result, err = function.OnResphandler(resp)
+	if operation.OnResphandler != nil {
+		result, err = operation.OnResphandler(resp)
 	} else {
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
 			result, _ = ioutil.ReadAll(resp.Body)
@@ -348,12 +348,12 @@ func executeFunction(pipeline *sdk.Pipeline, function *sdk.Function, data []byte
 }
 
 // executeCallback executes a callback
-func executeCallback(pipeline *sdk.Pipeline, function *sdk.Function, data []byte) error {
+func executeCallback(pipeline *sdk.Pipeline, operation *sdk.Operation, data []byte) error {
 	var err error
 
-	cburl := function.CallbackUrl
-	params := function.GetParams()
-	headers := function.GetHeaders()
+	cburl := operation.CallbackUrl
+	params := operation.GetParams()
+	headers := operation.GetHeaders()
 
 	httpreq := buildCallbackRequest(cburl, data, params, headers)
 
@@ -385,24 +385,24 @@ func executeChain(fhandler *flowHandler, request []byte) ([]byte, error) {
 	// trace phase - mark as start of phase
 	startPhaseSpan(pipeline.ExecutionPosition, fhandler.id)
 
-	// Execute all function
-	for _, function := range phase.GetFunctions() {
+	// Execute all operation
+	for _, operation := range phase.GetOperations() {
 
 		switch {
 		// If function
-		case function.GetName() != "":
+		case operation.Function != "":
 			log.Printf("[Request `%s`] Executing function `%s`",
-				fhandler.id, function.GetName())
+				fhandler.id, operation.Function)
 			if result == nil {
-				result, err = executeFunction(pipeline, function, request)
+				result, err = executeFunction(pipeline, operation, request)
 			} else {
-				result, err = executeFunction(pipeline, function, result)
+				result, err = executeFunction(pipeline, operation, result)
 			}
 			if err != nil {
 				err = fmt.Errorf("Phase(%d), Function(%s), error: function execution failed, %v%s",
-					pipeline.ExecutionPosition, function.GetName(), err, string(result))
-				if function.FailureHandler != nil {
-					err = function.FailureHandler(err)
+					pipeline.ExecutionPosition, operation.Function, err, string(result))
+				if operation.FailureHandler != nil {
+					err = operation.FailureHandler(err)
 				}
 				if err != nil {
 					stopPhaseSpan(pipeline.ExecutionPosition)
@@ -410,19 +410,19 @@ func executeChain(fhandler *flowHandler, request []byte) ([]byte, error) {
 				}
 			}
 		// If callback
-		case function.CallbackUrl != "":
+		case operation.CallbackUrl != "":
 			log.Printf("[Request `%s`] Executing callback `%s`",
-				fhandler.id, function.CallbackUrl)
+				fhandler.id, operation.CallbackUrl)
 			if result == nil {
-				err = executeCallback(pipeline, function, request)
+				err = executeCallback(pipeline, operation, request)
 			} else {
-				err = executeCallback(pipeline, function, result)
+				err = executeCallback(pipeline, operation, result)
 			}
 			if err != nil {
 				err = fmt.Errorf("Phase(%d), Callback(%s), error: callback failed, %v",
-					pipeline.ExecutionPosition, function.CallbackUrl, err)
-				if function.FailureHandler != nil {
-					err = function.FailureHandler(err)
+					pipeline.ExecutionPosition, operation.CallbackUrl, err)
+				if operation.FailureHandler != nil {
+					err = operation.FailureHandler(err)
 				}
 				if err != nil {
 					stopPhaseSpan(pipeline.ExecutionPosition)
@@ -434,9 +434,9 @@ func executeChain(fhandler *flowHandler, request []byte) ([]byte, error) {
 		default:
 			log.Printf("[Request `%s`] Executing modifier", fhandler.id)
 			if result == nil {
-				result, err = function.Mod(request)
+				result, err = operation.Mod(request)
 			} else {
-				result, err = function.Mod(result)
+				result, err = operation.Mod(result)
 			}
 			if err != nil {
 				err = fmt.Errorf("Phase(%d), error: Failed at modifier, %v",
@@ -473,66 +473,67 @@ func executeDag(fhandler *flowHandler, request []byte) ([]byte, error) {
 	// trace phase - mark as start of phase
 	startNodeSpan(pipeline.DagExecutionPosition, fhandler.id)
 
-	// Executes the node function
-	function := node.Value()
+	// Execute all operation
+	for _, operation := range node.Operations() {
 
-	switch {
-	// If function
-	case function.GetName() != "":
-		log.Printf("[Request `%s`] Executing function `%s`",
-			fhandler.id, function.GetName())
-		if result == nil {
-			result, err = executeFunction(pipeline, function, request)
-		} else {
-			result, err = executeFunction(pipeline, function, result)
-		}
-		if err != nil {
-			err = fmt.Errorf("Phase(%d), Function(%s), error: function execution failed, %v",
-				pipeline.ExecutionPosition, function.GetName(), err)
-			if function.FailureHandler != nil {
-				err = function.FailureHandler(err)
+		switch {
+		// If function
+		case operation.Function != "":
+			log.Printf("[Request `%s`] Executing function `%s`",
+				fhandler.id, operation.Function)
+			if result == nil {
+				result, err = executeFunction(pipeline, operation, request)
+			} else {
+				result, err = executeFunction(pipeline, operation, result)
 			}
 			if err != nil {
-				stopPhaseSpan(pipeline.ExecutionPosition)
-				return nil, err
+				err = fmt.Errorf("Node(%s), Function(%s), error: function execution failed, %v",
+					pipeline.DagExecutionPosition, operation.Function, err)
+				if operation.FailureHandler != nil {
+					err = operation.FailureHandler(err)
+				}
+				if err != nil {
+					stopPhaseSpan(pipeline.ExecutionPosition)
+					return nil, err
+				}
 			}
-		}
-	// If callback
-	case function.CallbackUrl != "":
-		log.Printf("[Request `%s`] Executing callback `%s`",
-			fhandler.id, function.CallbackUrl)
-		if result == nil {
-			err = executeCallback(pipeline, function, request)
-		} else {
-			err = executeCallback(pipeline, function, result)
-		}
-		if err != nil {
-			err = fmt.Errorf("Phase(%d), Callback(%s), error: callback failed, %v",
-				pipeline.ExecutionPosition, function.CallbackUrl, err)
-			if function.FailureHandler != nil {
-				err = function.FailureHandler(err)
+		// If callback
+		case operation.CallbackUrl != "":
+			log.Printf("[Request `%s`] Executing callback `%s`",
+				fhandler.id, operation.CallbackUrl)
+			if result == nil {
+				err = executeCallback(pipeline, operation, request)
+			} else {
+				err = executeCallback(pipeline, operation, result)
 			}
 			if err != nil {
-				stopPhaseSpan(pipeline.ExecutionPosition)
+				err = fmt.Errorf("Node(%s), Callback(%s), error: callback failed, %v",
+					pipeline.DagExecutionPosition, operation.CallbackUrl, err)
+				if operation.FailureHandler != nil {
+					err = operation.FailureHandler(err)
+				}
+				if err != nil {
+					stopPhaseSpan(pipeline.ExecutionPosition)
+					return nil, err
+				}
+			}
+
+		// If modifier
+		default:
+			log.Printf("[Request `%s`] Executing modifier", fhandler.id)
+			if result == nil {
+				result, err = operation.Mod(request)
+			} else {
+				result, err = operation.Mod(result)
+			}
+			if err != nil {
+				err = fmt.Errorf("Node(%s), error: Failed at modifier, %v",
+					pipeline.DagExecutionPosition, err)
 				return nil, err
 			}
-		}
-
-	// If modifier
-	default:
-		log.Printf("[Request `%s`] Executing modifier", fhandler.id)
-		if result == nil {
-			result, err = function.Mod(request)
-		} else {
-			result, err = function.Mod(result)
-		}
-		if err != nil {
-			err = fmt.Errorf("Phase(%d), error: Failed at modifier, %v",
-				pipeline.ExecutionPosition, err)
-			return nil, err
-		}
-		if result == nil {
-			result = []byte("")
+			if result == nil {
+				result = []byte("")
+			}
 		}
 	}
 
@@ -541,13 +542,10 @@ func executeDag(fhandler *flowHandler, request []byte) ([]byte, error) {
 	// trace phase - mark as end of phase
 	stopNodeSpan(pipeline.DagExecutionPosition)
 
-	// Update execution position
-	//pipeline.UpdateExecutionPosition()
-
 	return result, nil
 }
 
-// execute functions for current phase
+// execute operations for current phase
 func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 	switch fhandler.getPipeline().PipelineType {
 	case sdk.TYPE_CHAIN:

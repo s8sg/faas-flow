@@ -97,7 +97,7 @@ func (pipeline *Pipeline) IsInitialNode() bool {
 }
 
 func (pipeline *Pipeline) GetCurrentNode() *Node {
-	return pipeline.Dag.Node(pipeline.DagExecutionPosition)
+	return pipeline.Dag.GetNode(pipeline.DagExecutionPosition)
 }
 
 func (pipeline *Pipeline) UpdateDagExecutionPosition(vertex string) {
@@ -158,12 +158,12 @@ func (this *Pipeline) makeChainDotGraoh() string {
 			continue
 		}
 		modifierTypes := ""
-		for _, function := range phase.Functions {
+		for _, operation := range phase.Operations {
 			switch {
-			case function.GetName() != "":
-				modifierTypes += " func:" + function.GetName()
-			case function.CallbackUrl != "":
-				modifierTypes += " callback:" + function.CallbackUrl
+			case operation.Function != "":
+				modifierTypes += " func:" + operation.Function
+			case operation.CallbackUrl != "":
+				modifierTypes += " callback:" + operation.CallbackUrl
 			default:
 				modifierTypes += " modifier"
 			}
@@ -183,13 +183,15 @@ func (this *Dag) makeDagDotGraph() string {
 			continue
 		}
 		modifierType := ""
-		switch {
-		case node.val.GetName() != "":
-			modifierType += " func:" + node.val.GetName()
-		case node.val.CallbackUrl != "":
-			modifierType += " callback:" + node.val.CallbackUrl
-		default:
-			modifierType += " modifier"
+		for _, operation := range node.Operations() {
+			switch {
+			case operation.Function != "":
+				modifierType += " func:" + operation.Function
+			case operation.CallbackUrl != "":
+				modifierType += " callback:" + operation.CallbackUrl
+			default:
+				modifierType += " modifier"
+			}
 		}
 
 		for _, child := range node.children {

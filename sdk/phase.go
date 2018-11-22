@@ -2,19 +2,19 @@ package sdk
 
 type Phase struct {
 	// The list of function in the Phase
-	Functions []*Function `json:"functions"`
+	Operations []*Operation
 }
 
 func CreateExecutionPhase() *Phase {
 	phase := &Phase{}
-	phase.Functions = make([]*Function, 0)
+	phase.Operations = make([]*Operation, 0)
 	return phase
 }
 
-func (phase *Phase) AddFunction(function *Function) {
-	phase.Functions = append(phase.Functions, function)
+func (phase *Phase) AddOperation(function *Operation) {
+	phase.Operations = append(phase.Operations, function)
 }
 
-func (phase *Phase) GetFunctions() []*Function {
-	return phase.Functions
+func (phase *Phase) GetOperations() []*Operation {
+	return phase.Operations
 }

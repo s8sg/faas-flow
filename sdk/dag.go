@@ -2,47 +2,47 @@ package sdk
 
 import (
 	"fmt"
-	//       "github.com/funkygao/golib/str"
 )
 
 var (
-	ErrCyclic = fmt.Errorf("dag has cyclic dependency")
+	// ERR_CYCLIC denotes that dag has a cycle
+	ERR_CYCLIC = fmt.Errorf("dag has cyclic dependency")
 )
 
+// Dag The whole dag
 type Dag struct {
 	nodes map[string]*Node
-	// status map[string]bool
 }
 
+// Node The vertex
 type Node struct {
-	Id  string
-	val *Function
+	Id         string
+	operations []*Operation
 
-	//outdegree int
 	indegree int
 
 	children  []*Node
 	dependsOn []*Node
-	//childrenSync map[string]bool
 
 	next []*Node
 	prev []*Node
 }
 
+// NewDag Creates a Dag
 func NewDag() *Dag {
 	this := new(Dag)
 	this.nodes = make(map[string]*Node)
 	return this
 }
 
-func (this *Dag) AddVertex(id string, val *Function) *Node {
-	node := &Node{Id: id, val: val}
+// AddVertex create a vertex with id and operations
+func (this *Dag) AddVertex(id string, operations []*Operation) *Node {
+	node := &Node{Id: id, operations: operations}
 	this.nodes[id] = node
-	// this.status[id] = false
-	//node.childrenSync = new(map[string]bool)
 	return node
 }
 
+// inSlice check if a node belongs in a slice
 func (this *Node) inSlice(list []*Node) bool {
 	for _, b := range list {
 		if b.Id == this.Id {
@@ -52,13 +52,14 @@ func (this *Node) inSlice(list []*Node) bool {
 	return false
 }
 
+// AddEdge add a directed edge as (from)->(to)
 func (this *Dag) AddEdge(from, to string) error {
 	fromNode := this.nodes[from]
 	toNode := this.nodes[to]
 
 	// Check if cyclic dependency
 	if fromNode.inSlice(toNode.next) || toNode.inSlice(fromNode.prev) {
-		return ErrCyclic
+		return ERR_CYCLIC
 	}
 
 	fromNode.next = append(fromNode.next, toNode)
@@ -77,26 +78,32 @@ func (this *Dag) AddEdge(from, to string) error {
 
 	fromNode.children = append(fromNode.children, toNode)
 	toNode.dependsOn = append(toNode.dependsOn, fromNode)
-	//fromNode.childrenSync = sync
-
-	// fromNode.outdegree++
 	toNode.indegree++
 
 	return nil
 }
 
-func (this *Dag) Node(id string) *Node {
+// GetNode get a node by Id
+func (this *Dag) GetNode(id string) *Node {
 	return this.nodes[id]
 }
 
+// Children get all children node for a node
 func (this *Node) Children() []*Node {
 	return this.children
 }
 
-func (this *Node) Value() *Function {
-	return this.val
+// Dependency get all dependency node for a node
+func (this *Node) Dependency() []*Node {
+	return this.dependsOn
 }
 
+// Value provides the ordered list of functions for a node
+func (this *Node) Operations() []*Operation {
+	return this.operations
+}
+
+// Indegree returns the no of input in a node
 func (this *Node) Indegree() int {
 	return this.indegree
 }

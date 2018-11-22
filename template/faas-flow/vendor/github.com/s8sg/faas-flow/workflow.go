@@ -21,9 +21,10 @@ type DagFlow struct {
 	udag *sdk.Dag
 }
 
+/*
 type Vertex struct {
-	function *sdk.Function
-}
+	function *sdk.Operation
+}*/
 
 type Option func(*Options)
 
@@ -102,7 +103,7 @@ func (flow *Workflow) Modify(mod sdk.Modifier) *Workflow {
 	} else {
 		phase = flow.pipeline.GetLastPhase()
 	}
-	phase.AddFunction(newMod)
+	phase.AddOperation(newMod)
 	return flow
 }
 
@@ -141,7 +142,7 @@ func (flow *Workflow) Callback(url string, opts ...Option) *Workflow {
 	} else {
 		phase = flow.pipeline.GetLastPhase()
 	}
-	phase.AddFunction(newCallback)
+	phase.AddOperation(newCallback)
 	return flow
 }
 
@@ -195,7 +196,7 @@ func (flow *Workflow) Apply(function string, opts ...Option) *Workflow {
 		}
 	}
 	emptyPhase = false
-	phase.AddFunction(newfunc)
+	phase.AddOperation(newfunc)
 
 	return flow
 }
