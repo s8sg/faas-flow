@@ -1,6 +1,7 @@
 package faasflow
 
 import (
+	"fmt"
 	"github.com/s8sg/faas-flow/sdk"
 )
 
@@ -21,18 +22,15 @@ type DagFlow struct {
 	udag *sdk.Dag
 }
 
-/*
-type Vertex struct {
-	function *sdk.Operation
-}*/
-
 type Option func(*Options)
 
 var (
 	// Sync can be used instead of SyncCall
 	Sync = SyncCall()
-	// Denote if last phase doesn't contain any function
-	emptyPhase = false
+	// Denote if last node doesn't contain any function call
+	emptyNode = false
+	// the reference of lastnode when applied as chain
+	lastnode *sdk.Node = nil
 )
 
 // reset reset the options
@@ -90,20 +88,22 @@ func OnReponse(handler sdk.RespHandler) Option {
 	}
 }
 
-// Modify allows to apply inline callback functionl
+// Modify allows to apply inline callback function
 // the callback fucntion prototype is
 // func([]byte) ([]byte, error)
 func (flow *Workflow) Modify(mod sdk.Modifier) *Workflow {
-	var phase *sdk.Phase
 	newMod := sdk.CreateModifier(mod)
-	if len(flow.pipeline.Phases) == 0 {
-		phase = sdk.CreateExecutionPhase()
-		flow.pipeline.AddPhase(phase)
-		emptyPhase = true
+
+	if flow.pipeline.CountNodes() == 0 {
+		id := fmt.Sprintf("%d", flow.pipeline.CountNodes())
+		// create a new vertex and add modifier
+		flow.pipeline.Dag.AddVertex(id, []*sdk.Operation{newMod})
+		lastnode = flow.pipeline.Dag.GetNode(id)
+		emptyNode = true
 	} else {
-		phase = flow.pipeline.GetLastPhase()
+		node := lastnode
+		node.AddOperation(newMod)
 	}
-	phase.AddOperation(newMod)
 	return flow
 }
 
@@ -134,15 +134,16 @@ func (flow *Workflow) Callback(url string, opts ...Option) *Workflow {
 		}
 	}
 
-	var phase *sdk.Phase
-	if len(flow.pipeline.Phases) == 0 {
-		phase = sdk.CreateExecutionPhase()
-		flow.pipeline.AddPhase(phase)
-		emptyPhase = true
+	if flow.pipeline.CountNodes() == 0 {
+		id := fmt.Sprintf("%d", flow.pipeline.CountNodes())
+		// create a new vertex and add callback
+		flow.pipeline.Dag.AddVertex(id, []*sdk.Operation{newCallback})
+		lastnode = flow.pipeline.Dag.GetNode(id)
+		emptyNode = true
 	} else {
-		phase = flow.pipeline.GetLastPhase()
+		node := lastnode
+		node.AddOperation(newCallback)
 	}
-	phase.AddOperation(newCallback)
 	return flow
 }
 
@@ -179,24 +180,31 @@ func (flow *Workflow) Apply(function string, opts ...Option) *Workflow {
 		}
 	}
 
-	var phase *sdk.Phase
 	if sync {
-		if len(flow.pipeline.Phases) == 0 {
-			phase = sdk.CreateExecutionPhase()
-			flow.pipeline.AddPhase(phase)
+		if flow.pipeline.CountNodes() == 0 {
+			id := fmt.Sprintf("%d", flow.pipeline.CountNodes())
+			// create a new vertex and add function
+			flow.pipeline.Dag.AddVertex(id, []*sdk.Operation{newfunc})
+			lastnode = flow.pipeline.Dag.GetNode(id)
 		} else {
-			phase = flow.pipeline.GetLastPhase()
+			node := lastnode
+			node.AddOperation(newfunc)
 		}
 	} else {
-		if emptyPhase {
-			phase = flow.pipeline.GetLastPhase()
+		// If last node doesn't have any function its emptyNode
+		if emptyNode {
+			node := lastnode
+			node.AddOperation(newfunc)
 		} else {
-			phase = sdk.CreateExecutionPhase()
-			flow.pipeline.AddPhase(phase)
+			from := lastnode.Id
+			id := fmt.Sprintf("%d", flow.pipeline.CountNodes())
+			// create a new vertex and add function
+			flow.pipeline.Dag.AddVertex(id, []*sdk.Operation{newfunc})
+			lastnode = flow.pipeline.Dag.GetNode(id)
+			flow.pipeline.Dag.AddEdge(from, id)
 		}
 	}
-	emptyPhase = false
-	phase.AddOperation(newfunc)
+	emptyNode = false
 
 	return flow
 }
@@ -206,8 +214,7 @@ func (flow *Workflow) Apply(function string, opts ...Option) *Workflow {
 // Note: If applied dag, chain execution is not supported
 func (flow *Workflow) ExecuteDag(dag *DagFlow) {
 	pipeline := flow.pipeline
-	pipeline.Dag = dag.udag
-	pipeline.Phases = make([]*sdk.Phase, 0)
+	pipeline.SetDag(dag.udag)
 }
 
 // OnFailure set a failure handler routine for the pipeline

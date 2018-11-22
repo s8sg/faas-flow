@@ -5,9 +5,6 @@ import (
 	"strings"
 )
 
-// Serializer defintion for the data serilizer of function
-type Serializer func(map[string][]byte) ([]byte, error)
-
 // FuncErrorHandler the error handler for OnFailure() options
 type FuncErrorHandler func(error) error
 
@@ -26,8 +23,6 @@ type Operation struct {
 	// Optional Options
 	Header map[string]string   // The HTTP call header
 	Param  map[string][]string // The Parameter in Query string
-
-	serializer Serializer // The serializer serialize multiple input into one
 
 	FailureHandler FuncErrorHandler // The Failure handler of the function
 	OnResphandler  RespHandler      // The http Resp handler of the function
@@ -71,10 +66,6 @@ func (function *Operation) Addparam(key string, value string) {
 	} else {
 		function.Param[key] = append(array, value)
 	}
-}
-
-func (function *Operation) AddSerializer(serializer Serializer) {
-	function.serializer = serializer
 }
 
 func (function *Operation) AddFailureHandler(handler FuncErrorHandler) {

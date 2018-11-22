@@ -9,7 +9,7 @@ import (
 // Context execution context and execution state
 type Context struct {
 	requestId string     // the request id
-	phase     int        // the execution position
+	node      string     // the execution position
 	dataStore DataStore  // underline DataStore
 	Query     url.Values // provides request Query
 	State     string     // state of the request
@@ -62,10 +62,10 @@ const (
 )
 
 // CreateContext create request context (used by template)
-func CreateContext(id string, phase int, name string, dstore DataStore) *Context {
+func CreateContext(id string, node string, name string, dstore DataStore) *Context {
 	context := &Context{}
 	context.requestId = id
-	context.phase = phase
+	context.node = node
 	context.Name = name
 	context.State = StateOngoing
 	context.dataStore = dstore
@@ -78,9 +78,9 @@ func (context *Context) GetRequestId() string {
 	return context.requestId
 }
 
-// GetPhase return the phase no
-func (context *Context) GetPhase() int {
-	return context.phase
+// GetPhase return the node no
+func (context *Context) GetNode() string {
+	return context.node
 }
 
 // Set put a value in the context using DataStore

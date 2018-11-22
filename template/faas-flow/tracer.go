@@ -20,7 +20,6 @@ var (
 	reqSpan           opentracing.Span
 	reqSpanCtx        opentracing.SpanContext
 	tracerInitialized bool
-	phaseSpans        map[int]opentracing.Span
 	nodeSpans         map[string]opentracing.Span
 )
 
@@ -119,8 +118,6 @@ func initGlobalTracer(flowName string) error {
 
 	opentracing.SetGlobalTracer(tracer)
 
-	phaseSpans = make(map[int]opentracing.Span)
-
 	tracerInitialized = true
 
 	return nil
@@ -159,21 +156,21 @@ func continueReqSpan(reqId string) {
 	reqSpan = nil
 	// TODO: Its not Supported to get span from spanContext as of now
 	//       https://github.com/opentracing/specification/issues/81
-	//       it will support us to extend the request span for phases
+	//       it will support us to extend the request span for nodes
 	//reqSpan = opentracing.SpanFromContext(reqSpanCtx)
 }
 
 // extendReqSpan extend req span over a request
 // func extendReqSpan(url string, req *http.Request) {
-func extendReqSpan(lastPhaseRef int, url string, req *http.Request) {
+func extendReqSpan(lastPhaseRef string, url string, req *http.Request) {
 	if !isTracingEnabled() || !tracerInitialized {
 		return
 	}
 
 	// TODO: as requestSpan can't be regenerated with the span context we
-	//       forward the phaseSpan's SpanContext
+	//       forward the nodeSpan's SpanContext
 	// span := reqSpan
-	span := phaseSpans[lastPhaseRef]
+	span := nodeSpans[lastPhaseRef]
 
 	ext.SpanKindRPCClient.Set(span)
 	ext.HTTPUrl.Set(span, url)
@@ -198,40 +195,6 @@ func stopReqSpan() {
 	reqSpan.Finish()
 }
 
-// startPhaseSpan starts a phase span
-func startPhaseSpan(phase int, reqId string) {
-	var phaseSpan opentracing.Span
-	phase = phase + 1
-	if !isTracingEnabled() || !tracerInitialized {
-		return
-	}
-
-	phasename := fmt.Sprintf("%d", phase)
-	phaseSpan = opentracing.GlobalTracer().StartSpan(
-		phasename, ext.RPCServerOption(reqSpanCtx))
-	phaseSpan.SetTag("async", "true")
-	/*
-		if reqSpan == nil {
-
-		} else {
-			phaseSpan = opentracing.GlobalTracer().StartSpan(
-				phasename, opentracing.ChildOf(reqSpan.Context()))
-		}*/
-	phaseSpan.SetTag("request", reqId)
-	phaseSpan.SetTag("phase", phase)
-	phaseSpans[phase] = phaseSpan
-}
-
-// stopPhaseSpan terminates a phase span
-func stopPhaseSpan(phase int) {
-	phase = phase + 1
-	if !isTracingEnabled() || !tracerInitialized {
-		return
-	}
-
-	phaseSpans[phase].Finish()
-}
-
 // startNodeSpan starts a node span
 func startNodeSpan(node string, reqId string) {
 	var nodeSpan opentracing.Span
@@ -243,11 +206,19 @@ func startNodeSpan(node string, reqId string) {
 		node, ext.RPCServerOption(reqSpanCtx))
 	nodeSpan.SetTag("async", "true")
 	nodeSpan.SetTag("request", reqId)
+	/*
+		if reqSpan == nil {
+
+		} else {
+			nodeSpan = opentracing.GlobalTracer().StartSpan(
+				node, opentracing.ChildOf(reqSpan.Context()))
+		}
+	*/
 	nodeSpan.SetTag("node", node)
 	nodeSpans[node] = nodeSpan
 }
 
-// stopNodeSpan terminates a phase span
+// stopNodeSpan terminates a node span
 func stopNodeSpan(node string) {
 	if !isTracingEnabled() || !tracerInitialized {
 		return
