@@ -10,8 +10,6 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
-	"net/url"
-	"os"
 )
 
 type Dimention struct {
@@ -30,16 +28,7 @@ type FaceResult struct {
 	ImageBase64 string
 }
 
-func getQuery(key string) string {
-	values, err := url.ParseQuery(os.Getenv("Http_Query"))
-	if err != nil {
-		return ""
-	}
-	return values.Get("file")
-
-}
-
-// Upload file upload logic
+// Upload file to the result storage
 func upload(client *http.Client, url string, filename string, r io.Reader) (err error) {
 	// Prepare a form that you will submit to that URL.
 	var b bytes.Buffer
@@ -106,10 +95,8 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 	flow.
 		Modify(func(data []byte) ([]byte, error) {
 			// Set the name of the file (error if not specified)
-			filename := getQuery("file")
-			if filename != "" {
-				context.Set("fileName", filename)
-			} else {
+			filename := context.Query.Get("file")
+			if filename == "" {
 				return nil, fmt.Errorf("Provide file name with `--query file=<name>`")
 			}
 			// Set data to reuse after facedetect
@@ -124,8 +111,8 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 			// validate face
 			err := validateFace(data)
 			if err != nil {
-				file, _ := context.GetString("fileName")
-				return nil, fmt.Errorf("File %s, %v", file, err)
+				filename := context.Query.Get("file")
+				return nil, fmt.Errorf("File %s, %v", filename, err)
 			}
 			// Get data from context
 			rawdata, err := context.GetBytes("rawImage")
@@ -138,10 +125,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 		Apply("image-resizer").
 		Modify(func(data []byte) ([]byte, error) {
 			// get file name from context
-			filename, err := context.GetString("fileName")
-			if err != nil {
-				return nil, fmt.Errorf("Failed to get file name in context, %v", err)
-			}
+			filename := context.Query.Get("file")
 			// upload file to storage
 			err = upload(&http.Client{}, "http://gateway:8080/function/file-storage",
 				filename, bytes.NewReader(data))
@@ -160,7 +144,6 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 		Finally(func(state string) {
 			// Optional (cleanup)
 			// Cleanup is not needed if using default DataStore
-			context.Del("fileName")
 			context.Del("rawImage")
 		})
 

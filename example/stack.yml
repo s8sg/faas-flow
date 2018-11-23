@@ -30,6 +30,21 @@ functions:
       - s3-secret-key
       - s3-access-key
 
+  upload-pipeline-dag:
+    lang: faas-flow
+    handler: ./upload-pipeline-dag
+    image: s8sg/upload-pipeline-dag:latest
+    environment:
+      read_timeout: 120
+      write_timeout: 120
+      write_debug: true
+      combine_output: false
+    environment_file:
+      - upload-pipeline-dag.yml
+    secrets:
+      - s3-secret-key
+      - s3-access-key
+
   colorization:
     lang: dockerfile
     handler: ./faas-colorization

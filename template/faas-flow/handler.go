@@ -528,7 +528,7 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 	default:
 		// If intermediate storage is enabled
 		if useIntermediateStorage() {
-			key := fmt.Sprintf("intermediate-result-%s", pipeline.DagExecutionPosition)
+			key := fmt.Sprintf("intermediate-result-%s-%s", pipeline.DagExecutionPosition)
 			serr := context.Set(key, result)
 			if serr != nil {
 				return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
@@ -681,8 +681,9 @@ func chainIntermediateData(fhandler *flowHandler, context *faasflow.Context, dat
 func dagIntermediateData(handler *flowHandler, context *faasflow.Context, data []byte) ([]byte, error) {
 	currentNode := handler.getPipeline().GetCurrentNode()
 	dataMap := make(map[string][]byte)
+	dependencies := currentNode.Dependency()
 
-	for _, node := range currentNode.Dependency() {
+	for _, node := range dependencies {
 		key := fmt.Sprintf("intermediate-result-%s", node.Id)
 		idata, gerr := context.GetBytes(key)
 		if gerr != nil {
@@ -696,6 +697,11 @@ func dagIntermediateData(handler *flowHandler, context *faasflow.Context, data [
 	}
 
 	context.NodeInput = dataMap
+
+	// If it has only one indegree assign the result as a data
+	if len(dependencies) == 1 {
+		data = dataMap[dependencies[0].Id]
+	}
 
 	serializer := currentNode.GetSerializer()
 	if serializer != nil {
