@@ -526,30 +526,30 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 		return result, nil
 
 	default:
-		// If intermediate storage is enabled
-		if useIntermediateStorage() {
-			key := fmt.Sprintf("intermediate-result-%s-%s", pipeline.DagExecutionPosition)
-			serr := context.Set(key, result)
-			if serr != nil {
-				return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
-			}
-			log.Printf("[Request `%s`] Intermidiate result of Node %s stored as %s",
-				fhandler.id, pipeline.DagExecutionPosition, key)
-			result = []byte("")
-		}
+		nodes := pipeline.GetNextNodes()
 
 		// Check if pipeline is active
 		if pipeline.PipelineType == sdk.TYPE_DAG && !isActive(fhandler) {
 			return []byte(""), fmt.Errorf("flow has been terminated")
 		}
 
-		nodes := pipeline.GetNextNodes()
-
 		currentExecutionPosition := pipeline.DagExecutionPosition
 
 		for _, node := range nodes {
 			// Get node Indegree
 			inDegree := node.Indegree()
+
+			// If intermediate storage is enabled
+			if useIntermediateStorage() {
+				key := fmt.Sprintf("intermediate-result-%s-%s", currentExecutionPosition, node.Id)
+				serr := context.Set(key, result)
+				if serr != nil {
+					return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
+				}
+				log.Printf("[Request `%s`] Intermidiate result from Node %s to %s stored as %s",
+					fhandler.id, currentExecutionPosition, node.Id, key)
+				result = []byte("")
+			}
 
 			// if indegree is 1 forward the request
 			if inDegree == 1 {
@@ -588,6 +588,9 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 
 					log.Printf("[Request `%s`] Async request submitted for Node %s",
 						fhandler.id, node.Id)
+				} else {
+					log.Printf("[Request `%s`] request for Node %s is delayed",
+						fhandler.id, node.Id)
 				}
 			}
 		}
@@ -622,12 +625,13 @@ func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) 
 	}
 
 	// If pipeline type is dag mark the state as failure
-	if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG {
-		serr := fhandler.stateStore.SetState(false)
-		if serr != nil {
-			log.Printf("[Request `%s`] Failed to mark dag state, error %v", fhandler.id, serr)
-		}
-	}
+	/*
+		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG {
+			serr := fhandler.stateStore.SetState(false)
+			if serr != nil {
+				log.Printf("[Request `%s`] Failed to mark dag state, error %v", fhandler.id, serr)
+			}
+		}*/
 
 	fhandler.finished = true
 
@@ -661,14 +665,14 @@ func chainIntermediateData(fhandler *flowHandler, context *faasflow.Context, dat
 	currentNode := fhandler.getPipeline().GetCurrentNode()
 	depedency := currentNode.Dependency()[0]
 
-	key := fmt.Sprintf("intermediate-result-%s", depedency.Id)
+	key := fmt.Sprintf("intermediate-result-%s-%s", depedency.Id, currentNode.Id)
 	idata, gerr := context.GetBytes(key)
 	if gerr != nil {
 		gerr := fmt.Errorf("key %s, %v", key, gerr)
 		return data, gerr
 	}
-	log.Printf("[Request `%s`] Intermidiate result for Node %s retrived from %s",
-		fhandler.id, fhandler.getPipeline().DagExecutionPosition, key)
+	log.Printf("[Request `%s`] Intermidiate result form Node %s to Node %s retrived from %s",
+		fhandler.id, depedency.Id, fhandler.getPipeline().DagExecutionPosition, key)
 	context.Del(key)
 	data = idata
 
@@ -684,14 +688,14 @@ func dagIntermediateData(handler *flowHandler, context *faasflow.Context, data [
 	dependencies := currentNode.Dependency()
 
 	for _, node := range dependencies {
-		key := fmt.Sprintf("intermediate-result-%s", node.Id)
+		key := fmt.Sprintf("intermediate-result-%s-%s", node.Id, currentNode.Id)
 		idata, gerr := context.GetBytes(key)
 		if gerr != nil {
 			gerr := fmt.Errorf("key %s, %v", key, gerr)
 			return data, gerr
 		}
-		log.Printf("[Request `%s`] Intermidiate result for Node %s retrived from %s",
-			handler.id, handler.getPipeline().DagExecutionPosition, key)
+		log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s retrived from %s",
+			handler.id, node.Id, handler.getPipeline().DagExecutionPosition, key)
 		context.Del(key)
 		dataMap[node.Id] = idata
 	}

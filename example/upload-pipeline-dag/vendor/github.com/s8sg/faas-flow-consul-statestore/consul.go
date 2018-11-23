@@ -72,6 +72,9 @@ func (consulStore *ConsulStateStore) IncrementCounter(vertex string) (int, error
 		if err != nil {
 			return 0, fmt.Errorf("failed to get vertex %s, error %v", vertex, err)
 		}
+		if pair == nil {
+			return 0, fmt.Errorf("failed to get vertex %s", vertex)
+		}
 		modifyIndex := pair.ModifyIndex
 		counter, err := strconv.Atoi(string(pair.Value))
 		if err != nil {
@@ -86,6 +89,7 @@ func (consulStore *ConsulStateStore) IncrementCounter(vertex string) (int, error
 		if err != nil {
 			continue
 		}
+		break
 	}
 	return count, nil
 }
@@ -112,6 +116,9 @@ func (consulStore *ConsulStateStore) GetState() (bool, error) {
 	pair, _, err := consulStore.kv.Get(key, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to get state, error %v", err)
+	}
+	if pair == nil {
+		return false, fmt.Errorf("failed to get state")
 	}
 	state := false
 	if string(pair.Value) == "true" {
