@@ -131,3 +131,8 @@ func (this *Node) AddOperation(operation *Operation) {
 func (this *Node) AddSerializer(serializer Serializer) {
 	this.serializer = serializer
 }
+
+// GetSerializer get a serializer from a node
+func (this *Node) GetSerializer() Serializer {
+	return this.serializer
+}

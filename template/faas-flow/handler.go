@@ -597,7 +597,7 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 	return []byte(""), nil
 }
 
-// isActive Cheks if pipeline is active
+// isActive Checks if pipeline is active
 func isActive(fhandler *flowHandler) bool {
 
 	state, err := fhandler.stateStore.GetState()
@@ -655,7 +655,7 @@ func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) 
 	log.Fatalf("[Request `%s`] Failed, %v", fhandler.id, err)
 }
 
-// chainIntermediateData gets the intermidiate data if intermidiateStorage is enabled
+// chainIntermediateData gets the intermediate data if intermediateStorage is enabled
 func chainIntermediateData(fhandler *flowHandler, context *faasflow.Context, data []byte) ([]byte, error) {
 
 	currentNode := fhandler.getPipeline().GetCurrentNode()
@@ -671,6 +671,41 @@ func chainIntermediateData(fhandler *flowHandler, context *faasflow.Context, dat
 		fhandler.id, fhandler.getPipeline().DagExecutionPosition, key)
 	context.Del(key)
 	data = idata
+
+	context.NodeInput[depedency.Id] = data
+
+	return data, nil
+}
+
+// dagIntermediateData gets the intermediate data from earlier vertex
+func dagIntermediateData(handler *flowHandler, context *faasflow.Context, data []byte) ([]byte, error) {
+	currentNode := handler.getPipeline().GetCurrentNode()
+	dataMap := make(map[string][]byte)
+
+	for _, node := range currentNode.Dependency() {
+		key := fmt.Sprintf("intermediate-result-%s", node.Id)
+		idata, gerr := context.GetBytes(key)
+		if gerr != nil {
+			gerr := fmt.Errorf("key %s, %v", key, gerr)
+			return data, gerr
+		}
+		log.Printf("[Request `%s`] Intermidiate result for Node %s retrived from %s",
+			handler.id, handler.getPipeline().DagExecutionPosition, key)
+		context.Del(key)
+		dataMap[node.Id] = idata
+	}
+
+	context.NodeInput = dataMap
+
+	serializer := currentNode.GetSerializer()
+	if serializer != nil {
+		idata, serr := serializer(dataMap)
+		if serr != nil {
+			serr := fmt.Errorf("failed to serialize data, error %v", serr)
+			return data, serr
+		}
+		data = idata
+	}
 
 	return data, nil
 }
@@ -767,7 +802,7 @@ func handleWorkflow(data []byte) string {
 			log.Fatalf("[Request `%s`] Failed to define flow, %v", fhandler.id, err)
 		}
 
-		// In case of DAG Store need to be external
+		// In case of DAG DataStore and StateStore need to be external
 		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG && !storeOverride {
 			log.Fatalf("[Request `%s`] DAG flow need external State and Data Store", fhandler.id)
 		}
@@ -793,15 +828,17 @@ func handleWorkflow(data []byte) string {
 		// For partially completed requests if IntermidiateStorage is enabled
 		// get the data from dataStoretore
 		if fhandler.partial && useIntermediateStorage() {
+
 			switch fhandler.getPipeline().PipelineType {
 			case sdk.TYPE_CHAIN:
 				data, gerr = chainIntermediateData(fhandler, context, data)
-				if gerr != nil {
-					gerr := fmt.Errorf("failed to retrive intermediate result, error %v", gerr)
-					handleFailure(fhandler, context, gerr)
-				}
 			case sdk.TYPE_DAG:
-				// TODO: Handle with Serializer
+				data, gerr = dagIntermediateData(fhandler, context, data)
+			}
+
+			if gerr != nil {
+				gerr := fmt.Errorf("failed to retrive intermediate result, error %v", gerr)
+				handleFailure(fhandler, context, gerr)
 			}
 		}
 
