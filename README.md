@@ -109,7 +109,7 @@ Faasflow runs four major steps to define and run the pipeline
    
    
 ## Example
-https://github.com/s8sg/faas-flow/tree/master/example
+https://github.com/s8sg/faas-flow-examples
 
 
 ## Getting Started

@@ -13,7 +13,9 @@ type Context struct {
 	dataStore DataStore  // underline DataStore
 	Query     url.Values // provides request Query
 	State     string     // state of the request
-	Name      string
+	Name      string     // name of the faas-flow
+
+	NodeInput map[string][]byte // stores inputs form each node
 }
 
 // DataStore for Storing Data
@@ -69,6 +71,7 @@ func CreateContext(id string, node string, name string, dstore DataStore) *Conte
 	context.Name = name
 	context.State = StateOngoing
 	context.dataStore = dstore
+	context.NodeInput = make(map[string][]byte)
 
 	return context
 }
