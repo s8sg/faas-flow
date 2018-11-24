@@ -539,16 +539,18 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 			// Get node Indegree
 			inDegree := node.Indegree()
 
+			intermediateData := result
+
 			// If intermediate storage is enabled
 			if useIntermediateStorage() {
 				key := fmt.Sprintf("intermediate-result-%s-%s", currentExecutionPosition, node.Id)
-				serr := context.Set(key, result)
+				serr := context.Set(key, intermediateData)
 				if serr != nil {
 					return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
 				}
 				log.Printf("[Request `%s`] Intermidiate result from Node %s to %s stored as %s",
 					fhandler.id, currentExecutionPosition, node.Id, key)
-				result = []byte("")
+				intermediateData = result
 			}
 
 			// if indegree is 1 forward the request
@@ -556,7 +558,7 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 				// Set the DagExecutionPosition as of next Node
 				pipeline.DagExecutionPosition = node.Id
 				// forward the flow request
-				resp, forwardErr := forwardAsync(fhandler, currentExecutionPosition, result)
+				resp, forwardErr := forwardAsync(fhandler, currentExecutionPosition, intermediateData)
 				if forwardErr != nil {
 					pipeline.DagExecutionPosition = currentExecutionPosition
 					return nil, fmt.Errorf("Node(%s): error: %v, %s, url %s",
@@ -578,7 +580,7 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 					// Set the DagExecutionPosition as of next Node
 					pipeline.DagExecutionPosition = node.Id
 					// forward the flow request
-					resp, forwardErr := forwardAsync(fhandler, currentExecutionPosition, result)
+					resp, forwardErr := forwardAsync(fhandler, currentExecutionPosition, intermediateData)
 					if forwardErr != nil {
 						pipeline.DagExecutionPosition = currentExecutionPosition
 						return nil, fmt.Errorf("Node(%s): error: %v, %s, url %s",
