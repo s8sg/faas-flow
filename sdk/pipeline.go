@@ -110,14 +110,14 @@ func (pipeline *Pipeline) MakeDotGraph() string {
 	sb.WriteString("digraph depgraph {\n\trankdir=LR;\n")
 	for _, node := range pipeline.Dag.nodes {
 		if len(node.children) == 0 {
-			sb.WriteString(fmt.Sprintf("\"%s\";\n", node.Id))
+			sb.WriteString(fmt.Sprintf("\t\"%s\";\n", node.Id))
 			continue
 		}
 		modifierType := ""
 		for _, operation := range node.Operations() {
 			switch {
 			case operation.Function != "":
-				modifierType += "(func)" + operation.Function
+				modifierType += "(func-" + operation.Function + ")"
 			case operation.CallbackUrl != "":
 				modifierType += "(callback)" + operation.CallbackUrl
 			default:
