@@ -576,7 +576,7 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 					return []byte(""), fmt.Errorf("failed to update inDegree counter for node %s", node.Id)
 				}
 				// If all indegree has finished call that node
-				if inDegree == inDegreeUpdatedCount {
+				if inDegree <= inDegreeUpdatedCount {
 					// Set the DagExecutionPosition as of next Node
 					pipeline.DagExecutionPosition = node.Id
 					// forward the flow request
@@ -591,8 +591,8 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 					log.Printf("[Request `%s`] Async request submitted for Node %s",
 						fhandler.id, node.Id)
 				} else {
-					log.Printf("[Request `%s`] request for Node %s is delayed",
-						fhandler.id, node.Id)
+					log.Printf("[Request `%s`] request for Node %s is delayed, completed indegree: %d/%d",
+						fhandler.id, node.Id, inDegreeUpdatedCount, inDegree)
 				}
 			}
 		}
