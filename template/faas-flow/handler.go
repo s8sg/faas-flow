@@ -889,3 +889,35 @@ func handleWorkflow(data []byte) string {
 
 	return string(resp)
 }
+
+// handleDotGraph() handle the dot graph request
+func handleDotGraph() string {
+	fhandler := newWorkflowHandler("", "", "", "", nil)
+	context := createContext(fhandler)
+
+	err := function.Define(fhandler.flow, context)
+	if err != nil {
+		log.Fatalf("failed to generate dot graph, error %v", err)
+	}
+	return fhandler.getPipeline().MakeDotGraph()
+}
+
+// isDotGraphRequest check if the request is for dot graph generation
+func isDotGraphRequest() bool {
+	values, err := url.ParseQuery(os.Getenv("Http_Query"))
+	if err != nil {
+		return false
+	}
+	if strings.ToUpper(values.Get("generate-dot-graph")) == "TRUE" {
+		return true
+	}
+	return false
+}
+
+// handle handle the requests
+func handle(data []byte) string {
+	if isDotGraphRequest() {
+		return handleDotGraph()
+	}
+	return handleWorkflow(data)
+}
