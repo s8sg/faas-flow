@@ -780,7 +780,7 @@ func handleWorkflow(data []byte) string {
 	// Get flow name
 	flowName = getWorkflowName()
 	if flowName == "" {
-		log.Fatalf("Error: flow name must be provided when deployed as function")
+		log.Fatalf("Error: workflow_name must be provided, specify workflow_name: <fucntion_name> using environment")
 	}
 
 	// initialize traceserve if tracing enabled
