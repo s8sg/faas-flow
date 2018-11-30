@@ -410,7 +410,8 @@ func DefineStateStore() (faasflow.StateStore, error) {
 }
 ```
 
-* **[ConsulStateStore](https://github.com/s8sg/faas-flow-consul-statestore)** manage state in **consul** for dag execution
+* **[ConsulStateStore](https://github.com/s8sg/faas-flow-consul-statestore)** manage state in **consul** for dag execution.  
+* **[EtcdStateStore](https://github.com/s8sg/faas-flow-etcd-statestore)** manage state in **etcd** for dag execution.      
 
 
 ### Geting Http Query to Workflow: 
