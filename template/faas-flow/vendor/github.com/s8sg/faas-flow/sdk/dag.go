@@ -7,6 +7,8 @@ import (
 var (
 	// ERR_CYCLIC denotes that dag has a cycle
 	ERR_CYCLIC = fmt.Errorf("dag has cyclic dependency")
+	// ERR_DUPLICATE denotes that a dag edge is duplicate
+	ERR_DUPLICATE = fmt.Errorf("edge redefined")
 	// NodeIndex
 	nodeIndex = 0
 )
@@ -44,6 +46,7 @@ func NewDag() *Dag {
 
 // AddVertex create a vertex with id and operations
 func (this *Dag) AddVertex(id string, operations []*Operation) *Node {
+
 	node := &Node{Id: id, operations: operations, index: nodeIndex + 1}
 	nodeIndex = nodeIndex + 1
 	this.nodes[id] = node
@@ -54,6 +57,11 @@ func (this *Dag) AddVertex(id string, operations []*Operation) *Node {
 func (this *Dag) AddEdge(from, to string) error {
 	fromNode := this.nodes[from]
 	toNode := this.nodes[to]
+
+	// CHeck if duplicate
+	if toNode.inSlice(fromNode.children) || fromNode.inSlice(toNode.dependsOn) {
+		return ERR_DUPLICATE
+	}
 
 	// Check if cyclic dependency
 	if fromNode.inSlice(toNode.next) || toNode.inSlice(fromNode.prev) {
