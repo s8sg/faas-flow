@@ -107,29 +107,81 @@ func (pipeline *Pipeline) ApplyState(state string) {
 // MakeDotGraph create a dot graph of the pipeline
 func (pipeline *Pipeline) MakeDotGraph() string {
 	var sb strings.Builder
-	sb.WriteString("digraph depgraph {\n\trankdir=LR;\n")
+
+	sb.WriteString("digraph depgraph {")
+	sb.WriteString("\n\trankdir=TB;")
+	sb.WriteString("\n\tsplines=curved;")
+	sb.WriteString("\n\tfontname=\"Courier New\";")
+	sb.WriteString("\n\tfontcolor=grey;")
+
+	sb.WriteString("\n\tnode [style=filled fontname=\"Courier\" fontcolor=black]\n")
+
+	// generate nodes
 	for _, node := range pipeline.Dag.nodes {
-		if len(node.children) == 0 {
-			sb.WriteString(fmt.Sprintf("\t\"%s\";\n", node.Id))
-			continue
-		}
-		modifierType := ""
-		for _, operation := range node.Operations() {
+
+		sb.WriteString(fmt.Sprintf("\n\tsubgraph cluster_%d {", node.index))
+		sb.WriteString(fmt.Sprintf("\n\t\tlabel=\"%d-%s\";", node.index, node.Id))
+		sb.WriteString("\n\t\tcolor=lightgrey;")
+		sb.WriteString("\n\t\tstyle=rounded;\n")
+
+		previousOperation := ""
+		for opsindex, operation := range node.Operations() {
+			operationStr := ""
 			switch {
 			case operation.Function != "":
-				modifierType += "(func-" + operation.Function + ")"
+				operationStr = "func-" + operation.Function
 			case operation.CallbackUrl != "":
-				modifierType += "(callback)" + operation.CallbackUrl
+				operationStr = "callback-" +
+					operation.CallbackUrl[len(operation.CallbackUrl)-4:]
 			default:
-				modifierType += "(modifier)"
+				operationStr = "modifier"
 			}
+			operationKey := fmt.Sprintf("%d.%d-%s", node.index, opsindex+1, operationStr)
+
+			switch {
+			case len(node.children) == 0 &&
+				opsindex == len(node.Operations())-1:
+				sb.WriteString(fmt.Sprintf("\n\t\t\"%s\" [color=pink];",
+					operationKey))
+			case node.indegree == 0 && opsindex == 0:
+				sb.WriteString(fmt.Sprintf("\n\t\t\"%s\" [color=lightblue];",
+					operationKey))
+			default:
+				sb.WriteString(fmt.Sprintf("\n\t\t\"%s\" [color=lightgrey];",
+					operationKey))
+			}
+
+			if previousOperation != "" {
+				sb.WriteString(fmt.Sprintf("\n\t\t\"%s\" -> \"%s\" [label=\"1:1\" color=grey];",
+					previousOperation, operationKey))
+			}
+			previousOperation = operationKey
 		}
 
+		sb.WriteString("\n\t}")
+
+		// TODO: Later change to check if 1:N
+		relation := "1:1"
 		for _, child := range node.children {
-			sb.WriteString("\t")
-			sb.WriteString(fmt.Sprintf(`"%s" -> "%s" [label="%v"]`, node.Id, child.Id, modifierType))
-			sb.WriteString("\n")
+			operationStr := ""
+			operation := child.Operations()[0]
+			switch {
+			case operation.Function != "":
+				operationStr = "func-" + operation.Function
+			case operation.CallbackUrl != "":
+				operationStr = "callback-" +
+					operation.CallbackUrl[len(operation.CallbackUrl)-4:]
+			default:
+				operationStr = "modifier"
+			}
+
+			childOperationKey := fmt.Sprintf("%d.1-%s",
+				child.index, operationStr)
+
+			sb.WriteString(fmt.Sprintf("\n\t\"%s\" -> \"%s\" [label=\"%s\" color=grey];", previousOperation, childOperationKey, relation))
 		}
+
+		sb.WriteString("\n")
 	}
 	sb.WriteString("}\n")
 	return sb.String()

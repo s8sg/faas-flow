@@ -626,15 +626,6 @@ func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) 
 		data, err = fhandler.getPipeline().FailureHandler(err)
 	}
 
-	// If pipeline type is dag mark the state as failure
-	/*
-		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG {
-			serr := fhandler.stateStore.SetState(false)
-			if serr != nil {
-				log.Printf("[Request `%s`] Failed to mark dag state, error %v", fhandler.id, serr)
-			}
-		}*/
-
 	fhandler.finished = true
 
 	// call finally handler if available

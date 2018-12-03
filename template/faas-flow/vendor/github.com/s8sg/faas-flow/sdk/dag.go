@@ -7,6 +7,8 @@ import (
 var (
 	// ERR_CYCLIC denotes that dag has a cycle
 	ERR_CYCLIC = fmt.Errorf("dag has cyclic dependency")
+	// NodeIndex
+	nodeIndex = 0
 )
 
 // Serializer defintion for the data serilizer of function
@@ -19,7 +21,8 @@ type Dag struct {
 
 // Node The vertex
 type Node struct {
-	Id string // The id of the vertex
+	Id    string // The id of the vertex
+	index int    // The index of the vertex
 
 	operations []*Operation // The list of operations
 	serializer Serializer   // The serializer serialize multiple input to a node into one
@@ -41,7 +44,8 @@ func NewDag() *Dag {
 
 // AddVertex create a vertex with id and operations
 func (this *Dag) AddVertex(id string, operations []*Operation) *Node {
-	node := &Node{Id: id, operations: operations}
+	node := &Node{Id: id, operations: operations, index: nodeIndex + 1}
+	nodeIndex = nodeIndex + 1
 	this.nodes[id] = node
 	return node
 }
