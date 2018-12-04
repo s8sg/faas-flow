@@ -12,6 +12,8 @@ type Options struct {
 	failureHandler  sdk.FuncErrorHandler
 	responseHandler sdk.RespHandler
 	serializer      sdk.Serializer
+	forwarder       sdk.Forwarder
+	noforwarder     bool
 }
 
 type Workflow struct {
@@ -27,6 +29,8 @@ type Option func(*Options)
 var (
 	// Sync can be used instead of SyncCall
 	Sync = SyncCall()
+	// NoneData specify a edge doesn't forwards a data
+	NoneData = NoneDataForward()
 	// Denote if last node doesn't contain any function call
 	emptyNode = false
 	// the reference of lastnode when applied as chain
@@ -40,6 +44,20 @@ func (o *Options) reset() {
 	o.sync = false
 	o.failureHandler = nil
 	o.responseHandler = nil
+}
+
+// NoneDataForward specify a edge doesn't forwards a data
+func NoneDataForward() Option {
+	return func(o *Options) {
+		o.noforwarder = true
+	}
+}
+
+// Forwarder specify a data forwarder
+func Forwarder(forwarder sdk.Forwarder) Option {
+	return func(o *Options) {
+		o.forwarder = forwarder
+	}
 }
 
 // Serializer specify a data serializer
@@ -216,9 +234,7 @@ func (flow *Workflow) Apply(function string, opts ...Option) *Workflow {
 func (flow *Workflow) ExecuteDag(dag *DagFlow) error {
 	pipeline := flow.pipeline
 	pipeline.SetDag(dag.udag)
-	// TODO might be moved to template later
-	err := dag.udag.Validate()
-	return err
+	return dag.udag.Validate()
 }
 
 // OnFailure set a failure handler routine for the pipeline

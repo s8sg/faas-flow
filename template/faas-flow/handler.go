@@ -518,86 +518,86 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 	// get pipeline
 	pipeline := fhandler.getPipeline()
 
-	switch {
-
 	// Check if pipeline has only one node or if the pipeline has completed excution return
-	case pipeline.CountNodes() == 1 || pipeline.GetNextNodes() == nil:
+	if pipeline.CountNodes() == 1 || pipeline.GetNextNodes() == nil {
 		fhandler.finished = true
 		return result, nil
-
-	default:
-		nodes := pipeline.GetNextNodes()
-
-		// Check if pipeline is active
-		if pipeline.PipelineType == sdk.TYPE_DAG && !isActive(fhandler) {
-			return []byte(""), fmt.Errorf("flow has been terminated")
-		}
-
-		currentExecutionPosition := pipeline.DagExecutionPosition
-
-		for _, node := range nodes {
-			// Get node Indegree
-			inDegree := node.Indegree()
-
-			intermediateData := result
-
-			// If intermediate storage is enabled
-			if useIntermediateStorage() {
-				key := fmt.Sprintf("intermediate-result-%s-%s", currentExecutionPosition, node.Id)
-				serr := context.Set(key, intermediateData)
-				if serr != nil {
-					return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
-				}
-				log.Printf("[Request `%s`] Intermidiate result from Node %s to %s stored as %s",
-					fhandler.id, currentExecutionPosition, node.Id, key)
-				intermediateData = result
-			}
-
-			// if indegree is 1 forward the request
-			if inDegree == 1 {
-				// Set the DagExecutionPosition as of next Node
-				pipeline.DagExecutionPosition = node.Id
-				// forward the flow request
-				resp, forwardErr := forwardAsync(fhandler, currentExecutionPosition, intermediateData)
-				if forwardErr != nil {
-					pipeline.DagExecutionPosition = currentExecutionPosition
-					return nil, fmt.Errorf("Node(%s): error: %v, %s, url %s",
-						node.Id, forwardErr,
-						string(resp), fhandler.asyncUrl)
-				}
-
-				log.Printf("[Request `%s`] Async request submitted for Node %s",
-					fhandler.id, node.Id)
-
-			} else {
-				// Update the state of indegree completion and get the updated state
-				inDegreeUpdatedCount, err := fhandler.stateStore.IncrementCounter(node.Id)
-				if err != nil {
-					return []byte(""), fmt.Errorf("failed to update inDegree counter for node %s", node.Id)
-				}
-				// If all indegree has finished call that node
-				if inDegree <= inDegreeUpdatedCount {
-					// Set the DagExecutionPosition as of next Node
-					pipeline.DagExecutionPosition = node.Id
-					// forward the flow request
-					resp, forwardErr := forwardAsync(fhandler, currentExecutionPosition, intermediateData)
-					if forwardErr != nil {
-						pipeline.DagExecutionPosition = currentExecutionPosition
-						return nil, fmt.Errorf("Node(%s): error: %v, %s, url %s",
-							node.Id, forwardErr,
-							string(resp), fhandler.asyncUrl)
-					}
-
-					log.Printf("[Request `%s`] Async request submitted for Node %s",
-						fhandler.id, node.Id)
-				} else {
-					log.Printf("[Request `%s`] request for Node %s is delayed, completed indegree: %d/%d",
-						fhandler.id, node.Id, inDegreeUpdatedCount, inDegree)
-				}
-			}
-		}
-		pipeline.DagExecutionPosition = currentExecutionPosition
 	}
+
+	currentNode := pipeline.GetCurrentNode()
+	nodes := pipeline.GetNextNodes()
+
+	// Check if pipeline is active
+	if pipeline.PipelineType == sdk.TYPE_DAG && !isActive(fhandler) {
+		return []byte(""), fmt.Errorf("flow has been terminated")
+	}
+
+	currentExecutionPosition := pipeline.DagExecutionPosition
+
+	for _, node := range nodes {
+		var intermediateData []byte
+
+		// Get node Indegree
+		inDegree := node.Indegree()
+
+		// Get forwarder for clind node
+		forwarder := currentNode.GetForwarder(node.Id)
+		if forwarder != nil {
+			intermediateData = forwarder(result)
+		} else {
+			// in case NoneForward forwarder in nil
+			intermediateData = []byte{}
+		}
+
+		// If intermediate storage is enabled store data to intermediate storage
+		if forwarder != nil && useIntermediateStorage() {
+			key := fmt.Sprintf("intermediate-result-%s-%s", currentExecutionPosition, node.Id)
+			serr := context.Set(key, intermediateData)
+			if serr != nil {
+				return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
+			}
+			log.Printf("[Request `%s`] Intermidiate result from Node %s to %s stored as %s",
+				fhandler.id, currentExecutionPosition, node.Id, key)
+
+			// intermediateData is set to blank once its stored in storage
+			intermediateData = []byte("")
+		}
+
+		// if indegree is > 1 then use statestore to get request state
+		if inDegree > 1 {
+			// Update the state of indegree completion and get the updated state
+			inDegreeUpdatedCount, err := fhandler.stateStore.IncrementCounter(node.Id)
+			if err != nil {
+				return []byte(""), fmt.Errorf("failed to update inDegree counter for node %s", node.Id)
+			}
+
+			// If all indegree has finished call that node
+			if inDegree > inDegreeUpdatedCount {
+				log.Printf("[Request `%s`] request for Node %s is delayed, completed indegree: %d/%d",
+					fhandler.id, node.Id, inDegreeUpdatedCount, inDegree)
+				continue
+			}
+		}
+
+		// Set the DagExecutionPosition as of next Node
+		pipeline.DagExecutionPosition = node.Id
+		// forward the flow request
+		resp, forwardErr := forwardAsync(fhandler, currentExecutionPosition, intermediateData)
+		if forwardErr != nil {
+			// reset dag execution position
+			pipeline.DagExecutionPosition = currentExecutionPosition
+			return nil, fmt.Errorf("Node(%s): error: %v, %s, url %s",
+				node.Id, forwardErr,
+				string(resp), fhandler.asyncUrl)
+		}
+
+		log.Printf("[Request `%s`] Async request submitted for Node %s",
+			fhandler.id, node.Id)
+
+	}
+
+	// reset dag execution position
+	pipeline.DagExecutionPosition = currentExecutionPosition
 
 	return []byte(""), nil
 }
@@ -652,11 +652,16 @@ func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) 
 	log.Fatalf("[Request `%s`] Failed, %v", fhandler.id, err)
 }
 
-// chainIntermediateData gets the intermediate data if intermediateStorage is enabled
-func chainIntermediateData(fhandler *flowHandler, context *faasflow.Context, data []byte) ([]byte, error) {
+// getChainIntermediateData gets the intermediate data if intermediateStorage is enabled
+func getChainIntermediateData(fhandler *flowHandler, context *faasflow.Context, data []byte) ([]byte, error) {
 
 	currentNode := fhandler.getPipeline().GetCurrentNode()
 	depedency := currentNode.Dependency()[0]
+
+	// Skip if NoneData is specified
+	if depedency.GetForwarder(currentNode.Id) == nil {
+		return []byte(""), nil
+	}
 
 	key := fmt.Sprintf("intermediate-result-%s-%s", depedency.Id, currentNode.Id)
 	idata, gerr := context.GetBytes(key)
@@ -674,13 +679,19 @@ func chainIntermediateData(fhandler *flowHandler, context *faasflow.Context, dat
 	return data, nil
 }
 
-// dagIntermediateData gets the intermediate data from earlier vertex
-func dagIntermediateData(handler *flowHandler, context *faasflow.Context, data []byte) ([]byte, error) {
+// getDagIntermediateData gets the intermediate data from earlier vertex
+func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, data []byte) ([]byte, error) {
 	currentNode := handler.getPipeline().GetCurrentNode()
 	dataMap := make(map[string][]byte)
 	dependencies := currentNode.Dependency()
 
 	for _, node := range dependencies {
+
+		// Skip if NoDataForward is specified
+		if node.GetForwarder(currentNode.Id) == nil {
+			continue
+		}
+
 		key := fmt.Sprintf("intermediate-result-%s-%s", node.Id, currentNode.Id)
 		idata, gerr := context.GetBytes(key)
 		if gerr != nil {
@@ -702,12 +713,12 @@ func dagIntermediateData(handler *flowHandler, context *faasflow.Context, data [
 
 	serializer := currentNode.GetSerializer()
 	if serializer != nil {
-		idata, serr := serializer(dataMap)
+		sdata, serr := serializer(dataMap)
 		if serr != nil {
 			serr := fmt.Errorf("failed to serialize data, error %v", serr)
 			return data, serr
 		}
-		data = idata
+		data = sdata
 	}
 
 	return data, nil
@@ -839,9 +850,9 @@ func handleWorkflow(data []byte) string {
 
 			switch fhandler.getPipeline().PipelineType {
 			case sdk.TYPE_CHAIN:
-				data, gerr = chainIntermediateData(fhandler, context, data)
+				data, gerr = getChainIntermediateData(fhandler, context, data)
 			case sdk.TYPE_DAG:
-				data, gerr = dagIntermediateData(fhandler, context, data)
+				data, gerr = getDagIntermediateData(fhandler, context, data)
 			}
 
 			if gerr != nil {

@@ -165,9 +165,11 @@ func (pipeline *Pipeline) MakeDotGraph() string {
 
 		sb.WriteString("\n\t}")
 
+		relation := ""
+
 		// TODO: Later change to check if 1:N
-		relation := "1:1"
 		for _, child := range node.children {
+			relation = "1:1"
 			operationStr := ""
 			operation := child.Operations()[0]
 			switch {
@@ -183,7 +185,12 @@ func (pipeline *Pipeline) MakeDotGraph() string {
 			childOperationKey := fmt.Sprintf("%d.1-%s",
 				child.index, operationStr)
 
-			sb.WriteString(fmt.Sprintf("\n\t\"%s\" -> \"%s\" [label=\"%s\" color=grey];", previousOperation, childOperationKey, relation))
+			if node.GetForwarder(child.Id) == nil {
+				relation = relation + " - nodata"
+			}
+
+			sb.WriteString(fmt.Sprintf("\n\t\"%s\" -> \"%s\" [label=\"%s\" color=grey];",
+				previousOperation, childOperationKey, relation))
 		}
 
 		sb.WriteString("\n")

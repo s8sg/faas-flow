@@ -15,10 +15,15 @@ var (
 	ERR_MULTIPLE_END = fmt.Errorf("only one end vertex is allowed")
 	// NodeIndex
 	nodeIndex = 0
+	// Default forwarder
+	DefaultForwarder = func(data []byte) []byte { return data }
 )
 
-// Serializer defintion for the data serilizer of function
+// Serializer defintion for the data serilizer of nodes
 type Serializer func(map[string][]byte) ([]byte, error)
+
+// Forwarder defintion for the data forwarder of nodes
+type Forwarder func([]byte) []byte
 
 // Dag The whole dag
 type Dag struct {
@@ -30,8 +35,9 @@ type Node struct {
 	Id    string // The id of the vertex
 	index int    // The index of the vertex
 
-	operations []*Operation // The list of operations
-	serializer Serializer   // The serializer serialize multiple input to a node into one
+	operations []*Operation         // The list of operations
+	serializer Serializer           // The serializer serialize multiple input to a node into one
+	forwarder  map[string]Forwarder // The forwarder handle forwarding output to a children
 
 	indegree  int     // The vertex dag indegree
 	outdegree int     // The vertex dag outdegree
@@ -53,15 +59,23 @@ func NewDag() *Dag {
 func (this *Dag) AddVertex(id string, operations []*Operation) *Node {
 
 	node := &Node{Id: id, operations: operations, index: nodeIndex + 1}
+	node.forwarder = make(map[string]Forwarder, 0)
 	nodeIndex = nodeIndex + 1
 	this.nodes[id] = node
 	return node
 }
 
 // AddEdge add a directed edge as (from)->(to)
+// If vertex doesn't exists creates them
 func (this *Dag) AddEdge(from, to string) error {
 	fromNode := this.nodes[from]
+	if fromNode == nil {
+		fromNode = this.AddVertex(from, []*Operation{})
+	}
 	toNode := this.nodes[to]
+	if toNode == nil {
+		toNode = this.AddVertex(to, []*Operation{})
+	}
 
 	// CHeck if duplicate
 	if toNode.inSlice(fromNode.children) || fromNode.inSlice(toNode.dependsOn) {
@@ -73,6 +87,7 @@ func (this *Dag) AddEdge(from, to string) error {
 		return ERR_CYCLIC
 	}
 
+	// Update references recursively
 	fromNode.next = append(fromNode.next, toNode)
 	fromNode.next = append(fromNode.next, toNode.next...)
 	for _, b := range fromNode.prev {
@@ -80,6 +95,7 @@ func (this *Dag) AddEdge(from, to string) error {
 		b.next = append(b.next, toNode.next...)
 	}
 
+	// Update references recursively
 	toNode.prev = append(toNode.prev, fromNode)
 	toNode.prev = append(toNode.prev, fromNode.prev...)
 	for _, b := range toNode.next {
@@ -91,6 +107,9 @@ func (this *Dag) AddEdge(from, to string) error {
 	toNode.dependsOn = append(toNode.dependsOn, fromNode)
 	toNode.indegree++
 	fromNode.outdegree++
+
+	// Add default forwarder for from node
+	fromNode.AddForwarder(to, DefaultForwarder)
 
 	return nil
 }
@@ -178,7 +197,17 @@ func (this *Node) AddSerializer(serializer Serializer) {
 	this.serializer = serializer
 }
 
+// AddForwarder adds a forwarder for a specific children
+func (this *Node) AddForwarder(children string, forwarder Forwarder) {
+	this.forwarder[children] = forwarder
+}
+
 // GetSerializer get a serializer from a node
 func (this *Node) GetSerializer() Serializer {
 	return this.serializer
+}
+
+// GetForwarder gets a forwarder for a children
+func (this *Node) GetForwarder(children string) Forwarder {
+	return this.forwarder[children]
 }
