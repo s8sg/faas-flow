@@ -211,10 +211,14 @@ func (flow *Workflow) Apply(function string, opts ...Option) *Workflow {
 
 // ExecuteDag apply a predefined dag
 // All operation inside dag are async
+// returns error is dag is not valid
 // Note: If applied dag, chain execution is not supported
-func (flow *Workflow) ExecuteDag(dag *DagFlow) {
+func (flow *Workflow) ExecuteDag(dag *DagFlow) error {
 	pipeline := flow.pipeline
 	pipeline.SetDag(dag.udag)
+	// TODO might be moved to template later
+	err := dag.udag.Validate()
+	return err
 }
 
 // OnFailure set a failure handler routine for the pipeline

@@ -805,12 +805,17 @@ func handleWorkflow(data []byte) string {
 			log.Fatalf("[Request `%s`] Failed to define flow, %v", fhandler.id, err)
 		}
 
-		// In case of DAG DataStore and StateStore need to be external
+		// VALIDATE: Validate Pipeline Definition
+		// Dag need to be valid
+		err = fhandler.getPipeline().Dag.Validate()
+		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG && err != nil {
+			log.Fatalf("[Request `%s`] Invalid dag, %v", fhandler.id, err)
+		}
+		// For DAG, DataStore and StateStore need to be external
 		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG && !storeOverride {
 			log.Fatalf("[Request `%s`] DAG flow need external State and Data Store", fhandler.id)
 		}
-
-		// For a new dag pipeline Create the vertex in
+		// For a new dag pipeline Create the vertex in stateStore
 		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG && !fhandler.partial {
 			err = fhandler.stateStore.Create(fhandler.getPipeline().GetAllNodesId())
 			if err != nil {
@@ -822,7 +827,7 @@ func handleWorkflow(data []byte) string {
 			}
 		}
 
-		// If not a partial request set the execution position
+		// If not a partial request set the execution position to initial node
 		if !fhandler.partial {
 			fhandler.getPipeline().DagExecutionPosition = fhandler.getPipeline().GetInitialNodeId()
 		}

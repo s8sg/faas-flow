@@ -55,7 +55,7 @@ func (pipeline *Pipeline) GetAllNodesId() []string {
 }
 
 func (pipeline *Pipeline) IsInitialNode() bool {
-	if pipeline.GetCurrentNode().indegree == 0 {
+	if pipeline.GetCurrentNode().Indegree() == 0 {
 		return true
 	}
 	return false
@@ -120,7 +120,12 @@ func (pipeline *Pipeline) MakeDotGraph() string {
 	for _, node := range pipeline.Dag.nodes {
 
 		sb.WriteString(fmt.Sprintf("\n\tsubgraph cluster_%d {", node.index))
-		sb.WriteString(fmt.Sprintf("\n\t\tlabel=\"%d-%s\";", node.index, node.Id))
+		nodeIndexStr := fmt.Sprintf("%d", node.index-1)
+		if nodeIndexStr != node.Id {
+			sb.WriteString(fmt.Sprintf("\n\t\tlabel=\"%d-%s\";", node.index, node.Id))
+		} else {
+			sb.WriteString(fmt.Sprintf("\n\t\tlabel=\"%d\";", node.index))
+		}
 		sb.WriteString("\n\t\tcolor=lightgrey;")
 		sb.WriteString("\n\t\tstyle=rounded;\n")
 

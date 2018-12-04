@@ -9,6 +9,10 @@ var (
 	ERR_CYCLIC = fmt.Errorf("dag has cyclic dependency")
 	// ERR_DUPLICATE denotes that a dag edge is duplicate
 	ERR_DUPLICATE = fmt.Errorf("edge redefined")
+	// ERR_MULTIPLE_START denotes that a dag has more than one start point
+	ERR_MULTIPLE_START = fmt.Errorf("only one start vertex is allowed")
+	// ERR_MULTIPLE_END denotes that a dag has more than one end point
+	ERR_MULTIPLE_END = fmt.Errorf("only one end vertex is allowed")
 	// NodeIndex
 	nodeIndex = 0
 )
@@ -30,6 +34,7 @@ type Node struct {
 	serializer Serializer   // The serializer serialize multiple input to a node into one
 
 	indegree  int     // The vertex dag indegree
+	outdegree int     // The vertex dag outdegree
 	children  []*Node // The children of the vertex
 	dependsOn []*Node // The parents of the vertex
 
@@ -85,6 +90,7 @@ func (this *Dag) AddEdge(from, to string) error {
 	fromNode.children = append(fromNode.children, toNode)
 	toNode.dependsOn = append(toNode.dependsOn, fromNode)
 	toNode.indegree++
+	fromNode.outdegree++
 
 	return nil
 }
@@ -100,6 +106,29 @@ func (this *Dag) GetInitialNode() *Node {
 		if b.indegree == 0 {
 			return b
 		}
+	}
+	return nil
+}
+
+// Validate validates a dag as per faas-flow dag requirments
+func (this *Dag) Validate() error {
+	initialNodeCount := 0
+	endNodeCount := 0
+
+	for _, b := range this.nodes {
+		if b.indegree == 0 {
+			initialNodeCount = initialNodeCount + 1
+		}
+		if b.outdegree == 0 {
+			endNodeCount = endNodeCount + 1
+		}
+	}
+
+	if initialNodeCount > 1 {
+		return ERR_MULTIPLE_START
+	}
+	if endNodeCount > 1 {
+		return ERR_MULTIPLE_END
 	}
 	return nil
 }
@@ -132,6 +161,11 @@ func (this *Node) Operations() []*Operation {
 // Indegree returns the no of input in a node
 func (this *Node) Indegree() int {
 	return this.indegree
+}
+
+// Outdegree returns the no of output in a node
+func (this *Node) Outdegree() int {
+	return this.outdegree
 }
 
 // AddOperation add an operation
