@@ -13,12 +13,38 @@ func CreateDag() *DagFlow {
 	return dag
 }
 
+// AppndDag appends a seperate dag into current dag
+// provided dag should be mutually exclusive
+func (this *DagFlow) AppndDag(dag *DagFlow) error {
+	return this.udag.Append(dag.udag)
+}
+
+// AppndDagEdge appends a seperate dag between two given vertex
+// provided dag should be mutually exclusive
+func (this *DagFlow) AppndDagEdge(from, to string, dag *DagFlow) error {
+	err := this.udag.Append(dag.udag)
+	if err != nil {
+		return err
+	}
+	dagInitialNode := dag.udag.GetInitialNode().Id
+	dagEndNode := dag.udag.GetEndNode().Id
+	err = this.AddEdge(from, dagInitialNode)
+	if err != nil {
+		return err
+	}
+	err = this.AddEdge(dagEndNode, to)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // AddVertex add a new vertex by id
 // If exist overrides the vertex settings
-func (this *DagFlow) AddVertex(id string, opts ...Option) {
-	node := this.udag.GetNode(id)
+func (this *DagFlow) AddVertex(vertex string, opts ...Option) {
+	node := this.udag.GetNode(vertex)
 	if node == nil {
-		node = this.udag.AddVertex(id, []*sdk.Operation{})
+		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
 	}
 	o := &Options{}
 	for _, opt := range opts {
@@ -31,25 +57,38 @@ func (this *DagFlow) AddVertex(id string, opts ...Option) {
 	}
 }
 
-// CreateModifierVertex create a new modifier that can be added in dag
-// if vertex already exist it will be appended at the end,
+// AddDag adds a seperate dag to the given vertex
+// if vertex already exist it will replace the existing definition
 // if not new vertex will be created
-func (this *DagFlow) AddModifier(id string, mod sdk.Modifier) {
-	newMod := sdk.CreateModifier(mod)
+func (this *DagFlow) AddDag(vertex string, dag *DagFlow) error {
 
-	node := this.udag.GetNode(id)
+	node := this.udag.GetNode(vertex)
 
 	if node == nil {
-		this.udag.AddVertex(id, []*sdk.Operation{newMod})
+		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
+	}
+	return node.AddSubDag(dag.udag)
+}
+
+// AddModifier adds a new modifier to the given vertex
+// if vertex already exist it will be appended at the end,
+// if not new vertex will be created
+func (this *DagFlow) AddModifier(vertex string, mod sdk.Modifier) {
+	newMod := sdk.CreateModifier(mod)
+
+	node := this.udag.GetNode(vertex)
+
+	if node == nil {
+		this.udag.AddVertex(vertex, []*sdk.Operation{newMod})
 	} else {
 		node.AddOperation(newMod)
 	}
 }
 
-// CreateFunctionVertex create a new function that can be added in the dag
+// AddFunction adds a new function to the given vertex
 // if vertex already exist it will be appended at the end,
 // if not new vertex will be created
-func (this *DagFlow) AddFunction(id string, function string, opts ...Option) {
+func (this *DagFlow) AddFunction(vertex string, function string, opts ...Option) {
 	newfunc := sdk.CreateFunction(function)
 
 	o := &Options{}
@@ -76,18 +115,18 @@ func (this *DagFlow) AddFunction(id string, function string, opts ...Option) {
 		}
 	}
 
-	node := this.udag.GetNode(id)
+	node := this.udag.GetNode(vertex)
 	if node == nil {
-		node = this.udag.AddVertex(id, []*sdk.Operation{newfunc})
+		node = this.udag.AddVertex(vertex, []*sdk.Operation{newfunc})
 	} else {
 		node.AddOperation(newfunc)
 	}
 }
 
-// CreateCallbackVertex create a new callback that can be added as a dag
+// AddCallback adds a new callback to the given vertex
 // if vertex already exist it will be appended at the end,
 // if not new vertex will be created
-func (this *DagFlow) AddCallback(id string, url string, opts ...Option) {
+func (this *DagFlow) AddCallback(vertex string, url string, opts ...Option) {
 	newCallback := sdk.CreateCallback(url)
 
 	o := &Options{}
@@ -111,15 +150,15 @@ func (this *DagFlow) AddCallback(id string, url string, opts ...Option) {
 		}
 	}
 
-	node := this.udag.GetNode(id)
+	node := this.udag.GetNode(vertex)
 	if node == nil {
-		node = this.udag.AddVertex(id, []*sdk.Operation{newCallback})
+		node = this.udag.AddVertex(vertex, []*sdk.Operation{newCallback})
 	} else {
 		node.AddOperation(newCallback)
 	}
 }
 
-// AddEdge adds a directed edge as <from>-><to>
+// AddEdge adds a directed edge between two vertex as <from>-><to>
 func (this *DagFlow) AddEdge(from, to string, opts ...Option) error {
 	err := this.udag.AddEdge(from, to)
 	if err != nil {

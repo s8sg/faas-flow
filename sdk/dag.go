@@ -7,12 +7,16 @@ import (
 var (
 	// ERR_CYCLIC denotes that dag has a cycle
 	ERR_CYCLIC = fmt.Errorf("dag has cyclic dependency")
-	// ERR_DUPLICATE denotes that a dag edge is duplicate
-	ERR_DUPLICATE = fmt.Errorf("edge redefined")
+	// ERR_DUPLICATE_EDGE denotes that a dag edge is duplicate
+	ERR_DUPLICATE_EDGE = fmt.Errorf("edge redefined")
+	// ERR_DUPLICATE_VERTEX denotes that a dag edge is duplicate
+	ERR_DUPLICATE_VERTEX = fmt.Errorf("vertex redefined")
 	// ERR_MULTIPLE_START denotes that a dag has more than one start point
 	ERR_MULTIPLE_START = fmt.Errorf("only one start vertex is allowed")
 	// ERR_MULTIPLE_END denotes that a dag has more than one end point
 	ERR_MULTIPLE_END = fmt.Errorf("only one end vertex is allowed")
+	// ERR_RECURSIVE_DEP denotes that dag has a recursive dependecy
+	ERR_RECURSIVE_DEP = fmt.Errorf("dag has recursive dependency")
 	// NodeIndex
 	nodeIndex = 0
 	// Default forwarder
@@ -27,7 +31,13 @@ type Forwarder func([]byte) []byte
 
 // Dag The whole dag
 type Dag struct {
-	nodes map[string]*Node
+	Id    string
+	nodes map[string]*Node // the nodes in a dag
+
+	parentNode *Node // In case the dag is a sub dag the node reference
+
+	initialNode *Node // The start of a valid dag
+	endNode     *Node // The end of a valid dag
 }
 
 // Node The vertex
@@ -35,10 +45,14 @@ type Node struct {
 	Id    string // The id of the vertex
 	index int    // The index of the vertex
 
-	operations []*Operation         // The list of operations
+	// Execution modes ([]operation / Dag)
+	subDag     *Dag         // Subdag
+	operations []*Operation // The list of operations
+
 	serializer Serializer           // The serializer serialize multiple input to a node into one
 	forwarder  map[string]Forwarder // The forwarder handle forwarding output to a children
 
+	parentDag *Dag    // The reference of the dag this node part of
 	indegree  int     // The vertex dag indegree
 	outdegree int     // The vertex dag outdegree
 	children  []*Node // The children of the vertex
@@ -55,11 +69,31 @@ func NewDag() *Dag {
 	return this
 }
 
+// Append appends another dag into an existing dag
+// Its a way to define and reuse subdags
+// append causes disconnected dag which must be linked with edge in order to execute
+func (this *Dag) Append(dag *Dag) error {
+	err := dag.Validate()
+	if err != nil {
+		return err
+	}
+	for nodeId, node := range dag.nodes {
+		_, duplicate := this.nodes[nodeId]
+		if duplicate {
+			return ERR_DUPLICATE_VERTEX
+		}
+		// add the node
+		this.nodes[nodeId] = node
+	}
+	return nil
+}
+
 // AddVertex create a vertex with id and operations
 func (this *Dag) AddVertex(id string, operations []*Operation) *Node {
 
 	node := &Node{Id: id, operations: operations, index: nodeIndex + 1}
 	node.forwarder = make(map[string]Forwarder, 0)
+	node.parentDag = this
 	nodeIndex = nodeIndex + 1
 	this.nodes[id] = node
 	return node
@@ -77,12 +111,12 @@ func (this *Dag) AddEdge(from, to string) error {
 		toNode = this.AddVertex(to, []*Operation{})
 	}
 
-	// CHeck if duplicate
+	// CHeck if duplicate (TODO: Check if one way check is enough)
 	if toNode.inSlice(fromNode.children) || fromNode.inSlice(toNode.dependsOn) {
-		return ERR_DUPLICATE
+		return ERR_DUPLICATE_EDGE
 	}
 
-	// Check if cyclic dependency
+	// Check if cyclic dependency (TODO: Check if one way check if enough)
 	if fromNode.inSlice(toNode.next) || toNode.inSlice(fromNode.prev) {
 		return ERR_CYCLIC
 	}
@@ -119,14 +153,19 @@ func (this *Dag) GetNode(id string) *Node {
 	return this.nodes[id]
 }
 
-// GetInitialNode get the initial node
+// GetParentNode returns parent node for a subdag
+func (this *Dag) GetParentNode() *Node {
+	return this.parentNode
+}
+
+// GetInitialNode gets the initial node
 func (this *Dag) GetInitialNode() *Node {
-	for _, b := range this.nodes {
-		if b.indegree == 0 {
-			return b
-		}
-	}
-	return nil
+	return this.initialNode
+}
+
+// GetEndNode gets the end node
+func (this *Dag) GetEndNode() *Node {
+	return this.endNode
 }
 
 // Validate validates a dag as per faas-flow dag requirments
@@ -137,9 +176,17 @@ func (this *Dag) Validate() error {
 	for _, b := range this.nodes {
 		if b.indegree == 0 {
 			initialNodeCount = initialNodeCount + 1
+			this.initialNode = b
 		}
 		if b.outdegree == 0 {
 			endNodeCount = endNodeCount + 1
+			this.endNode = b
+		}
+		if b.subDag != nil {
+			err := b.subDag.Validate()
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -187,7 +234,17 @@ func (this *Node) Outdegree() int {
 	return this.outdegree
 }
 
-// AddOperation add an operation
+// SubDag returns the subdag added in a node
+func (this *Node) SubDag() *Dag {
+	return this.subDag
+}
+
+// ParentDag returns the parent dag of the node
+func (this *Node) ParentDag() *Dag {
+	return this.parentDag
+}
+
+// AddOperation adds an operation
 func (this *Node) AddOperation(operation *Operation) {
 	this.operations = append(this.operations, operation)
 }
@@ -200,6 +257,28 @@ func (this *Node) AddSerializer(serializer Serializer) {
 // AddForwarder adds a forwarder for a specific children
 func (this *Node) AddForwarder(children string, forwarder Forwarder) {
 	this.forwarder[children] = forwarder
+}
+
+// AddSubDag adds a subdag to the node
+func (this *Node) AddSubDag(subDag *Dag) error {
+	parent := this.parentDag
+	for parent != nil {
+		if parent == subDag {
+			return ERR_RECURSIVE_DEP
+		}
+		parentNode := parent.parentNode
+		if parentNode != nil {
+			parent = parentNode.subDag
+			continue
+		}
+		break
+	}
+	this.subDag = subDag
+	// Set the node the subdag belongs to
+	subDag.parentNode = this
+	subDag.Id = this.Id
+
+	return nil
 }
 
 // GetSerializer get a serializer from a node

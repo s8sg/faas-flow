@@ -14,7 +14,7 @@ var (
 )
 
 func TestChainCreate(t *testing.T) {
-	flow := NewFaasflow()
+	flow := NewFaasflow("")
 	if flow == nil {
 		t.Errorf("Creating faas flow: got %v", flow)
 		t.Fail()
@@ -22,11 +22,11 @@ func TestChainCreate(t *testing.T) {
 }
 
 func TestApply(t *testing.T) {
-	flow := NewFaasflow()
+	flow := NewFaasflow("")
 	flow.Apply("compress", Header("Method", "Post"), Sync).Apply("upload", Header("Method", "Post"), Query("URL", "my.file.storage/s8sg"), Sync)
 }
 
 func TestApplyAsync(t *testing.T) {
-	flow := NewFaasflow()
+	flow := NewFaasflow("")
 	flow.Apply("compress", Header("Method", "Post")).Apply("upload", Header("Method", "Post"), Query("URL", "my.file.storage/s8sg"))
 }

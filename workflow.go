@@ -251,9 +251,9 @@ func (flow *Workflow) Finally(handler sdk.PipelineHandler) *Workflow {
 }
 
 // NewFaasflow initiates a flow with a pipeline
-func NewFaasflow() *Workflow {
+func NewFaasflow(name string) *Workflow {
 	flow := &Workflow{}
-	flow.pipeline = sdk.CreatePipeline()
+	flow.pipeline = sdk.CreatePipeline(name)
 	return flow
 }
 
