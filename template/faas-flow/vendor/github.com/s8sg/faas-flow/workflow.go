@@ -230,7 +230,7 @@ func (flow *Workflow) Apply(function string, opts ...Option) *Workflow {
 // ExecuteDag apply a predefined dag
 // All operation inside dag are async
 // returns error is dag is not valid
-// Note: If applied dag, chain execution is not supported
+// Note: If executing dag chain gets overridden
 func (flow *Workflow) ExecuteDag(dag *DagFlow) error {
 	pipeline := flow.pipeline
 	pipeline.SetDag(dag.udag)

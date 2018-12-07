@@ -34,32 +34,32 @@ type Pipeline struct {
 	Finally        PipelineHandler      `json:"-"`
 }
 
+// CreatePipeline creates a faasflow pipeline
 func CreatePipeline(name string) *Pipeline {
 	pipeline := &Pipeline{}
 	pipeline.PipelineType = TYPE_CHAIN
 	pipeline.Dag = NewDag()
+	// For default dag set the Id to flow-name
 	pipeline.Dag.Id = name
 	pipeline.ExecutionPosition = make(map[string]string, 0)
 	pipeline.ExecutionDepth = 0
-	pipeline.ExecutionPosition["0"] = name
+	// pipeline.ExecutionPosition["0"] = name
 	return pipeline
 }
 
-// Node
+// CountNodes counts the no of node added in the Pipeline Dag.
+// It doesn't count subdags node
 func (pipeline *Pipeline) CountNodes() int {
 	return len(pipeline.Dag.nodes)
 }
 
+// GetAllNodesId returns a recursive list of all nodes that belongs to the pipeline
 func (pipeline *Pipeline) GetAllNodesId() []string {
-	nodes := make([]string, len(pipeline.Dag.nodes))
-	i := 0
-	for id, _ := range pipeline.Dag.nodes {
-		nodes[i] = id
-		i++
-	}
+	nodes := pipeline.Dag.GetNodes()
 	return nodes
 }
 
+// GetInitialNodeId Get the very first node of the pipeline
 func (pipeline *Pipeline) GetInitialNodeId() string {
 	node := pipeline.Dag.GetInitialNode()
 	if node != nil {
@@ -68,6 +68,7 @@ func (pipeline *Pipeline) GetInitialNodeId() string {
 	return "0"
 }
 
+// GetCurrentNodeDag returns the current node and current dag based on execution position
 func (pipeline *Pipeline) GetCurrentNodeDag() (*Node, *Dag) {
 	index := 0
 	dag := pipeline.Dag
@@ -83,6 +84,8 @@ func (pipeline *Pipeline) GetCurrentNodeDag() (*Node, *Dag) {
 	return node, dag
 }
 
+// UpdatePipelineExecutionPosition updates pipeline execution position
+// specifyed depthAdjustment and vertex denotes how the ExecutionPosition must be altered
 func (pipeline *Pipeline) UpdatePipelineExecutionPosition(depthAdjustment int, vertex string) {
 	pipeline.ExecutionDepth = pipeline.ExecutionDepth + depthAdjustment
 	depthStr := fmt.Sprintf("%d", pipeline.ExecutionDepth)
@@ -95,7 +98,8 @@ func (pipeline *Pipeline) SetDag(dag *Dag) {
 	pipeline.PipelineType = TYPE_DAG
 }
 
-func DecodePipeline(data []byte) (*Pipeline, error) {
+// decodePipeline decodes a json marshaled pipeline
+func decodePipeline(data []byte) (*Pipeline, error) {
 	pipeline := &Pipeline{}
 	err := json.Unmarshal(data, pipeline)
 	if err != nil {
@@ -104,14 +108,15 @@ func DecodePipeline(data []byte) (*Pipeline, error) {
 	return pipeline, nil
 }
 
+// GetState get a state of a pipeline by encoding in JSON
 func (pipeline *Pipeline) GetState() string {
 	encode, _ := json.Marshal(pipeline)
 	return string(encode)
 }
 
+// ApplyState apply a state to a pipeline by from encoded JSON pipeline
 func (pipeline *Pipeline) ApplyState(state string) {
-	var temp Pipeline
-	json.Unmarshal([]byte(state), &temp)
+	temp, _ := decodePipeline([]byte(state))
 	pipeline.ExecutionDepth = temp.ExecutionDepth
 	pipeline.ExecutionPosition = temp.ExecutionPosition
 	pipeline.PipelineType = temp.PipelineType

@@ -17,8 +17,6 @@ var (
 	ERR_MULTIPLE_END = fmt.Errorf("only one end vertex is allowed")
 	// ERR_RECURSIVE_DEP denotes that dag has a recursive dependecy
 	ERR_RECURSIVE_DEP = fmt.Errorf("dag has recursive dependency")
-	// NodeIndex
-	nodeIndex = 0
 	// Default forwarder
 	DefaultForwarder = func(data []byte) []byte { return data }
 )
@@ -38,6 +36,8 @@ type Dag struct {
 
 	initialNode *Node // The start of a valid dag
 	endNode     *Node // The end of a valid dag
+
+	nodeIndex int // NodeIndex
 }
 
 // Node The vertex
@@ -66,6 +66,7 @@ type Node struct {
 func NewDag() *Dag {
 	this := new(Dag)
 	this.nodes = make(map[string]*Node)
+	this.Id = "0"
 	return this
 }
 
@@ -91,10 +92,10 @@ func (this *Dag) Append(dag *Dag) error {
 // AddVertex create a vertex with id and operations
 func (this *Dag) AddVertex(id string, operations []*Operation) *Node {
 
-	node := &Node{Id: id, operations: operations, index: nodeIndex + 1}
+	node := &Node{Id: id, operations: operations, index: this.nodeIndex + 1}
 	node.forwarder = make(map[string]Forwarder, 0)
 	node.parentDag = this
-	nodeIndex = nodeIndex + 1
+	this.nodeIndex = this.nodeIndex + 1
 	this.nodes[id] = node
 	return node
 }
@@ -168,7 +169,8 @@ func (this *Dag) GetEndNode() *Node {
 	return this.endNode
 }
 
-// Validate validates a dag as per faas-flow dag requirments
+// Validate validates a dag and all subdag as per faas-flow dag requirments
+// A validated graph has only one initialNode and EndNode set
 func (this *Dag) Validate() error {
 	initialNodeCount := 0
 	endNodeCount := 0
@@ -197,6 +199,21 @@ func (this *Dag) Validate() error {
 		return ERR_MULTIPLE_END
 	}
 	return nil
+}
+
+// GetNodes returns a list of nodes (including subdags) belong to the dag
+// nodes are represented as <dagId>-<node>
+func (this *Dag) GetNodes() []string {
+	var nodes []string
+	for _, b := range this.nodes {
+		nodeId := this.Id + "-" + b.Id
+		nodes = append(nodes, nodeId)
+		if b.subDag != nil {
+			subDagNodes := b.subDag.GetNodes()
+			nodes = append(nodes, subDagNodes...)
+		}
+	}
+	return nodes
 }
 
 // inSlice check if a node belongs in a slice
@@ -261,22 +278,28 @@ func (this *Node) AddForwarder(children string, forwarder Forwarder) {
 
 // AddSubDag adds a subdag to the node
 func (this *Node) AddSubDag(subDag *Dag) error {
-	parent := this.parentDag
-	for parent != nil {
-		if parent == subDag {
+	// Sub dags parent dag
+	parentDag := this.parentDag
+	// Continue till there is no parent dag
+	for parentDag != nil {
+		if parentDag == subDag {
 			return ERR_RECURSIVE_DEP
 		}
-		parentNode := parent.parentNode
+		// Check if the parent dag is a subdag and has a parent node
+		parentNode := parentDag.parentNode
 		if parentNode != nil {
-			parent = parentNode.subDag
+			// If a subdag, move to the parent dag
+			parentDag = parentNode.parentDag
 			continue
 		}
 		break
 	}
+	// Set the subdag in the node
 	this.subDag = subDag
 	// Set the node the subdag belongs to
 	subDag.parentNode = this
-	subDag.Id = this.Id
+	// Dag Id : <parent-dag-id>-<parent-node-id>
+	subDag.Id = fmt.Sprintf("%s.%s", this.parentDag.Id, this.Id)
 
 	return nil
 }

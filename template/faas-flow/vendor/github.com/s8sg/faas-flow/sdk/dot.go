@@ -2,30 +2,29 @@ package sdk
 
 import (
 	"fmt"
-	"log"
 	"strings"
 )
 
-func generateDag(dag *Dag, sb *strings.Builder) {
+func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
+	lastOperation := ""
 	// generate nodes
 	for _, node := range dag.nodes {
 
-		log.Printf("%s - %s", dag.Id, node.Id)
-
-		sb.WriteString(fmt.Sprintf("\n\tsubgraph cluster_%d {", node.index))
+		sb.WriteString(fmt.Sprintf("\n%ssubgraph cluster_%d {", indent, node.index))
 		nodeIndexStr := fmt.Sprintf("%d", node.index-1)
 		if nodeIndexStr != node.Id {
-			sb.WriteString(fmt.Sprintf("\n\t\tlabel=\"%d-%s\";", node.index, node.Id))
+			sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%d-%s\";", indent, node.index, node.Id))
 		} else {
-			sb.WriteString(fmt.Sprintf("\n\t\tlabel=\"%d\";", node.index))
+			sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%d\";", indent, node.index))
 		}
-		sb.WriteString("\n\t\tcolor=lightgrey;")
-		sb.WriteString("\n\t\tstyle=rounded;\n")
+		sb.WriteString(fmt.Sprintf("\n%s\tcolor=lightgrey;", indent))
+		sb.WriteString(fmt.Sprintf("\n%s\tstyle=rounded;\n", indent))
 
 		previousOperation := ""
+
 		subdag := node.SubDag()
 		if subdag != nil {
-			generateDag(subdag, sb)
+			previousOperation = generateDag(subdag, sb, indent+"\t")
 		} else {
 			for opsindex, operation := range node.Operations() {
 				operationStr := ""
@@ -38,39 +37,55 @@ func generateDag(dag *Dag, sb *strings.Builder) {
 				default:
 					operationStr = "modifier"
 				}
-				operationKey := fmt.Sprintf("%d.%d-%s", node.index, opsindex+1, operationStr)
+				operationKey := fmt.Sprintf("%s.%d.%d-%s", dag.Id, node.index, opsindex+1, operationStr)
 
 				switch {
 				case len(node.children) == 0 &&
 					opsindex == len(node.Operations())-1:
-					sb.WriteString(fmt.Sprintf("\n\t\t\"%s\" [color=pink];",
-						operationKey))
+					sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" [color=pink];",
+						indent, operationKey))
 				case node.indegree == 0 && opsindex == 0:
-					sb.WriteString(fmt.Sprintf("\n\t\t\"%s\" [color=lightblue];",
-						operationKey))
+					sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" [color=lightblue];",
+						indent, operationKey))
 				default:
-					sb.WriteString(fmt.Sprintf("\n\t\t\"%s\" [color=lightgrey];",
-						operationKey))
+					sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" [color=lightgrey];",
+						indent, operationKey))
 				}
 
 				if previousOperation != "" {
-					sb.WriteString(fmt.Sprintf("\n\t\t\"%s\" -> \"%s\" [label=\"1:1\" color=grey];",
-						previousOperation, operationKey))
+					sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" -> \"%s\" [label=\"1:1\" color=grey];",
+						indent, previousOperation, operationKey))
 				}
 				previousOperation = operationKey
 			}
+		}
 
-			sb.WriteString("\n\t}")
+		sb.WriteString(fmt.Sprintf("\n%s}\n", indent))
 
-			relation := ""
+		relation := ""
 
+		if node.children != nil {
 			for _, child := range node.children {
 
 				// TODO: Later change to check if 1:N
 
 				relation = "1:1"
 				operationStr := ""
-				operation := child.Operations()[0]
+				var operation *Operation
+
+				nextOperationNode := child
+				nextOperationDag := dag
+
+				if nextOperationNode.SubDag() != nil {
+					for nextOperationNode.SubDag() != nil {
+						nextOperationDag = nextOperationNode.SubDag()
+						nextOperationNode = nextOperationDag.GetInitialNode()
+					}
+					operation = nextOperationNode.Operations()[0]
+				} else {
+					operation = nextOperationNode.Operations()[0]
+				}
+
 				switch {
 				case operation.Function != "":
 					operationStr = "func-" + operation.Function
@@ -81,20 +96,25 @@ func generateDag(dag *Dag, sb *strings.Builder) {
 					operationStr = "modifier"
 				}
 
-				childOperationKey := fmt.Sprintf("%d.1-%s",
-					child.index, operationStr)
+				childOperationKey := fmt.Sprintf("%s.%d.1-%s",
+					nextOperationDag.Id, nextOperationNode.index, operationStr)
 
 				if node.GetForwarder(child.Id) == nil {
 					relation = relation + " - nodata"
 				}
 
-				sb.WriteString(fmt.Sprintf("\n\t\"%s\" -> \"%s\" [label=\"%s\" color=grey];",
-					previousOperation, childOperationKey, relation))
+				if previousOperation != "" {
+					sb.WriteString(fmt.Sprintf("\n%s\"%s\" -> \"%s\" [label=\"%s\" color=grey];",
+						indent, previousOperation, childOperationKey, relation))
+				}
 			}
-
-			sb.WriteString("\n")
+		} else {
+			lastOperation = previousOperation
 		}
+
+		sb.WriteString("\n")
 	}
+	return lastOperation
 }
 
 // MakeDotGraph create a dot graph of the pipeline
@@ -110,7 +130,7 @@ func (pipeline *Pipeline) MakeDotGraph() string {
 
 	sb.WriteString("\n\tnode [style=filled fontname=\"Courier\" fontcolor=black]\n")
 
-	generateDag(pipeline.Dag, &sb)
+	generateDag(pipeline.Dag, &sb, "\t")
 
 	sb.WriteString("}\n")
 	return sb.String()

@@ -276,7 +276,7 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 		fhandler.partial = false
 
 		// trace req - mark as start of req
-		startReqSpan(requestId)
+		// startReqSpan(requestId)
 	default:
 		// Partial Request
 		// Get the request ID
@@ -309,7 +309,7 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 		fhandler.partial = true
 
 		// Continue request span
-		continueReqSpan(requestId)
+		// continueReqSpan(requestId)
 	}
 
 	return
@@ -549,7 +549,7 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 				// TODO: Return empty for multinode
 				return result, nil
 			} else {
-				// Update position to new depth
+				// Update position to upper depth
 				currentNode = currentDag.GetParentNode()
 				currentDag = currentNode.ParentDag()
 				pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_DECREMENT, currentNode.Id)
@@ -582,7 +582,8 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 
 		// If intermediate storage is enabled store data to intermediate storage
 		if forwarder != nil && useIntermediateStorage() {
-			key := fmt.Sprintf("%d-%s-%s-%s", pipeline.ExecutionDepth, currentDag.Id, currentNode.Id, node.Id)
+			// <dagid>-<currentnodeid>-<childnodeid>
+			key := fmt.Sprintf("%s-%s-%s", currentDag.Id, currentNode.Id, node.Id)
 			serr := context.Set(key, intermediateData)
 			if serr != nil {
 				return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
@@ -596,8 +597,9 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 
 		// if indegree is > 1 then use statestore to get request state
 		if inDegree > 1 {
+			key := fmt.Sprintf("%s-%s", currentDag.Id, node.Id)
 			// Update the state of indegree completion and get the updated state
-			inDegreeUpdatedCount, err := fhandler.stateStore.IncrementCounter(node.Id)
+			inDegreeUpdatedCount, err := fhandler.stateStore.IncrementCounter(key)
 			if err != nil {
 				return []byte(""), fmt.Errorf("failed to update inDegree counter for node %s", node.Id)
 			}
@@ -726,8 +728,8 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 			continue
 		}
 
-		// depth-<dagid>-<dependencynodeid>-<currentnodeid>
-		key := fmt.Sprintf("%d-%s-%s-%s", pipeline.ExecutionDepth, dag.Id, node.Id, currentNode.Id)
+		// <dagid>-<dependencynodeid>-<currentnodeid>
+		key := fmt.Sprintf("%s-%s-%s", dag.Id, node.Id, currentNode.Id)
 		idata, gerr := context.GetBytes(key)
 		if gerr != nil {
 			gerr := fmt.Errorf("key %s, %v", key, gerr)
@@ -739,6 +741,7 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 		dataMap[node.Id] = idata
 	}
 
+	// Avail the non serialized input at context
 	context.NodeInput = dataMap
 
 	// If it has only one indegree assign the result as a data
@@ -878,6 +881,7 @@ func handleWorkflow(data []byte) string {
 
 		// If not a partial request set the execution position to initial node
 		if !fhandler.partial {
+			// On the 0th depth set the initial node as the current execution position
 			fhandler.getPipeline().UpdatePipelineExecutionPosition(sdk.DEPTH_SAME, fhandler.getPipeline().GetInitialNodeId())
 		}
 
@@ -930,10 +934,10 @@ func handleWorkflow(data []byte) string {
 	}
 
 	// stop req span if request has finished
-	stopReqSpan()
+	//stopReqSpan()
 
 	// flash any pending trace item if tracing enabled
-	flushTracer()
+	//flushTracer()
 
 	return string(resp)
 }
