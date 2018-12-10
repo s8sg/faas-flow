@@ -13,30 +13,10 @@ func CreateDag() *DagFlow {
 	return dag
 }
 
-// AppndDag appends a seperate dag into current dag
+// AppendDag generalizes a seperate dag by appending its properties into current dag
 // provided dag should be mutually exclusive
-func (this *DagFlow) AppndDag(dag *DagFlow) error {
+func (this *DagFlow) AppendDag(dag *DagFlow) error {
 	return this.udag.Append(dag.udag)
-}
-
-// AppndDagEdge appends a seperate dag between two given vertex
-// provided dag should be mutually exclusive
-func (this *DagFlow) AppndDagEdge(from, to string, dag *DagFlow) error {
-	err := this.udag.Append(dag.udag)
-	if err != nil {
-		return err
-	}
-	dagInitialNode := dag.udag.GetInitialNode().Id
-	dagEndNode := dag.udag.GetEndNode().Id
-	err = this.AddEdge(from, dagInitialNode)
-	if err != nil {
-		return err
-	}
-	err = this.AddEdge(dagEndNode, to)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // AddVertex add a new vertex by id
@@ -57,7 +37,7 @@ func (this *DagFlow) AddVertex(vertex string, opts ...Option) {
 	}
 }
 
-// AddDag adds a seperate dag to the given vertex
+// AddDag composites a seperate dag as a subdag to the given vertex
 // if vertex already exist it will replace the existing definition
 // if not new vertex will be created
 func (this *DagFlow) AddDag(vertex string, dag *DagFlow) error {
