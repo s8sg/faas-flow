@@ -27,6 +27,12 @@ type Serializer func(map[string][]byte) ([]byte, error)
 // Forwarder defintion for the data forwarder of nodes
 type Forwarder func([]byte) []byte
 
+// ForEach definition for the foreach function
+type ForEach func([]byte) map[string][]byte
+
+// Condition definition for the condition function
+type Condition func([]byte) []string
+
 // Dag The whole dag
 type Dag struct {
 	Id    string
@@ -46,11 +52,15 @@ type Node struct {
 	index int    // The index of the vertex
 
 	// Execution modes ([]operation / Dag)
-	subDag     *Dag         // Subdag
-	operations []*Operation // The list of operations
+	subDag          *Dag            // Subdag
+	conditionalDags map[string]*Dag // Conditional subdags
+	operations      []*Operation    // The list of operations
 
-	serializer Serializer           // The serializer serialize multiple input to a node into one
-	forwarder  map[string]Forwarder // The forwarder handle forwarding output to a children
+	serializer    Serializer           // The serializer serialize multiple inputs to a node into one
+	foreach       ForEach              // If specified foreach allows to execute the vertex in parralel
+	condition     Condition            // If specified condition allows to execute only selected subdag
+	subSerializer Serializer           // Serializes foreach/condition outputs into one
+	forwarder     map[string]Forwarder // The forwarder handle forwarding output to a children
 
 	parentDag *Dag    // The reference of the dag this node part of
 	indegree  int     // The vertex dag indegree
@@ -271,6 +281,21 @@ func (this *Node) AddSerializer(serializer Serializer) {
 	this.serializer = serializer
 }
 
+// AddForEach add a serializer to a node
+func (this *Node) AddForEach(foreach ForEach) {
+	this.foreach = foreach
+}
+
+// AddCondition add a condition to a node
+func (this *Node) AddCondition(condition Condition) {
+	this.condition = condition
+}
+
+// AddSubSerializer add a foreach serializer to a node
+func (this *Node) AddSubSerializer(serializer Serializer) {
+	this.subSerializer = serializer
+}
+
 // AddForwarder adds a forwarder for a specific children
 func (this *Node) AddForwarder(children string, forwarder Forwarder) {
 	this.forwarder[children] = forwarder
@@ -305,6 +330,42 @@ func (this *Node) AddSubDag(subDag *Dag) error {
 	} else {
 		// Dag Id : <parent-dag-id>-<parent-node-index>
 		subDag.Id = fmt.Sprintf("%d", this.index)
+	}
+
+	return nil
+}
+
+// AddConditionalDag adds conditional dag to node
+func (this *Node) AddConditionalDag(condition string, dag *Dag) error {
+	// Sub dags parent dag
+	parentDag := this.parentDag
+	// Continue till there is no parent dag
+	for parentDag != nil {
+		if parentDag == dag {
+			return ERR_RECURSIVE_DEP
+		}
+		// Check if the parent dag is a subdag and has a parent node
+		parentNode := parentDag.parentNode
+		if parentNode != nil {
+			// If a subdag, move to the parent dag
+			parentDag = parentNode.parentDag
+			continue
+		}
+		break
+	}
+	// Set the conditional subdag in the node
+	if this.conditionalDags == nil {
+		this.conditionalDags = make(map[string]*Dag)
+	}
+	this.conditionalDags[condition] = dag
+	// Set the node the subdag belongs to
+	dag.parentNode = this
+	if this.parentDag.Id != "0" {
+		// Dag Id : <parent-dag-id>-<parent-node-index>
+		dag.Id = fmt.Sprintf("%s.%d.%s", this.parentDag.Id, this.index, condition)
+	} else {
+		// Dag Id : <parent-dag-id>-<parent-node-index>
+		dag.Id = fmt.Sprintf("%d.%s", this.index, condition)
 	}
 
 	return nil

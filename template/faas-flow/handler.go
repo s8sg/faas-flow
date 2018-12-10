@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	// A signature of SHA265 equivalent of "github.com/s8sg/faasflow"
-	defaultHmacKey = "D9D98C7EBAA7267BCC4F0280FC5BA4273F361B00D422074985A41AE1338F1B61"
+	// A signature of SHA265 equivalent of "github.com/s8sg/faas-flow"
+	defaultHmacKey = "71F1D3011F8E6160813B4997BA29856744375A7F26D427D491E1CCABD4627E7C"
 )
 
 var (
@@ -397,7 +397,7 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 	log.Printf("[Request `%s`] Executing node %s", fhandler.id, currentNode.Id)
 
 	// trace node - mark as start of node
-	// startNodeSpan(pipeline.ExecutionPosition[pipeline.ExecutionDepth], fhandler.id)
+	startNodeSpan(currentNode.Id, fhandler.id)
 
 	// Execute all operation
 	for _, operation := range currentNode.Operations() {
@@ -419,7 +419,7 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 					err = operation.FailureHandler(err)
 				}
 				if err != nil {
-					//stopNodeSpan(pipeline.ExecutionPosition[pipeline.ExecutionDepth])
+					stopNodeSpan(currentNode.Id)
 					return nil, err
 				}
 			}
@@ -439,7 +439,7 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 					err = operation.FailureHandler(err)
 				}
 				if err != nil {
-					//stopNodeSpan(pipeline.ExecutionPosition[pipeline.ExecutionDepth])
+					stopNodeSpan(currentNode.Id)
 					return nil, err
 				}
 			}
@@ -453,6 +453,7 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 				result, err = operation.Mod(result)
 			}
 			if err != nil {
+				stopNodeSpan(currentNode.Id)
 				err = fmt.Errorf("Node(%s), error: Failed at modifier, %v",
 					currentNode.Id, err)
 				return nil, err
@@ -466,7 +467,7 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 	log.Printf("[Request `%s`] Node %s completed successfully", fhandler.id, currentNode.Id)
 
 	// trace node - mark as end of node
-	// stopNodeSpan(pipeline.ExecutionPosition[pipeline.ExecutionDepth])
+	stopNodeSpan(currentNode.Id)
 
 	return result, nil
 }
@@ -509,10 +510,8 @@ func forwardAsync(fhandler *flowHandler, currentExecutionPosition string, result
 		httpreq.Header.Add("X-Hub-Signature", "sha1="+hex.EncodeToString(hash))
 	}
 
-	/*
-		// extend req span for async call (TODO : Get the value)
-		extendReqSpan(currentExecutionPosition, fhandler.asyncUrl, httpreq)
-	*/
+	// extend req span for async call (TODO : Get the value)
+	extendReqSpan(currentExecutionPosition, fhandler.asyncUrl, httpreq)
 
 	client := &http.Client{}
 	res, resErr := client.Do(httpreq)
@@ -686,34 +685,6 @@ func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) 
 	log.Fatalf("[Request `%s`] Failed, %v", fhandler.id, err)
 }
 
-/*
-// getChainIntermediateData gets the intermediate data if intermediateStorage is enabled
-func getChainIntermediateData(fhandler *flowHandler, context *faasflow.Context, data []byte) ([]byte, error) {
-
-	currentNode := fhandler.getPipeline().GetCurrentNode()
-	depedency := currentNode.Dependency()[0]
-
-	// Skip if NoneData is specified
-	if depedency.GetForwarder(currentNode.Id) == nil {
-		return []byte(""), nil
-	}
-
-	key := fmt.Sprintf("data-%s-%s", depedency.Id, currentNode.Id)
-	idata, gerr := context.GetBytes(key)
-	if gerr != nil {
-		gerr := fmt.Errorf("key %s, %v", key, gerr)
-		return data, gerr
-	}
-	log.Printf("[Request `%s`] Intermidiate result form Node %s to Node %s retrived from %s",
-		fhandler.id, depedency.Id, fhandler.getPipeline().DagExecutionPosition, key)
-	context.Del(key)
-	data = idata
-
-	context.NodeInput[depedency.Id] = data
-
-	return data, nil
-}*/
-
 // getDagIntermediateData gets the intermediate data from earlier vertex
 func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, data []byte) ([]byte, error) {
 	pipeline := handler.getPipeline()
@@ -824,11 +795,10 @@ func handleWorkflow(data []byte) string {
 	}
 
 	// initialize traceserve if tracing enabled
-	/*
-		err := initGlobalTracer(flowName)
-		if err != nil {
-			log.Printf(err.Error())
-		}*/
+	err := initGlobalTracer(flowName)
+	if err != nil {
+		log.Printf(err.Error())
+	}
 
 	// Pipeline Execution Steps
 	{
@@ -890,14 +860,6 @@ func handleWorkflow(data []byte) string {
 		// get the data from dataStoretore
 		if fhandler.partial && useIntermediateStorage() {
 
-			/*
-				switch fhandler.getPipeline().PipelineType {
-				case sdk.TYPE_CHAIN:
-					data, gerr = getChainIntermediateData(fhandler, context, data)
-				case sdk.TYPE_DAG:
-					data, gerr = getDagIntermediateData(fhandler, context, data)
-				}
-			*/
 			data, gerr = getDagIntermediateData(fhandler, context, data)
 
 			if gerr != nil {
@@ -934,10 +896,10 @@ func handleWorkflow(data []byte) string {
 	}
 
 	// stop req span if request has finished
-	//stopReqSpan()
+	stopReqSpan()
 
 	// flash any pending trace item if tracing enabled
-	//flushTracer()
+	flushTracer()
 
 	return string(resp)
 }

@@ -1,7 +1,12 @@
 package faasflow
 
 import (
+	"fmt"
 	sdk "github.com/s8sg/faas-flow/sdk"
+)
+
+var (
+	INVAL_OPTION = fmt.Errorf("invalid option specified")
 )
 
 // CreateDag creates a new dag definition
@@ -13,14 +18,15 @@ func CreateDag() *DagFlow {
 	return dag
 }
 
-// AppendDag generalizes a seperate dag by appending its properties into current dag
-// provided dag should be mutually exclusive
+// AppendDag generalizes a seperate dag by appending its properties into current dag.
+// Provided dag should be mutually exclusive
 func (this *DagFlow) AppendDag(dag *DagFlow) error {
 	return this.udag.Append(dag.udag)
 }
 
 // AddVertex add a new vertex by id
-// If exist overrides the vertex settings
+// If exist overrides the vertex settings.
+// Allowed option: Serializer, ForEach
 func (this *DagFlow) AddVertex(vertex string, opts ...Option) {
 	node := this.udag.GetNode(vertex)
 	if node == nil {
@@ -37,10 +43,11 @@ func (this *DagFlow) AddVertex(vertex string, opts ...Option) {
 	}
 }
 
-// AddDag composites a seperate dag as a subdag to the given vertex
-// if vertex already exist it will replace the existing definition
-// if not new vertex will be created
-func (this *DagFlow) AddDag(vertex string, dag *DagFlow) error {
+// AddSubDag composites a seperate dag as a subdag to the given vertex.
+// If vertex already exist it will override the existing definition,
+// If not new vertex will be created.
+// When a vertex is dag, operations are ommited.
+func (this *DagFlow) AddSubDag(vertex string, dag *DagFlow) error {
 
 	node := this.udag.GetNode(vertex)
 
@@ -48,6 +55,62 @@ func (this *DagFlow) AddDag(vertex string, dag *DagFlow) error {
 		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
 	}
 	return node.AddSubDag(dag.udag)
+}
+
+// AddForEachDag composites a seperate dag as a subdag which executes for each value
+// If vertex already exist it will override the existing definition,
+// If not new vertex will be created.
+// When a vertex is dag, operations are ommited.
+// foreach: ForEach Option
+func (this *DagFlow) AddForEachDag(vertex string, dag *DagFlow, foreach Option) error {
+	node := this.udag.GetNode(vertex)
+	if node == nil {
+		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
+	}
+	o := &Options{}
+	foreach(o)
+	if o.foreach == nil {
+		node.AddForEach(o.foreach)
+	} else {
+		return INVAL_OPTION
+	}
+	if o.serializer == nil {
+		node.AddSubSerializer(o.serializer)
+	} else {
+		return INVAL_OPTION
+	}
+	return node.AddSubDag(dag.udag)
+}
+
+// AddConditionalDag composites multiple seperate dag as a subdag which executes for a conditions matched
+// If vertex already exist it will override the existing definition,
+// If not new vertex will be created.
+// When a vertex is dag, operations are ommited.
+// condition: Condition Option
+func (this *DagFlow) AddConditionalDags(vertex string, subdags map[string]*DagFlow, condition Option) error {
+	node := this.udag.GetNode(vertex)
+	if node == nil {
+		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
+	}
+	o := &Options{}
+	condition(o)
+	if o.condition == nil {
+		node.AddCondition(o.condition)
+	} else {
+		return INVAL_OPTION
+	}
+	if o.serializer == nil {
+		node.AddSubSerializer(o.serializer)
+	} else {
+		return INVAL_OPTION
+	}
+	for conditionKey, dag := range subdags {
+		err := node.AddConditionalDag(conditionKey, dag.udag)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // AddModifier adds a new modifier to the given vertex
