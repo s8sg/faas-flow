@@ -5,12 +5,35 @@ import (
 	"strings"
 )
 
+// generateOperationKey generate a unique key for an operation
+func generateOperationKey(dagId string, nodeIndex int, opsIndex int, operation *Operation) string {
+	operationStr := ""
+	switch {
+	case operation.Function != "":
+		operationStr = "func-" + operation.Function
+	case operation.CallbackUrl != "":
+		operationStr = "callback-" +
+			operation.CallbackUrl[len(operation.CallbackUrl)-4:]
+	default:
+		operationStr = "modifier"
+	}
+	operationKey := ""
+	if dagId != "0" {
+		operationKey = fmt.Sprintf("%s.%d.%d-%s", dagId, nodeIndex, opsIndex, operationStr)
+	} else {
+		operationKey = fmt.Sprintf("%d.%d-%s", nodeIndex, opsIndex, operationStr)
+	}
+	return operationKey
+}
+
+// generateDag populate a string buffer for a dag and returns the last operation ID
 func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 	lastOperation := ""
 	// generate nodes
 	for _, node := range dag.nodes {
 
 		sb.WriteString(fmt.Sprintf("\n%ssubgraph cluster_%d {", indent, node.index))
+
 		nodeIndexStr := fmt.Sprintf("%d", node.index-1)
 		if nodeIndexStr != node.Id {
 			sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%d-%s\";", indent, node.index, node.Id))
@@ -27,17 +50,7 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 			previousOperation = generateDag(subdag, sb, indent+"\t")
 		} else {
 			for opsindex, operation := range node.Operations() {
-				operationStr := ""
-				switch {
-				case operation.Function != "":
-					operationStr = "func-" + operation.Function
-				case operation.CallbackUrl != "":
-					operationStr = "callback-" +
-						operation.CallbackUrl[len(operation.CallbackUrl)-4:]
-				default:
-					operationStr = "modifier"
-				}
-				operationKey := fmt.Sprintf("%s.%d.%d-%s", dag.Id, node.index, opsindex+1, operationStr)
+				operationKey := generateOperationKey(dag.Id, node.index, opsindex+1, operation)
 
 				switch {
 				case len(node.children) == 0 &&
@@ -70,7 +83,6 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 				// TODO: Later change to check if 1:N
 
 				relation = "1:1"
-				operationStr := ""
 				var operation *Operation
 
 				nextOperationNode := child
@@ -86,18 +98,7 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 					operation = nextOperationNode.Operations()[0]
 				}
 
-				switch {
-				case operation.Function != "":
-					operationStr = "func-" + operation.Function
-				case operation.CallbackUrl != "":
-					operationStr = "callback-" +
-						operation.CallbackUrl[len(operation.CallbackUrl)-4:]
-				default:
-					operationStr = "modifier"
-				}
-
-				childOperationKey := fmt.Sprintf("%s.%d.1-%s",
-					nextOperationDag.Id, nextOperationNode.index, operationStr)
+				childOperationKey := generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 1, operation)
 
 				if node.GetForwarder(child.Id) == nil {
 					relation = relation + " - nodata"

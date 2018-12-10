@@ -298,8 +298,14 @@ func (this *Node) AddSubDag(subDag *Dag) error {
 	this.subDag = subDag
 	// Set the node the subdag belongs to
 	subDag.parentNode = this
-	// Dag Id : <parent-dag-id>-<parent-node-id>
-	subDag.Id = fmt.Sprintf("%s.%s", this.parentDag.Id, this.Id)
+
+	if this.parentDag.Id != "0" {
+		// Dag Id : <parent-dag-id>-<parent-node-index>
+		subDag.Id = fmt.Sprintf("%s.%d", this.parentDag.Id, this.index)
+	} else {
+		// Dag Id : <parent-dag-id>-<parent-node-index>
+		subDag.Id = fmt.Sprintf("%d", this.index)
+	}
 
 	return nil
 }
