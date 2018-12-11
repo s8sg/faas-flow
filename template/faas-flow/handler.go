@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	// A signature of SHA265 equivalent of "github.com/s8sg/faasflow"
-	defaultHmacKey = "D9D98C7EBAA7267BCC4F0280FC5BA4273F361B00D422074985A41AE1338F1B61"
+	// A signature of SHA265 equivalent of "github.com/s8sg/faas-flow"
+	defaultHmacKey = "71F1D3011F8E6160813B4997BA29856744375A7F26D427D491E1CCABD4627E7C"
 )
 
 var (
@@ -54,7 +54,7 @@ func newWorkflowHandler(gateway string, name string, id string,
 
 	fhandler := &flowHandler{}
 
-	flow := faasflow.NewFaasflow()
+	flow := faasflow.NewFaasflow(name)
 
 	fhandler.flow = flow
 
@@ -218,7 +218,8 @@ func buildCallbackRequest(callbackUrl string, data []byte, params map[string][]s
 
 // createContext create a context from request handler
 func createContext(fhandler *flowHandler) *faasflow.Context {
-	context := faasflow.CreateContext(fhandler.id, fhandler.getPipeline().DagExecutionPosition,
+	// TODO: Provide Context
+	context := faasflow.CreateContext(fhandler.id, "",
 		flowName, fhandler.dataStore)
 	context.Query, _ = url.ParseQuery(fhandler.query)
 
@@ -275,7 +276,7 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 		fhandler.partial = false
 
 		// trace req - mark as start of req
-		startReqSpan(requestId)
+		// startReqSpan(requestId)
 	default:
 		// Partial Request
 		// Get the request ID
@@ -308,7 +309,7 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 		fhandler.partial = true
 
 		// Continue request span
-		continueReqSpan(requestId)
+		// continueReqSpan(requestId)
 	}
 
 	return
@@ -379,15 +380,27 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 	var err error
 
 	pipeline := fhandler.getPipeline()
-	node := pipeline.GetCurrentNode()
 
-	log.Printf("[Request `%s`] Executing node %s", fhandler.id, pipeline.DagExecutionPosition)
+	currentNode, currentDag := pipeline.GetCurrentNodeDag()
+
+	// recurse to the subdag
+	for true {
+		subdag := currentNode.SubDag()
+		if subdag == nil {
+			break
+		}
+		currentDag = subdag
+		currentNode = currentDag.GetInitialNode()
+		pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_INCREMENT, currentNode.Id)
+	}
+
+	log.Printf("[Request `%s`] Executing node %s", fhandler.id, currentNode.Id)
 
 	// trace node - mark as start of node
-	startNodeSpan(pipeline.DagExecutionPosition, fhandler.id)
+	startNodeSpan(currentNode.Id, fhandler.id)
 
 	// Execute all operation
-	for _, operation := range node.Operations() {
+	for _, operation := range currentNode.Operations() {
 
 		switch {
 		// If function
@@ -401,12 +414,12 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 			}
 			if err != nil {
 				err = fmt.Errorf("Node(%s), Function(%s), error: function execution failed, %v",
-					pipeline.DagExecutionPosition, operation.Function, err)
+					currentNode.Id, operation.Function, err)
 				if operation.FailureHandler != nil {
 					err = operation.FailureHandler(err)
 				}
 				if err != nil {
-					stopNodeSpan(pipeline.DagExecutionPosition)
+					stopNodeSpan(currentNode.Id)
 					return nil, err
 				}
 			}
@@ -421,12 +434,12 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 			}
 			if err != nil {
 				err = fmt.Errorf("Node(%s), Callback(%s), error: callback failed, %v",
-					pipeline.DagExecutionPosition, operation.CallbackUrl, err)
+					currentNode.Id, operation.CallbackUrl, err)
 				if operation.FailureHandler != nil {
 					err = operation.FailureHandler(err)
 				}
 				if err != nil {
-					stopNodeSpan(pipeline.DagExecutionPosition)
+					stopNodeSpan(currentNode.Id)
 					return nil, err
 				}
 			}
@@ -440,8 +453,9 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 				result, err = operation.Mod(result)
 			}
 			if err != nil {
+				stopNodeSpan(currentNode.Id)
 				err = fmt.Errorf("Node(%s), error: Failed at modifier, %v",
-					pipeline.DagExecutionPosition, err)
+					currentNode.Id, err)
 				return nil, err
 			}
 			if result == nil {
@@ -450,10 +464,10 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 		}
 	}
 
-	log.Printf("[Request `%s`] Node %s completed successfully", fhandler.id, pipeline.DagExecutionPosition)
+	log.Printf("[Request `%s`] Node %s completed successfully", fhandler.id, currentNode.Id)
 
 	// trace node - mark as end of node
-	stopNodeSpan(pipeline.DagExecutionPosition)
+	stopNodeSpan(currentNode.Id)
 
 	return result, nil
 }
@@ -514,90 +528,109 @@ func forwardAsync(fhandler *flowHandler, currentExecutionPosition string, result
 
 // handleResponse Handle request Response for a faasflow perform response/asyncforward
 func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []byte) ([]byte, error) {
+	var currentNode *sdk.Node
+	var currentDag *sdk.Dag
+	var nextNodes []*sdk.Node
 
 	// get pipeline
 	pipeline := fhandler.getPipeline()
 
-	switch {
+	currentNode, currentDag = pipeline.GetCurrentNodeDag()
 
-	// Check if pipeline has only one node or if the pipeline has completed excution return
-	case pipeline.CountNodes() == 1 || pipeline.GetNextNodes() == nil:
-		fhandler.finished = true
-		return result, nil
-
-	default:
-		nodes := pipeline.GetNextNodes()
-
-		// Check if pipeline is active
-		if pipeline.PipelineType == sdk.TYPE_DAG && !isActive(fhandler) {
-			return []byte(""), fmt.Errorf("flow has been terminated")
-		}
-
-		currentExecutionPosition := pipeline.DagExecutionPosition
-
-		for _, node := range nodes {
-			// Get node Indegree
-			inDegree := node.Indegree()
-
-			intermediateData := result
-
-			// If intermediate storage is enabled
-			if useIntermediateStorage() {
-				key := fmt.Sprintf("intermediate-result-%s-%s", currentExecutionPosition, node.Id)
-				serr := context.Set(key, intermediateData)
-				if serr != nil {
-					return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
-				}
-				log.Printf("[Request `%s`] Intermidiate result from Node %s to %s stored as %s",
-					fhandler.id, currentExecutionPosition, node.Id, key)
-				intermediateData = result
-			}
-
-			// if indegree is 1 forward the request
-			if inDegree == 1 {
-				// Set the DagExecutionPosition as of next Node
-				pipeline.DagExecutionPosition = node.Id
-				// forward the flow request
-				resp, forwardErr := forwardAsync(fhandler, currentExecutionPosition, intermediateData)
-				if forwardErr != nil {
-					pipeline.DagExecutionPosition = currentExecutionPosition
-					return nil, fmt.Errorf("Node(%s): error: %v, %s, url %s",
-						node.Id, forwardErr,
-						string(resp), fhandler.asyncUrl)
-				}
-
-				log.Printf("[Request `%s`] Async request submitted for Node %s",
-					fhandler.id, node.Id)
-
+	// Check if the pipeline has completed excution return
+	for true {
+		nextNodes = currentNode.Children()
+		// If no nodes left
+		if nextNodes == nil {
+			// If depth 0 then pipeline has finished
+			if pipeline.ExecutionDepth == 0 {
+				fhandler.finished = true
+				// TODO: Return empty for multinode
+				return result, nil
 			} else {
-				// Update the state of indegree completion and get the updated state
-				inDegreeUpdatedCount, err := fhandler.stateStore.IncrementCounter(node.Id)
-				if err != nil {
-					return []byte(""), fmt.Errorf("failed to update inDegree counter for node %s", node.Id)
-				}
-				// If all indegree has finished call that node
-				if inDegree <= inDegreeUpdatedCount {
-					// Set the DagExecutionPosition as of next Node
-					pipeline.DagExecutionPosition = node.Id
-					// forward the flow request
-					resp, forwardErr := forwardAsync(fhandler, currentExecutionPosition, intermediateData)
-					if forwardErr != nil {
-						pipeline.DagExecutionPosition = currentExecutionPosition
-						return nil, fmt.Errorf("Node(%s): error: %v, %s, url %s",
-							node.Id, forwardErr,
-							string(resp), fhandler.asyncUrl)
-					}
-
-					log.Printf("[Request `%s`] Async request submitted for Node %s",
-						fhandler.id, node.Id)
-				} else {
-					log.Printf("[Request `%s`] request for Node %s is delayed, completed indegree: %d/%d",
-						fhandler.id, node.Id, inDegreeUpdatedCount, inDegree)
-				}
+				// Update position to upper depth
+				currentNode = currentDag.GetParentNode()
+				currentDag = currentNode.ParentDag()
+				pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_DECREMENT, currentNode.Id)
+				continue
 			}
 		}
-		pipeline.DagExecutionPosition = currentExecutionPosition
+		break
 	}
+
+	// Check if pipeline is active
+	if pipeline.PipelineType == sdk.TYPE_DAG && !isActive(fhandler) {
+		return []byte(""), fmt.Errorf("flow has been terminated")
+	}
+
+	for _, node := range nextNodes {
+
+		var intermediateData []byte
+
+		// Get node Indegree
+		inDegree := node.Indegree()
+
+		// Get forwarder for clind node
+		forwarder := currentNode.GetForwarder(node.Id)
+		if forwarder != nil {
+			intermediateData = forwarder(result)
+		} else {
+			// in case NoneForward forwarder in nil
+			intermediateData = []byte{}
+		}
+
+		// If intermediate storage is enabled store data to intermediate storage
+		if forwarder != nil && useIntermediateStorage() {
+			// <dagid>-<currentnodeid>-<childnodeid>
+			key := fmt.Sprintf("%s-%s-%s", currentDag.Id, currentNode.Id, node.Id)
+			serr := context.Set(key, intermediateData)
+			if serr != nil {
+				return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
+			}
+			log.Printf("[Request `%s`] Intermidiate result from Node %s to %s stored as %s",
+				fhandler.id, currentNode.Id, node.Id, key)
+
+			// intermediateData is set to blank once its stored in storage
+			intermediateData = []byte("")
+		}
+
+		// if indegree is > 1 then use statestore to get request state
+		if inDegree > 1 {
+			key := fmt.Sprintf("%s-%s", currentDag.Id, node.Id)
+			// Update the state of indegree completion and get the updated state
+			inDegreeUpdatedCount, err := fhandler.stateStore.IncrementCounter(key)
+			if err != nil {
+				return []byte(""), fmt.Errorf("failed to update inDegree counter for node %s", node.Id)
+			}
+
+			// If all indegree has finished call that node
+			if inDegree > inDegreeUpdatedCount {
+				log.Printf("[Request `%s`] request for Node %s is delayed, completed indegree: %d/%d",
+					fhandler.id, node.Id, inDegreeUpdatedCount, inDegree)
+				continue
+			}
+		}
+
+		// Set the DagExecutionPosition as of next Node
+		pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_SAME, node.Id)
+
+		// forward the flow request
+		resp, forwardErr := forwardAsync(fhandler, currentNode.Id, intermediateData)
+		if forwardErr != nil {
+			// reset dag execution position
+			pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_SAME, currentNode.Id)
+			return nil, fmt.Errorf("Node(%s): error: %v, %s, url %s",
+				node.Id, forwardErr,
+				string(resp), fhandler.asyncUrl)
+		}
+
+		log.Printf("[Request `%s`] Async request submitted for Node %s",
+			fhandler.id, node.Id)
+
+	}
+
+	// reset dag execution position
+	pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_SAME, currentNode.Id)
 
 	return []byte(""), nil
 }
@@ -652,47 +685,34 @@ func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) 
 	log.Fatalf("[Request `%s`] Failed, %v", fhandler.id, err)
 }
 
-// chainIntermediateData gets the intermediate data if intermediateStorage is enabled
-func chainIntermediateData(fhandler *flowHandler, context *faasflow.Context, data []byte) ([]byte, error) {
-
-	currentNode := fhandler.getPipeline().GetCurrentNode()
-	depedency := currentNode.Dependency()[0]
-
-	key := fmt.Sprintf("intermediate-result-%s-%s", depedency.Id, currentNode.Id)
-	idata, gerr := context.GetBytes(key)
-	if gerr != nil {
-		gerr := fmt.Errorf("key %s, %v", key, gerr)
-		return data, gerr
-	}
-	log.Printf("[Request `%s`] Intermidiate result form Node %s to Node %s retrived from %s",
-		fhandler.id, depedency.Id, fhandler.getPipeline().DagExecutionPosition, key)
-	context.Del(key)
-	data = idata
-
-	context.NodeInput[depedency.Id] = data
-
-	return data, nil
-}
-
-// dagIntermediateData gets the intermediate data from earlier vertex
-func dagIntermediateData(handler *flowHandler, context *faasflow.Context, data []byte) ([]byte, error) {
-	currentNode := handler.getPipeline().GetCurrentNode()
+// getDagIntermediateData gets the intermediate data from earlier vertex
+func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, data []byte) ([]byte, error) {
+	pipeline := handler.getPipeline()
+	currentNode, dag := pipeline.GetCurrentNodeDag()
 	dataMap := make(map[string][]byte)
 	dependencies := currentNode.Dependency()
 
 	for _, node := range dependencies {
-		key := fmt.Sprintf("intermediate-result-%s-%s", node.Id, currentNode.Id)
+
+		// Skip if NoDataForward is specified
+		if node.GetForwarder(currentNode.Id) == nil {
+			continue
+		}
+
+		// <dagid>-<dependencynodeid>-<currentnodeid>
+		key := fmt.Sprintf("%s-%s-%s", dag.Id, node.Id, currentNode.Id)
 		idata, gerr := context.GetBytes(key)
 		if gerr != nil {
 			gerr := fmt.Errorf("key %s, %v", key, gerr)
 			return data, gerr
 		}
 		log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s retrived from %s",
-			handler.id, node.Id, handler.getPipeline().DagExecutionPosition, key)
+			handler.id, node.Id, currentNode.Id, key)
 		context.Del(key)
 		dataMap[node.Id] = idata
 	}
 
+	// Avail the non serialized input at context
 	context.NodeInput = dataMap
 
 	// If it has only one indegree assign the result as a data
@@ -702,12 +722,12 @@ func dagIntermediateData(handler *flowHandler, context *faasflow.Context, data [
 
 	serializer := currentNode.GetSerializer()
 	if serializer != nil {
-		idata, serr := serializer(dataMap)
+		sdata, serr := serializer(dataMap)
 		if serr != nil {
 			serr := fmt.Errorf("failed to serialize data, error %v", serr)
 			return data, serr
 		}
-		data = idata
+		data = sdata
 	}
 
 	return data, nil
@@ -805,12 +825,19 @@ func handleWorkflow(data []byte) string {
 			log.Fatalf("[Request `%s`] Failed to define flow, %v", fhandler.id, err)
 		}
 
-		// In case of DAG DataStore and StateStore need to be external
+		// VALIDATE: Validate Pipeline Definition
+		// Dag need to be valid
+		err = fhandler.getPipeline().Dag.Validate()
+		if err != nil {
+			log.Fatalf("[Request `%s`] Invalid dag, %v", fhandler.id, err)
+		}
+
+		// For DAG, DataStore and StateStore need to be external
 		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG && !storeOverride {
 			log.Fatalf("[Request `%s`] DAG flow need external State and Data Store", fhandler.id)
 		}
 
-		// For a new dag pipeline Create the vertex in
+		// For a new dag pipeline Create the vertex in stateStore
 		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG && !fhandler.partial {
 			err = fhandler.stateStore.Create(fhandler.getPipeline().GetAllNodesId())
 			if err != nil {
@@ -822,9 +849,10 @@ func handleWorkflow(data []byte) string {
 			}
 		}
 
-		// If not a partial request set the execution position
+		// If not a partial request set the execution position to initial node
 		if !fhandler.partial {
-			fhandler.getPipeline().DagExecutionPosition = fhandler.getPipeline().GetInitialNodeId()
+			// On the 0th depth set the initial node as the current execution position
+			fhandler.getPipeline().UpdatePipelineExecutionPosition(sdk.DEPTH_SAME, fhandler.getPipeline().GetInitialNodeId())
 		}
 
 		// GETDATA: Get intermediate data from data store if not using default
@@ -832,12 +860,7 @@ func handleWorkflow(data []byte) string {
 		// get the data from dataStoretore
 		if fhandler.partial && useIntermediateStorage() {
 
-			switch fhandler.getPipeline().PipelineType {
-			case sdk.TYPE_CHAIN:
-				data, gerr = chainIntermediateData(fhandler, context, data)
-			case sdk.TYPE_DAG:
-				data, gerr = dagIntermediateData(fhandler, context, data)
-			}
+			data, gerr = getDagIntermediateData(fhandler, context, data)
 
 			if gerr != nil {
 				gerr := fmt.Errorf("failed to retrive intermediate result, error %v", gerr)
@@ -882,8 +905,10 @@ func handleWorkflow(data []byte) string {
 }
 
 // handleDotGraph() handle the dot graph request
-func handleDotGraph() string {
-	fhandler := newWorkflowHandler("", "", "", "", nil)
+func handleDotGraph() string { // Get flow name
+	flowName = getWorkflowName()
+
+	fhandler := newWorkflowHandler("", flowName, "", "", nil)
 	context := createContext(fhandler)
 
 	err := function.Define(fhandler.flow, context)

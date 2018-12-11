@@ -11,7 +11,7 @@ type FuncErrorHandler func(error) error
 // Modifier definition for Modify() call
 type Modifier func([]byte) ([]byte, error)
 
-// RespHandler definition for OnResponse() option on function
+// RespHandler definition for OnResponse() option on operation
 type RespHandler func(*http.Response) ([]byte, error)
 
 type Operation struct {
@@ -24,62 +24,62 @@ type Operation struct {
 	Header map[string]string   // The HTTP call header
 	Param  map[string][]string // The Parameter in Query string
 
-	FailureHandler FuncErrorHandler // The Failure handler of the function
-	OnResphandler  RespHandler      // The http Resp handler of the function
+	FailureHandler FuncErrorHandler // The Failure handler of the operation
+	OnResphandler  RespHandler      // The http Resp handler of the operation
 }
 
-// Create a function with execution name
+// CreateFunction Create a function with execution name
 func CreateFunction(name string) *Operation {
-	function := &Operation{}
-	function.Function = name
-	function.Header = make(map[string]string)
-	function.Param = make(map[string][]string)
-	return function
+	operation := &Operation{}
+	operation.Function = name
+	operation.Header = make(map[string]string)
+	operation.Param = make(map[string][]string)
+	return operation
 }
 
-// Create a modifier (it is encapsulated as a function)
+// CreateModifier Create a modifier
 func CreateModifier(mod Modifier) *Operation {
-	function := &Operation{}
-	function.Mod = mod
-	return function
+	operation := &Operation{}
+	operation.Mod = mod
+	return operation
 }
 
-// Create a callback (it is encapsulated as a function)
+// CreateCallback Create a callback
 func CreateCallback(url string) *Operation {
-	function := &Operation{}
-	function.CallbackUrl = url
-	function.Header = make(map[string]string)
-	function.Param = make(map[string][]string)
-	return function
+	operation := &Operation{}
+	operation.CallbackUrl = url
+	operation.Header = make(map[string]string)
+	operation.Param = make(map[string][]string)
+	return operation
 }
 
-func (function *Operation) Addheader(key string, value string) {
+func (operation *Operation) Addheader(key string, value string) {
 	lKey := strings.ToLower(key)
-	function.Header[lKey] = value
+	operation.Header[lKey] = value
 }
 
-func (function *Operation) Addparam(key string, value string) {
-	array, ok := function.Param[key]
+func (operation *Operation) Addparam(key string, value string) {
+	array, ok := operation.Param[key]
 	if !ok {
-		function.Param[key] = make([]string, 1)
-		function.Param[key][0] = value
+		operation.Param[key] = make([]string, 1)
+		operation.Param[key][0] = value
 	} else {
-		function.Param[key] = append(array, value)
+		operation.Param[key] = append(array, value)
 	}
 }
 
-func (function *Operation) AddFailureHandler(handler FuncErrorHandler) {
-	function.FailureHandler = handler
+func (operation *Operation) AddFailureHandler(handler FuncErrorHandler) {
+	operation.FailureHandler = handler
 }
 
-func (function *Operation) AddResponseHandler(handler RespHandler) {
-	function.OnResphandler = handler
+func (operation *Operation) AddResponseHandler(handler RespHandler) {
+	operation.OnResphandler = handler
 }
 
-func (function *Operation) GetParams() map[string][]string {
-	return function.Param
+func (operation *Operation) GetParams() map[string][]string {
+	return operation.Param
 }
 
-func (function *Operation) GetHeaders() map[string]string {
-	return function.Header
+func (operation *Operation) GetHeaders() map[string]string {
+	return operation.Header
 }

@@ -12,6 +12,10 @@ type Options struct {
 	failureHandler  sdk.FuncErrorHandler
 	responseHandler sdk.RespHandler
 	serializer      sdk.Serializer
+	forwarder       sdk.Forwarder
+	foreach         sdk.ForEach
+	condition       sdk.Condition
+	noforwarder     bool
 }
 
 type Workflow struct {
@@ -27,6 +31,8 @@ type Option func(*Options)
 var (
 	// Sync can be used instead of SyncCall
 	Sync = SyncCall()
+	// NoneData specify a edge doesn't forwards a data
+	NoneData = NoneDataForward()
 	// Denote if last node doesn't contain any function call
 	emptyNode = false
 	// the reference of lastnode when applied as chain
@@ -42,28 +48,60 @@ func (o *Options) reset() {
 	o.responseHandler = nil
 }
 
-// Serializer specify a data serializer
+// ForEach denotes the vertex will be executed in parralel for each value returned.
+// serializer serializes all outputs into one
+func ForEach(foreach sdk.ForEach, serializer sdk.Serializer) Option {
+	return func(o *Options) {
+		o.foreach = foreach
+		o.serializer = serializer
+	}
+}
+
+// Condition denotes the corresponding subdags will be executed for each condition matched
+// serializer serializes all dags outputs into one
+func Condition(condition sdk.Condition, serializer sdk.Serializer) Option {
+	return func(o *Options) {
+		o.condition = condition
+		o.serializer = serializer
+	}
+}
+
+// NoneDataForward denotes a edge doesn't forwards a data
+func NoneDataForward() Option {
+	return func(o *Options) {
+		o.noforwarder = true
+	}
+}
+
+// Forwarder encodes request based on need for children vertex
+func Forwarder(forwarder sdk.Forwarder) Option {
+	return func(o *Options) {
+		o.forwarder = forwarder
+	}
+}
+
+// Serializer serialize multiple inputs to a node into one
 func Serializer(serializer sdk.Serializer) Option {
 	return func(o *Options) {
 		o.serializer = serializer
 	}
 }
 
-// SyncCall Set sync flag
+// SyncCall Set sync flag, denotes a call to be in sync
 func SyncCall() Option {
 	return func(o *Options) {
 		o.sync = true
 	}
 }
 
-// Header Specify a header
+// Header Specify a header in a http call
 func Header(key, value string) Option {
 	return func(o *Options) {
 		o.header[key] = value
 	}
 }
 
-// Query Specify a query parameter
+// Query Specify a query parameter in a http call
 func Query(key string, value ...string) Option {
 	return func(o *Options) {
 		array := []string{}
@@ -211,10 +249,12 @@ func (flow *Workflow) Apply(function string, opts ...Option) *Workflow {
 
 // ExecuteDag apply a predefined dag
 // All operation inside dag are async
-// Note: If applied dag, chain execution is not supported
-func (flow *Workflow) ExecuteDag(dag *DagFlow) {
+// returns error is dag is not valid
+// Note: If executing dag chain gets overridden
+func (flow *Workflow) ExecuteDag(dag *DagFlow) error {
 	pipeline := flow.pipeline
 	pipeline.SetDag(dag.udag)
+	return dag.udag.Validate()
 }
 
 // OnFailure set a failure handler routine for the pipeline
@@ -231,9 +271,9 @@ func (flow *Workflow) Finally(handler sdk.PipelineHandler) *Workflow {
 }
 
 // NewFaasflow initiates a flow with a pipeline
-func NewFaasflow() *Workflow {
+func NewFaasflow(name string) *Workflow {
 	flow := &Workflow{}
-	flow.pipeline = sdk.CreatePipeline()
+	flow.pipeline = sdk.CreatePipeline(name)
 	return flow
 }
 
