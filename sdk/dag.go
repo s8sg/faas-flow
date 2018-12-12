@@ -56,6 +56,7 @@ type Node struct {
 	conditionalDags map[string]*Dag // Conditional subdags
 	operations      []*Operation    // The list of operations
 
+	dynamic       bool                 // Denotes if the node is dynamic
 	serializer    Serializer           // The serializer serialize multiple inputs to a node into one
 	foreach       ForEach              // If specified foreach allows to execute the vertex in parralel
 	condition     Condition            // If specified condition allows to execute only selected subdag
@@ -84,10 +85,6 @@ func NewDag() *Dag {
 // Its a way to define and reuse subdags
 // append causes disconnected dag which must be linked with edge in order to execute
 func (this *Dag) Append(dag *Dag) error {
-	err := dag.Validate()
-	if err != nil {
-		return err
-	}
 	for nodeId, node := range dag.nodes {
 		_, duplicate := this.nodes[nodeId]
 		if duplicate {
@@ -180,7 +177,7 @@ func (this *Dag) GetEndNode() *Node {
 }
 
 // Validate validates a dag and all subdag as per faas-flow dag requirments
-// A validated graph has only one initialNode and EndNode set
+// A validated graph has only one initialNode and EndNode
 func (this *Dag) Validate() error {
 	initialNodeCount := 0
 	endNodeCount := 0
@@ -196,6 +193,12 @@ func (this *Dag) Validate() error {
 		}
 		if b.subDag != nil {
 			err := b.subDag.Validate()
+			if err != nil {
+				return err
+			}
+		}
+		for _, cdag := range b.conditionalDags {
+			err := cdag.Validate()
 			if err != nil {
 				return err
 			}
@@ -218,6 +221,10 @@ func (this *Dag) GetNodes() []string {
 	for _, b := range this.nodes {
 		nodeId := this.Id + "-" + b.Id
 		nodes = append(nodes, nodeId)
+		// excludes the dynamic subdag
+		if b.dynamic {
+			continue
+		}
 		if b.subDag != nil {
 			subDagNodes := b.subDag.GetNodes()
 			nodes = append(nodes, subDagNodes...)
@@ -266,6 +273,11 @@ func (this *Node) SubDag() *Dag {
 	return this.subDag
 }
 
+// Dynamic checks if the node is dynamic
+func (this *Node) Dynamic() bool {
+	return this.dynamic
+}
+
 // ParentDag returns the parent dag of the node
 func (this *Node) ParentDag() *Dag {
 	return this.parentDag
@@ -284,11 +296,13 @@ func (this *Node) AddSerializer(serializer Serializer) {
 // AddForEach add a serializer to a node
 func (this *Node) AddForEach(foreach ForEach) {
 	this.foreach = foreach
+	this.dynamic = true
 }
 
 // AddCondition add a condition to a node
 func (this *Node) AddCondition(condition Condition) {
 	this.condition = condition
+	this.dynamic = true
 }
 
 // AddSubSerializer add a foreach serializer to a node
@@ -307,6 +321,7 @@ func (this *Node) AddSubDag(subDag *Dag) error {
 	parentDag := this.parentDag
 	// Continue till there is no parent dag
 	for parentDag != nil {
+		// check if recursive inclusion
 		if parentDag == subDag {
 			return ERR_RECURSIVE_DEP
 		}
@@ -341,6 +356,7 @@ func (this *Node) AddConditionalDag(condition string, dag *Dag) error {
 	parentDag := this.parentDag
 	// Continue till there is no parent dag
 	for parentDag != nil {
+		// check if recursive inclusion
 		if parentDag == dag {
 			return ERR_RECURSIVE_DEP
 		}
@@ -360,6 +376,7 @@ func (this *Node) AddConditionalDag(condition string, dag *Dag) error {
 	this.conditionalDags[condition] = dag
 	// Set the node the subdag belongs to
 	dag.parentNode = this
+
 	if this.parentDag.Id != "0" {
 		// Dag Id : <parent-dag-id>-<parent-node-index>
 		dag.Id = fmt.Sprintf("%s.%d.%s", this.parentDag.Id, this.index, condition)
@@ -379,4 +396,27 @@ func (this *Node) GetSerializer() Serializer {
 // GetForwarder gets a forwarder for a children
 func (this *Node) GetForwarder(children string) Forwarder {
 	return this.forwarder[children]
+}
+
+// GetSubSerializer gets the subserializer for condition and foreach
+func (this *Node) GetSubSerializer() Serializer {
+	return this.subSerializer
+}
+
+// GetCondition get the condition function
+func (this *Node) GetCondition() Condition {
+	return this.condition
+}
+
+// GetForEach get the foreach function
+func (this *Node) GetForEach() ForEach {
+	return this.foreach
+}
+
+// GetConditionalDag get the sundag for a specific condition
+func (this *Node) GetConditionalDag(condition string) *Dag {
+	if this.conditionalDags == nil {
+		return nil
+	}
+	return this.conditionalDags[condition]
 }

@@ -378,6 +378,7 @@ func executeCallback(pipeline *sdk.Pipeline, operation *sdk.Operation, data []by
 func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 	var result []byte
 	var err error
+	dynamic := false
 
 	pipeline := fhandler.getPipeline()
 
@@ -385,6 +386,9 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 
 	// recurse to the subdag
 	for true {
+		if currentNode.Dynamic() {
+			return request, nil
+		}
 		subdag := currentNode.SubDag()
 		if subdag == nil {
 			break
@@ -397,6 +401,7 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 	log.Printf("[Request `%s`] Executing node %s", fhandler.id, currentNode.Id)
 
 	// trace node - mark as start of node
+	// TODO: make Id same as of in dot graph
 	startNodeSpan(currentNode.Id, fhandler.id)
 
 	// Execute all operation
@@ -535,10 +540,20 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 	// get pipeline
 	pipeline := fhandler.getPipeline()
 
+	// Check if pipeline is active
+	if pipeline.PipelineType == sdk.TYPE_DAG && !isActive(fhandler) {
+		return []byte(""), fmt.Errorf("flow has been terminated")
+	}
+
 	currentNode, currentDag = pipeline.GetCurrentNodeDag()
 
 	// Check if the pipeline has completed excution return
+	// else change depth and continue executing
 	for true {
+		if currentNode.Dynamic() {
+			break
+		}
+		// Get the next nodes
 		nextNodes = currentNode.Children()
 		// If no nodes left
 		if nextNodes == nil {
@@ -558,12 +573,40 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 		break
 	}
 
-	// Check if pipeline is active
-	if pipeline.PipelineType == sdk.TYPE_DAG && !isActive(fhandler) {
-		return []byte(""), fmt.Errorf("flow has been terminated")
-	}
-
 	for _, node := range nextNodes {
+
+		// subresults and subdags
+		subresults := make(map[string][]byte)
+		subdags := make(map[string]*sdk.Dag)
+
+		// Check if its a dynamic dag
+		if node.Dynamic() {
+			condition := currentNode.GetCondition()
+			foreach := currentNode.GetForEach()
+			dependencyCount := 0
+			switch {
+			case condition != nil:
+				conditions := condition(result)
+				for _, conditionKey := range conditions {
+					subresults[conditionKey] = result
+					subdags[conditionKey] = currentNode.GetConditionalDag(conditionKey)
+					dependencyCount = dependencyCount + 1
+				}
+			case foreach != nil:
+				foreachResults := foreach(result)
+				subresults = foreachResults
+				for foreachKey, foreachResult := range foreachResults {
+					subdags[foreachKey] = currentNode.SubDag()
+					dependencyCount = dependencyCount + 1
+				}
+			}
+
+			for dynamicId, subdag := range subdags {
+				subresult := subresults[dynamicId]
+				subNode = subdag.GetInitialNode()
+				pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_INCREMENT, subNode)
+			}
+		}
 
 		var intermediateData []byte
 

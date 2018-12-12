@@ -30,6 +30,8 @@ type Pipeline struct {
 	ExecutionPosition map[string]string `json:"pipeline-execution-position"` // Denotes the node that is executing now
 	ExecutionDepth    int               `json:"pipeline-execution-depth"`    // Denotes the depth of subgraph its executing
 
+	DynamicDependencyCount map[string]int `json:"pipeline-dynamic-dependency-count"` // Denotes the no of dependency for a node
+
 	FailureHandler PipelineErrorHandler `json:"-"`
 	Finally        PipelineHandler      `json:"-"`
 }
@@ -43,7 +45,6 @@ func CreatePipeline(name string) *Pipeline {
 	pipeline.Dag.Id = name
 	pipeline.ExecutionPosition = make(map[string]string, 0)
 	pipeline.ExecutionDepth = 0
-	// pipeline.ExecutionPosition["0"] = name
 	return pipeline
 }
 
