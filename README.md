@@ -73,24 +73,24 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
      dag := faasflow.CreateDag()
-     dag.CreateModifierVertex("mod1", func(data []byte) ([]byte, error) {
+     dag.AddModifier("mod1", func(data []byte) ([]byte, error) {
      		// do something
 		return data, nil
      })
-     dag.CreateFunctionVertex("func1", "function_1_name")
-     dag.CreateFunctionVertex("func2", "function_2_name")
-     dag.CreateModifierVertex("mod2", func(data []byte) ([]byte, error) {
+     dag.AddFunction("func1", "function_1_name")
+     dag.AddFunction("func2", "function_2_name")
+     dag.AddModifier("mod2", func(data []byte) ([]byte, error) {
      		// do something
 		return data, nil
      })
-     dag.CreateCallbackVertex("callback", 
-                                    "storage.io/bucket?id=3345612358265349126&file=" + context.Query.Get("filename"),
-				    faasflow.Serializer(func(inputs map[string][]byte) ([]byte, error) {
+     // To Serialize multiple input the dag need be defined with a Serializer
+     dag.AddVertex("callback", faasflow.Serializer(func(inputs map[string][]byte) ([]byte, error) {
 				          mod2Data := inputs["mod2"]
 					  func2Data := inputs["func2"]
 				          // Serialize input for callback
 					  return data, nil
 				    }))
+     dag.AddCallback("callback", "storage.io/bucket?id=3345612358265349126&file=" + context.Query.Get("filename"))
 				    
 
      dag.AddEdge("mod1", "func1")
