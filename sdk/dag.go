@@ -21,8 +21,8 @@ var (
 	DefaultForwarder = func(data []byte) []byte { return data }
 )
 
-// Serializer defintion for the data serilizer of nodes
-type Serializer func(map[string][]byte) ([]byte, error)
+// Aggregator defintion for the data agregator of nodes
+type Aggregator func(map[string][]byte) ([]byte, error)
 
 // Forwarder defintion for the data forwarder of nodes
 type Forwarder func([]byte) []byte
@@ -43,6 +43,8 @@ type Dag struct {
 	initialNode *Node // The start of a valid dag
 	endNode     *Node // The end of a valid dag
 
+	executionFlow bool // Flag to denote if none data dependency
+
 	nodeIndex int // NodeIndex
 }
 
@@ -57,10 +59,10 @@ type Node struct {
 	operations      []*Operation    // The list of operations
 
 	dynamic       bool                 // Denotes if the node is dynamic
-	serializer    Serializer           // The serializer serialize multiple inputs to a node into one
+	aggregator    Aggregator           // The aggregator aggregates multiple inputs to a node into one
 	foreach       ForEach              // If specified foreach allows to execute the vertex in parralel
 	condition     Condition            // If specified condition allows to execute only selected subdag
-	subSerializer Serializer           // Serializes foreach/condition outputs into one
+	subAggregator Aggregator           // Aggregates foreach/condition outputs into one
 	forwarder     map[string]Forwarder // The forwarder handle forwarding output to a children
 
 	parentDag *Dag    // The reference of the dag this node part of
@@ -78,6 +80,7 @@ func NewDag() *Dag {
 	this := new(Dag)
 	this.nodes = make(map[string]*Node)
 	this.Id = "0"
+	this.executionFlow = true
 	return this
 }
 
@@ -196,6 +199,7 @@ func (this *Dag) Validate() error {
 			if err != nil {
 				return err
 			}
+			this.executionFlow = b.subDag.executionFlow
 		}
 		for _, cdag := range b.conditionalDags {
 			err := cdag.Validate()
@@ -231,6 +235,11 @@ func (this *Dag) GetNodes() []string {
 		}
 	}
 	return nodes
+}
+
+// IsExecutionFlow check if a dag doesn't use intermediate data
+func (this *Dag) IsExecutionFlow() bool {
+	return this.executionFlow
 }
 
 // inSlice check if a node belongs in a slice
@@ -288,12 +297,12 @@ func (this *Node) AddOperation(operation *Operation) {
 	this.operations = append(this.operations, operation)
 }
 
-// AddSerializer add a serializer to a node
-func (this *Node) AddSerializer(serializer Serializer) {
-	this.serializer = serializer
+// AddAggregator add a aggregator to a node
+func (this *Node) AddAggregator(aggregator Aggregator) {
+	this.aggregator = aggregator
 }
 
-// AddForEach add a serializer to a node
+// AddForEach add a aggregator to a node
 func (this *Node) AddForEach(foreach ForEach) {
 	this.foreach = foreach
 	this.dynamic = true
@@ -305,14 +314,17 @@ func (this *Node) AddCondition(condition Condition) {
 	this.dynamic = true
 }
 
-// AddSubSerializer add a foreach serializer to a node
-func (this *Node) AddSubSerializer(serializer Serializer) {
-	this.subSerializer = serializer
+// AddSubAggregator add a foreach aggregator to a node
+func (this *Node) AddSubAggregator(aggregator Aggregator) {
+	this.subAggregator = aggregator
 }
 
 // AddForwarder adds a forwarder for a specific children
 func (this *Node) AddForwarder(children string, forwarder Forwarder) {
 	this.forwarder[children] = forwarder
+	if forwarder != nil {
+		this.parentDag.executionFlow = false
+	}
 }
 
 // AddSubDag adds a subdag to the node
@@ -388,9 +400,9 @@ func (this *Node) AddConditionalDag(condition string, dag *Dag) error {
 	return nil
 }
 
-// GetSerializer get a serializer from a node
-func (this *Node) GetSerializer() Serializer {
-	return this.serializer
+// GetAggregator get a aggregator from a node
+func (this *Node) GetAggregator() Aggregator {
+	return this.aggregator
 }
 
 // GetForwarder gets a forwarder for a children
@@ -398,9 +410,9 @@ func (this *Node) GetForwarder(children string) Forwarder {
 	return this.forwarder[children]
 }
 
-// GetSubSerializer gets the subserializer for condition and foreach
-func (this *Node) GetSubSerializer() Serializer {
-	return this.subSerializer
+// GetSubAggregator gets the subaggregator for condition and foreach
+func (this *Node) GetSubAggregator() Aggregator {
+	return this.subAggregator
 }
 
 // GetCondition get the condition function

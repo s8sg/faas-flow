@@ -26,7 +26,7 @@ func (this *DagFlow) AppendDag(dag *DagFlow) error {
 
 // AddVertex add a new vertex by id
 // If exist overrides the vertex settings.
-// Allowed option: Serializer, ForEach
+// Allowed option: Aggregator, ForEach
 func (this *DagFlow) AddVertex(vertex string, opts ...Option) {
 	node := this.udag.GetNode(vertex)
 	if node == nil {
@@ -36,9 +36,9 @@ func (this *DagFlow) AddVertex(vertex string, opts ...Option) {
 	for _, opt := range opts {
 		o.reset()
 		opt(o)
-		if o.serializer != nil {
-			// Add serializer only on node declearation
-			node.AddSerializer(o.serializer)
+		if o.aggregator != nil {
+			// Add aggregator only on node declearation
+			node.AddAggregator(o.aggregator)
 		}
 	}
 }
@@ -74,8 +74,8 @@ func (this *DagFlow) AddForEachDag(vertex string, dag *DagFlow, foreach Option) 
 	} else {
 		return INVAL_OPTION
 	}
-	if o.serializer == nil {
-		node.AddSubSerializer(o.serializer)
+	if o.aggregator == nil {
+		node.AddSubAggregator(o.aggregator)
 	} else {
 		return INVAL_OPTION
 	}
@@ -99,8 +99,8 @@ func (this *DagFlow) AddConditionalDags(vertex string, subdags map[string]*DagFl
 	} else {
 		return INVAL_OPTION
 	}
-	if o.serializer == nil {
-		node.AddSubSerializer(o.serializer)
+	if o.aggregator == nil {
+		node.AddSubAggregator(o.aggregator)
 	} else {
 		return INVAL_OPTION
 	}
@@ -219,7 +219,7 @@ func (this *DagFlow) AddEdge(from, to string, opts ...Option) error {
 		}
 		if o.forwarder != nil {
 			fromNode := this.udag.GetNode(from)
-			// Add serializer only on node declearation
+			// Add aggregator only on node declearation
 			fromNode.AddForwarder(to, o.forwarder)
 		}
 	}
