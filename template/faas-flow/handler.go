@@ -720,11 +720,11 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 		data = dataMap[dependencies[0].Id]
 	}
 
-	serializer := currentNode.GetSerializer()
-	if serializer != nil {
-		sdata, serr := serializer(dataMap)
+	aggregator := currentNode.GetAggregator()
+	if aggregator != nil {
+		sdata, serr := aggregator(dataMap)
 		if serr != nil {
-			serr := fmt.Errorf("failed to serialize data, error %v", serr)
+			serr := fmt.Errorf("failed to aggregate data, error %v", serr)
 			return data, serr
 		}
 		data = sdata
@@ -734,15 +734,15 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 }
 
 // initializeStore initialize the store and return true if both store if overriden
-func initializeStore(fhandler *flowHandler) (bool, error) {
+func initializeStore(fhandler *flowHandler) (stateSDefined bool, dataSOverride bool, err error) {
 
-	stateSDefined := false
-	dataSOverride := false
+	stateSDefined = false
+	dataSOverride = false
 
 	// Initialize the stateS
 	stateS, err := function.DefineStateStore()
 	if err != nil {
-		return false, err
+		return
 	}
 	if stateS != nil {
 		fhandler.stateStore = stateS
@@ -752,7 +752,7 @@ func initializeStore(fhandler *flowHandler) (bool, error) {
 		if !fhandler.partial {
 			err = fhandler.stateStore.Init()
 			if err != nil {
-				return false, err
+				return
 			}
 		}
 	}
@@ -760,7 +760,7 @@ func initializeStore(fhandler *flowHandler) (bool, error) {
 	// Initialize the dataS
 	dataS, err := function.DefineDataStore()
 	if err != nil {
-		return false, err
+		return
 	}
 	if dataS != nil {
 		fhandler.dataStore = dataS
@@ -770,16 +770,9 @@ func initializeStore(fhandler *flowHandler) (bool, error) {
 	// If request is not partial initialize the dataStore
 	if !fhandler.partial {
 		err = fhandler.dataStore.Init()
-		if err != nil {
-			return false, err
-		}
 	}
 
-	if stateSDefined && dataSOverride {
-		return true, nil
-	}
-
-	return false, nil
+	return
 }
 
 // handleWorkflow handle the flow
@@ -806,7 +799,7 @@ func handleWorkflow(data []byte) string {
 		fhandler, data := buildWorkflow(data)
 
 		// INIT STORE: Get definition of StateStore and DataStore
-		storeOverride, err := initializeStore(fhandler)
+		stateSDefined, dataSOverride, err := initializeStore(fhandler)
 		if err != nil {
 			log.Fatalf("[Request `%s`] Failed to init flow, %v", fhandler.id, err)
 		}
@@ -833,8 +826,13 @@ func handleWorkflow(data []byte) string {
 		}
 
 		// For DAG, DataStore and StateStore need to be external
-		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG && !storeOverride {
-			log.Fatalf("[Request `%s`] DAG flow need external State and Data Store", fhandler.id)
+		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG {
+			if !stateSDefined {
+				log.Fatalf("[Request `%s`] Failed, DAG flow need external StateStore", fhandler.id)
+			}
+			if !fhandler.getPipeline().Dag.IsExecutionFlow() && !dataSOverride {
+				log.Fatalf("[Request `%s`] Failed not an execution flow, DAG data flow need external DataStore", fhandler.id)
+			}
 		}
 
 		// For a new dag pipeline Create the vertex in stateStore

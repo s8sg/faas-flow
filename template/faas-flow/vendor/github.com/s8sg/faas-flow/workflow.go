@@ -11,7 +11,7 @@ type Options struct {
 	sync            bool
 	failureHandler  sdk.FuncErrorHandler
 	responseHandler sdk.RespHandler
-	serializer      sdk.Serializer
+	aggregator      sdk.Aggregator
 	forwarder       sdk.Forwarder
 	foreach         sdk.ForEach
 	condition       sdk.Condition
@@ -31,8 +31,9 @@ type Option func(*Options)
 var (
 	// Sync can be used instead of SyncCall
 	Sync = SyncCall()
-	// NoneData specify a edge doesn't forwards a data
-	NoneData = NoneDataForward()
+	// Execution specify a edge doesn't forwards a data
+	// but rather mention a execution direction
+	Execution = ExecutionOnly()
 	// Denote if last node doesn't contain any function call
 	emptyNode = false
 	// the reference of lastnode when applied as chain
@@ -49,25 +50,26 @@ func (o *Options) reset() {
 }
 
 // ForEach denotes the vertex will be executed in parralel for each value returned.
-// serializer serializes all outputs into one
-func ForEach(foreach sdk.ForEach, serializer sdk.Serializer) Option {
+// aggregator aggregates all outputs into one
+func ForEach(foreach sdk.ForEach, aggregator sdk.Aggregator) Option {
 	return func(o *Options) {
 		o.foreach = foreach
-		o.serializer = serializer
+		o.aggregator = aggregator
 	}
 }
 
 // Condition denotes the corresponding subdags will be executed for each condition matched
-// serializer serializes all dags outputs into one
-func Condition(condition sdk.Condition, serializer sdk.Serializer) Option {
+// aggregator aggregates all dags outputs into one
+func Condition(condition sdk.Condition, aggregator sdk.Aggregator) Option {
 	return func(o *Options) {
 		o.condition = condition
-		o.serializer = serializer
+		o.aggregator = aggregator
 	}
 }
 
-// NoneDataForward denotes a edge doesn't forwards a data
-func NoneDataForward() Option {
+// ExecutionOnly denotes a edge doesn't forwards a data,
+// but rather provides only an execution direction
+func ExecutionOnly() Option {
 	return func(o *Options) {
 		o.noforwarder = true
 	}
@@ -80,10 +82,10 @@ func Forwarder(forwarder sdk.Forwarder) Option {
 	}
 }
 
-// Serializer serialize multiple inputs to a node into one
-func Serializer(serializer sdk.Serializer) Option {
+// Aggregator aggregates multiple inputs to a node into one
+func Aggregator(aggregator sdk.Aggregator) Option {
 	return func(o *Options) {
-		o.serializer = serializer
+		o.aggregator = aggregator
 	}
 }
 

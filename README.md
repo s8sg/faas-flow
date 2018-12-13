@@ -83,8 +83,8 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
      		// do something
 		return data, nil
      })
-     // To Serialize multiple input the dag need be defined with a Serializer
-     dag.AddVertex("callback", faasflow.Serializer(func(inputs map[string][]byte) ([]byte, error) {
+     // To Serialize multiple input the dag need be defined with a Aggregator
+     dag.AddVertex("callback", faasflow.Aggregator(func(inputs map[string][]byte) ([]byte, error) {
 				          mod2Data := inputs["mod2"]
 					  func2Data := inputs["func2"]
 				          // Serialize input for callback
