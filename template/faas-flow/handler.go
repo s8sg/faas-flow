@@ -276,7 +276,7 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 		fhandler.partial = false
 
 		// trace req - mark as start of req
-		// startReqSpan(requestId)
+		startReqSpan(requestId)
 	default:
 		// Partial Request
 		// Get the request ID
@@ -309,7 +309,7 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 		fhandler.partial = true
 
 		// Continue request span
-		// continueReqSpan(requestId)
+		continueReqSpan(requestId)
 	}
 
 	return
@@ -397,7 +397,7 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 	log.Printf("[Request `%s`] Executing node %s", fhandler.id, currentNode.Id)
 
 	// trace node - mark as start of node
-	startNodeSpan(currentNode.Id, fhandler.id)
+	startNodeSpan(currentNode.GetUniqueId(), fhandler.id)
 
 	// Execute all operation
 	for _, operation := range currentNode.Operations() {
@@ -419,7 +419,7 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 					err = operation.FailureHandler(err)
 				}
 				if err != nil {
-					stopNodeSpan(currentNode.Id)
+					stopNodeSpan(currentNode.GetUniqueId())
 					return nil, err
 				}
 			}
@@ -439,7 +439,7 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 					err = operation.FailureHandler(err)
 				}
 				if err != nil {
-					stopNodeSpan(currentNode.Id)
+					stopNodeSpan(currentNode.GetUniqueId())
 					return nil, err
 				}
 			}
@@ -453,7 +453,7 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 				result, err = operation.Mod(result)
 			}
 			if err != nil {
-				stopNodeSpan(currentNode.Id)
+				stopNodeSpan(currentNode.GetUniqueId())
 				err = fmt.Errorf("Node(%s), error: Failed at modifier, %v",
 					currentNode.Id, err)
 				return nil, err
@@ -467,13 +467,13 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 	log.Printf("[Request `%s`] Node %s completed successfully", fhandler.id, currentNode.Id)
 
 	// trace node - mark as end of node
-	stopNodeSpan(currentNode.Id)
+	stopNodeSpan(currentNode.GetUniqueId())
 
 	return result, nil
 }
 
 // forwardAsync forward async request to faasflow
-func forwardAsync(fhandler *flowHandler, currentExecutionPosition string, result []byte) ([]byte, error) {
+func forwardAsync(fhandler *flowHandler, currentNodeId string, result []byte) ([]byte, error) {
 	var hash []byte
 	store := make(map[string]string)
 
@@ -511,7 +511,7 @@ func forwardAsync(fhandler *flowHandler, currentExecutionPosition string, result
 	}
 
 	// extend req span for async call (TODO : Get the value)
-	extendReqSpan(currentExecutionPosition, fhandler.asyncUrl, httpreq)
+	extendReqSpan(currentNodeId, fhandler.asyncUrl, httpreq)
 
 	client := &http.Client{}
 	res, resErr := client.Do(httpreq)
@@ -536,6 +536,8 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 	pipeline := fhandler.getPipeline()
 
 	currentNode, currentDag = pipeline.GetCurrentNodeDag()
+
+	currentNodeUniqueId := currentNode.GetUniqueId()
 
 	// Check if the pipeline has completed excution return
 	for true {
@@ -615,7 +617,7 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 		pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_SAME, node.Id)
 
 		// forward the flow request
-		resp, forwardErr := forwardAsync(fhandler, currentNode.Id, intermediateData)
+		resp, forwardErr := forwardAsync(fhandler, currentNodeUniqueId, intermediateData)
 		if forwardErr != nil {
 			// reset dag execution position
 			pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_SAME, currentNode.Id)

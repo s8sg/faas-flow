@@ -392,3 +392,8 @@ func (this *Node) GetAggregator() Aggregator {
 func (this *Node) GetForwarder(children string) Forwarder {
 	return this.forwarder[children]
 }
+
+// GetUniqueId returns a quique ID of node throughout the DAG
+func (this *Node) GetUniqueId() string {
+	return fmt.Sprintf("%s.%d.%s", this.parentDag.Id, this.index, this.Id)
+}

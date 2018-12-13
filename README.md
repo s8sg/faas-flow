@@ -215,7 +215,7 @@ environment:
 >              # k8
 >              gateway: "gateway.openfaas:8080"
 > ```
-> `enable_tracing` : It ebales the opentracing for requests and their nodes.  
+> `enable_tracing` : It enables the opentracing for requests and their nodes.  
 > `trace_server` : The address of opentracing backend jaeger.  
 > `enable_hmac` : Enable hmac to add extra layer of security for partial request forward.
 
