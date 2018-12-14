@@ -5,6 +5,10 @@ import (
 	"strings"
 )
 
+var (
+	BLANK_MODIFIER = func(data []byte) ([]byte, error) { return data, nil }
+)
+
 // FuncErrorHandler the error handler for OnFailure() options
 type FuncErrorHandler func(error) error
 

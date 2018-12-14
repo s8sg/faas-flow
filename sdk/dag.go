@@ -13,8 +13,6 @@ var (
 	ERR_DUPLICATE_VERTEX = fmt.Errorf("vertex redefined")
 	// ERR_MULTIPLE_START denotes that a dag has more than one start point
 	ERR_MULTIPLE_START = fmt.Errorf("only one start vertex is allowed")
-	// ERR_MULTIPLE_END denotes that a dag has more than one end point
-	ERR_MULTIPLE_END = fmt.Errorf("only one end vertex is allowed")
 	// ERR_RECURSIVE_DEP denotes that dag has a recursive dependecy
 	ERR_RECURSIVE_DEP = fmt.Errorf("dag has recursive dependency")
 	// Default forwarder
@@ -183,10 +181,11 @@ func (this *Dag) GetEndNode() *Node {
 }
 
 // Validate validates a dag and all subdag as per faas-flow dag requirments
-// A validated graph has only one initialNode and EndNode set
+// A validated graph has only one initialNode and one EndNode set
+// if a graph has more than one endnode, a seperate endnode gets added
 func (this *Dag) Validate() error {
 	initialNodeCount := 0
-	endNodeCount := 0
+	var endNodes []*Node
 
 	for _, b := range this.nodes {
 		if b.indegree == 0 {
@@ -194,14 +193,14 @@ func (this *Dag) Validate() error {
 			this.initialNode = b
 		}
 		if b.outdegree == 0 {
-			endNodeCount = endNodeCount + 1
-			this.endNode = b
+			endNodes = append(endNodes, b)
 		}
 		if b.subDag != nil {
 			err := b.subDag.Validate()
 			if err != nil {
 				return err
 			}
+			// Set if Subdag doesn't have and data edge
 			this.executionFlow = b.subDag.executionFlow
 		}
 	}
@@ -209,8 +208,19 @@ func (this *Dag) Validate() error {
 	if initialNodeCount > 1 {
 		return ERR_MULTIPLE_START
 	}
-	if endNodeCount > 1 {
-		return ERR_MULTIPLE_END
+	if len(endNodes) > 1 {
+		endNodeId := fmt.Sprintf("end-%s", this.Id)
+		modifier := CreateModifier(BLANK_MODIFIER)
+		endNode := this.AddVertex(endNodeId, []*Operation{modifier})
+		for _, b := range endNodes {
+			// Create a edge
+			this.AddEdge(b.Id, endNodeId)
+			// mark the edge as execution dependency
+			b.AddForwarder(endNodeId, nil)
+		}
+		this.endNode = endNode
+	} else {
+		this.endNode = endNodes[0]
 	}
 	return nil
 }
