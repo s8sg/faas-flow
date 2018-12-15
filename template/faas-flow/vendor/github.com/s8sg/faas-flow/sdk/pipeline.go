@@ -30,7 +30,9 @@ type Pipeline struct {
 	ExecutionPosition map[string]string `json:"pipeline-execution-position"` // Denotes the node that is executing now
 	ExecutionDepth    int               `json:"pipeline-execution-depth"`    // Denotes the depth of subgraph its executing
 
-	DynamicDependencyCount map[string]int `json:"pipeline-dynamic-dependency-count"` // Denotes the no of dependency for a node
+	CurrentDynamicOption   map[string]string   `json:"pipeline-dynamic-option"`           // Denotes the current dynamic option mapped against the dynamic Node UQ id
+	AllDynamicOption       map[string][]string `json:"pipeline-all-dynamic-options"`      // Denotes all options mapped  against the dynamic Node UQ id
+	DynamicDependencyCount map[string]int      `json:"pipeline-dynamic-dependency-count"` // Denotes the no of dependency for a nodes unique Id
 
 	FailureHandler PipelineErrorHandler `json:"-"`
 	Finally        PipelineHandler      `json:"-"`
@@ -55,8 +57,8 @@ func (pipeline *Pipeline) CountNodes() int {
 }
 
 // GetAllNodesId returns a recursive list of all nodes that belongs to the pipeline
-func (pipeline *Pipeline) GetAllNodesId() []string {
-	nodes := pipeline.Dag.GetNodes()
+func (pipeline *Pipeline) GetAllNodesUniqueId() []string {
+	nodes := pipeline.Dag.GetNodes("-")
 	return nodes
 }
 
@@ -121,4 +123,8 @@ func (pipeline *Pipeline) ApplyState(state string) {
 	pipeline.ExecutionDepth = temp.ExecutionDepth
 	pipeline.ExecutionPosition = temp.ExecutionPosition
 	pipeline.PipelineType = temp.PipelineType
+
+	pipeline.CurrentDynamicOption = temp.CurrentDynamicOption
+	pipeline.AllDynamicOption = temp.AllDynamicOption
+	pipeline.DynamicDependencyCount = temp.DynamicDependencyCount
 }

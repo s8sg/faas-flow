@@ -120,6 +120,8 @@ func initGlobalTracer(flowName string) error {
 
 	tracerInitialized = true
 
+	nodeSpans = make(map[string]opentracing.Span)
+
 	return nil
 }
 

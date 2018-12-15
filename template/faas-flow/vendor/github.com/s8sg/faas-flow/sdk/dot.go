@@ -100,13 +100,15 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 
 				childOperationKey := generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 1, operation)
 
-				if node.GetForwarder(child.Id) == nil {
-					relation = relation + " - nodata"
-				}
-
 				if previousOperation != "" {
-					sb.WriteString(fmt.Sprintf("\n%s\"%s\" -> \"%s\" [label=\"%s\" color=grey];",
-						indent, previousOperation, childOperationKey, relation))
+					if node.GetForwarder(child.Id) == nil {
+						sb.WriteString(
+							fmt.Sprintf("\n%s\"%s\" -> \"%s\" [style=dashed label=\"%s\" color=grey];",
+								indent, previousOperation, childOperationKey, relation))
+					} else {
+						sb.WriteString(fmt.Sprintf("\n%s\"%s\" -> \"%s\" [label=\"%s\" color=grey];",
+							indent, previousOperation, childOperationKey, relation))
+					}
 				}
 			}
 		} else {
