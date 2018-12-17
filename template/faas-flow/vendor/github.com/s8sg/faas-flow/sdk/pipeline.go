@@ -58,7 +58,7 @@ func (pipeline *Pipeline) CountNodes() int {
 
 // GetAllNodesId returns a recursive list of all nodes that belongs to the pipeline
 func (pipeline *Pipeline) GetAllNodesUniqueId() []string {
-	nodes := pipeline.Dag.GetNodes("-")
+	nodes := pipeline.Dag.GetNodes("")
 	return nodes
 }
 

@@ -439,6 +439,11 @@ func (this *Node) GetForEach() ForEach {
 	return this.foreach
 }
 
+// GetAllConditionalDags get all the subdags for all conditions
+func (this *Node) GetAllConditionalDags() map[string]*Dag {
+	return this.conditionalDags
+}
+
 // GetConditionalDag get the sundag for a specific condition
 func (this *Node) GetConditionalDag(condition string) *Dag {
 	if this.conditionalDags == nil {

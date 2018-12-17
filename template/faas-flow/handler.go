@@ -846,18 +846,14 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 	// XXX - handle data from parent Node - and multiple options of prev node
 	for _, node := range dependencies {
 
-		// Skip if NoDataForward is specified
-		if node.GetForwarder(currentNode.Id) == nil {
-			continue
-		}
-
 		dependencyCount = dependencyCount + 1
 
 		if node.Dynamic() {
+			subDataMap := make(map[string][]byte)
 			// Recive data from end node of a dynamic graph
 			for _, option := range pipeline.AllDynamicOption[node.GetUniqueId()] {
-				// <option>-<dependencynodeid>-<currentnodeid>
-				key := fmt.Sprintf("%s-%s-%s", option, node.GetUniqueId(), currentNode.GetUniqueId())
+				// <option>
+				key := fmt.Sprintf("%s", option)
 				idata, gerr := context.GetBytes(key)
 				if gerr != nil {
 					gerr := fmt.Errorf("key %s, %v", key, gerr)
@@ -867,11 +863,30 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 					handler.id, node.GetUniqueId(), node.GetUniqueId(),
 					option, key)
 				context.Del(key)
-				// <nodeId>-<option>
-				dataMap[node.Id+"-"+option] = idata
+
+				subDataMap[option] = idata
+			}
+
+			aggregator := node.GetSubAggregator()
+			idata, serr := aggregator(dataMap)
+			if serr != nil {
+				serr := fmt.Errorf("failed to aggregate dynamic node data, error %v", serr)
+				return data, serr
 			}
 			delete(pipeline.AllDynamicOption, node.GetUniqueId())
+
+			// Skip storage if NoDataForward is specified
+			if node.GetForwarder(currentNode.Id) == nil {
+				continue
+			}
+
+			dataMap[node.Id] = idata
 		} else {
+
+			// Skip if NoDataForward is specified
+			if node.GetForwarder(currentNode.Id) == nil {
+				continue
+			}
 
 			key := ""
 			dagNode := dag.GetParentNode()
@@ -892,6 +907,7 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 			log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s retrived from %s",
 				handler.id, node.GetUniqueId(), node.GetUniqueId(), key)
 			context.Del(key)
+
 			dataMap[node.Id] = idata
 		}
 	}
