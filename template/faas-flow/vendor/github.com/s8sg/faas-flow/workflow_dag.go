@@ -69,12 +69,12 @@ func (this *DagFlow) AddForEachDag(vertex string, dag *DagFlow, foreach Option) 
 	}
 	o := &Options{}
 	foreach(o)
-	if o.foreach == nil {
+	if o.foreach != nil {
 		node.AddForEach(o.foreach)
 	} else {
 		return INVAL_OPTION
 	}
-	if o.aggregator == nil {
+	if o.aggregator != nil {
 		node.AddSubAggregator(o.aggregator)
 	} else {
 		return INVAL_OPTION
@@ -94,12 +94,12 @@ func (this *DagFlow) AddConditionalDags(vertex string, subdags map[string]*DagFl
 	}
 	o := &Options{}
 	condition(o)
-	if o.condition == nil {
+	if o.condition != nil {
 		node.AddCondition(o.condition)
 	} else {
 		return INVAL_OPTION
 	}
-	if o.aggregator == nil {
+	if o.aggregator != nil {
 		node.AddSubAggregator(o.aggregator)
 	} else {
 		return INVAL_OPTION

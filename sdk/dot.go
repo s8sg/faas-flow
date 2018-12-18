@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -50,16 +51,16 @@ func generateConditionalDag(node *Node, dag *Dag, sb *strings.Builder, indent st
 			nextOperationNode = nextOperationDag.GetInitialNode()
 		}
 		operationKey := ""
-		if !nextOperationNode.Dynamic() {
-			operation := nextOperationNode.Operations()[0]
-			operationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 1, operation, "")
-		} else {
+		if nextOperationNode.Dynamic() {
 			if nextOperationNode.GetCondition() != nil {
 				operationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 0, nil, "conditions")
 			}
 			if nextOperationNode.GetForEach() != nil {
 				operationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 0, nil, "foreach")
 			}
+		} else {
+			operation := nextOperationNode.Operations()[0]
+			operationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 1, operation, "")
 		}
 		sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" -> \"%s\" [label=%s color=grey];",
 			indent, conditionKey, operationKey, condition))
@@ -99,16 +100,17 @@ func generateForeachDag(node *Node, dag *Dag, sb *strings.Builder, indent string
 		}
 
 		operationKey := ""
-		if !nextOperationNode.Dynamic() {
-			operation := nextOperationNode.Operations()[0]
-			operationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 1, operation, "")
-		} else {
+		if nextOperationNode.Dynamic() {
 			if nextOperationNode.GetCondition() != nil {
 				operationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 0, nil, "conditions")
 			}
 			if nextOperationNode.GetForEach() != nil {
 				operationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 0, nil, "foreach")
 			}
+
+		} else {
+			operation := nextOperationNode.Operations()[0]
+			operationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 1, operation, "")
 		}
 
 		sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" -> \"%s\" [label=\"1:N\" color=grey];",
@@ -129,13 +131,29 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 	// generate nodes
 	for _, node := range dag.nodes {
 
-		sb.WriteString(fmt.Sprintf("\n%ssubgraph cluster_%d {", indent, node.index))
+		if dag.Id != "0" {
+			sb.WriteString(fmt.Sprintf("\n%ssubgraph cluster_%d {", indent, node.index))
+		} else {
+			sb.WriteString(fmt.Sprintf("\n%ssubgraph cluster_%s_%d {", indent, dag.Id, node.index))
+		}
 
 		nodeIndexStr := fmt.Sprintf("%d", node.index-1)
+
 		if nodeIndexStr != node.Id {
-			sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%d-%s\";", indent, node.index, node.Id))
+			if dag.Id != "0" {
+				sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%s.%d-%s\";", indent, dag.Id, node.index, node.Id))
+			} else {
+				sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%d-%s\";", indent, node.index, node.Id))
+
+			}
 		} else {
-			sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%d\";", indent, node.index))
+			if dag.Id != "0" {
+				sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%s-%d\";", indent, dag.Id, node.index))
+			} else {
+
+				sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%d\";", indent, node.index))
+
+			}
 		}
 		sb.WriteString(fmt.Sprintf("\n%s\tcolor=lightgrey;", indent))
 		sb.WriteString(fmt.Sprintf("\n%s\tstyle=rounded;\n", indent))
@@ -192,17 +210,22 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 					nextOperationDag = nextOperationNode.SubDag()
 					nextOperationNode = nextOperationDag.GetInitialNode()
 				}
+
+				log.Printf("nextOperationDag: %s", nextOperationDag.Id)
+				log.Printf("nextOperationNode: %s", nextOperationNode.GetUniqueId())
+
 				childOperationKey := ""
-				if !nextOperationNode.Dynamic() {
-					operation = nextOperationNode.Operations()[0]
-					childOperationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 1, operation, "")
-				} else {
+				if nextOperationNode.Dynamic() {
 					if nextOperationNode.GetCondition() != nil {
 						childOperationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 0, nil, "conditions")
 					}
 					if nextOperationNode.GetForEach() != nil {
 						childOperationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 0, nil, "foreach")
 					}
+
+				} else {
+					operation = nextOperationNode.Operations()[0]
+					childOperationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 1, operation, "")
 				}
 
 				if previousOperation != "" {

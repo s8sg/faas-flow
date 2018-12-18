@@ -1113,6 +1113,14 @@ func handleDotGraph() string { // Get flow name
 	if err != nil {
 		log.Fatalf("failed to generate dot graph, error %v", err)
 	}
+
+	// VALIDATE: Validate Pipeline Definition
+	// Dag need to be valid
+	err = fhandler.getPipeline().Dag.Validate()
+	if err != nil {
+		log.Fatalf("[Request `%s`] Invalid dag, %v", fhandler.id, err)
+	}
+
 	return fhandler.getPipeline().MakeDotGraph()
 }
 

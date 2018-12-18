@@ -46,6 +46,11 @@ func CreatePipeline(name string) *Pipeline {
 	// For default dag set the Id to flow-name
 	pipeline.Dag.Id = name
 	pipeline.ExecutionPosition = make(map[string]string, 0)
+
+	pipeline.CurrentDynamicOption = make(map[string]string, 0)
+	pipeline.AllDynamicOption = make(map[string][]string, 0)
+	pipeline.DynamicDependencyCount = make(map[string]int, 0)
+
 	pipeline.ExecutionDepth = 0
 	return pipeline
 }

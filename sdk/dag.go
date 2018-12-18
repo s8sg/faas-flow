@@ -5,6 +5,8 @@ import (
 )
 
 var (
+	// ERR_NO_VERTEX
+	ERR_NO_VERTEX = fmt.Errorf("dag has no vertex set")
 	// ERR_CYCLIC denotes that dag has a cycle
 	ERR_CYCLIC = fmt.Errorf("dag has cyclic dependency")
 	// ERR_DUPLICATE_EDGE denotes that a dag edge is duplicate
@@ -48,8 +50,9 @@ type Dag struct {
 
 // Node The vertex
 type Node struct {
-	Id    string // The id of the vertex
-	index int    // The index of the vertex
+	Id       string // The id of the vertex
+	index    int    // The index of the vertex
+	uniqueId string // The unique Id of the node
 
 	// Execution modes ([]operation / Dag)
 	subDag          *Dag            // Subdag
@@ -184,7 +187,12 @@ func (this *Dag) Validate() error {
 	initialNodeCount := 0
 	var endNodes []*Node
 
+	if len(this.nodes) == 0 {
+		return ERR_NO_VERTEX
+	}
+
 	for _, b := range this.nodes {
+		b.uniqueId = b.generateUniqueId(this.Id)
 		if b.indegree == 0 {
 			initialNodeCount = initialNodeCount + 1
 			this.initialNode = b
@@ -193,6 +201,14 @@ func (this *Dag) Validate() error {
 			endNodes = append(endNodes, b)
 		}
 		if b.subDag != nil {
+			if this.Id != "0" {
+				// Dag Id : <parent-dag-id>-<parent-node-unique-id>
+				b.subDag.Id = fmt.Sprintf("%s.%d", this.Id, b.index)
+			} else {
+				// Dag Id : <parent-dag-id>-<parent-node-unique-id>
+				b.subDag.Id = fmt.Sprintf("%d", b.index)
+			}
+
 			err := b.subDag.Validate()
 			if err != nil {
 				return err
@@ -200,7 +216,15 @@ func (this *Dag) Validate() error {
 			// Set if Subdag doesn't have and data edge
 			this.executionFlow = b.subDag.executionFlow
 		}
-		for _, cdag := range b.conditionalDags {
+		for condition, cdag := range b.conditionalDags {
+			if this.Id != "0" {
+				// Dag Id : <parent-dag-id>-<parent-node-unique-id>
+				cdag.Id = fmt.Sprintf("%s.%d-%s", this.Id, b.index, condition)
+			} else {
+				// Dag Id : <parent-dag-id>-<parent-node-unique-id>
+				cdag.Id = fmt.Sprintf("%d.%s", b.index, condition)
+			}
+
 			err := cdag.Validate()
 			if err != nil {
 				return err
@@ -209,8 +233,9 @@ func (this *Dag) Validate() error {
 	}
 
 	if initialNodeCount > 1 {
-		return ERR_MULTIPLE_START
+		return fmt.Errorf("%v, dag: %s", ERR_MULTIPLE_START, this.Id)
 	}
+
 	if len(endNodes) > 1 {
 		endNodeId := fmt.Sprintf("end-%s", this.Id)
 		modifier := CreateModifier(BLANK_MODIFIER)
@@ -225,6 +250,7 @@ func (this *Dag) Validate() error {
 	} else {
 		this.endNode = endNodes[0]
 	}
+
 	return nil
 }
 
@@ -365,14 +391,6 @@ func (this *Node) AddSubDag(subDag *Dag) error {
 	// Set the node the subdag belongs to
 	subDag.parentNode = this
 
-	if this.parentDag.Id != "0" {
-		// Dag Id : <parent-dag-id>-<parent-node-index>
-		subDag.Id = fmt.Sprintf("%s.%d", this.parentDag.Id, this.index)
-	} else {
-		// Dag Id : <parent-dag-id>-<parent-node-index>
-		subDag.Id = fmt.Sprintf("%d", this.index)
-	}
-
 	return nil
 }
 
@@ -402,14 +420,6 @@ func (this *Node) AddConditionalDag(condition string, dag *Dag) error {
 	this.conditionalDags[condition] = dag
 	// Set the node the subdag belongs to
 	dag.parentNode = this
-
-	if this.parentDag.Id != "0" {
-		// Dag Id : <parent-dag-id>-<parent-node-index>
-		dag.Id = fmt.Sprintf("%s.%d.%s", this.parentDag.Id, this.index, condition)
-	} else {
-		// Dag Id : <parent-dag-id>-<parent-node-index>
-		dag.Id = fmt.Sprintf("%d.%s", this.index, condition)
-	}
 
 	return nil
 }
@@ -452,7 +462,12 @@ func (this *Node) GetConditionalDag(condition string) *Dag {
 	return this.conditionalDags[condition]
 }
 
-// GetUniqueId returns a quique ID of node throughout the DAG
+// generateUniqueId returns a unique ID of node throughout the DAG
+func (this *Node) generateUniqueId(dagId string) string {
+	return fmt.Sprintf("%s-%d.%s", dagId, this.index, this.Id)
+}
+
+// GetUniqueId returns a unique ID of the node
 func (this *Node) GetUniqueId() string {
-	return fmt.Sprintf("%s.%d.%s", this.parentDag.Id, this.index, this.Id)
+	return this.uniqueId
 }
