@@ -155,7 +155,7 @@ func (this *Dag) AddEdge(from, to string) error {
 	fromNode.outdegree++
 
 	// Add default forwarder for from node
-	fromNode.AddForwarder(to, DefaultForwarder)
+	fromNode.forwarder[to] = DefaultForwarder
 
 	return nil
 }
@@ -213,8 +213,11 @@ func (this *Dag) Validate() error {
 			if err != nil {
 				return err
 			}
-			// Set if Subdag doesn't have and data edge
-			this.executionFlow = b.subDag.executionFlow
+
+			if !b.subDag.executionFlow {
+				//  Subdag have data edge
+				this.executionFlow = false
+			}
 		}
 		for condition, cdag := range b.conditionalDags {
 			if this.Id != "0" {
@@ -228,6 +231,11 @@ func (this *Dag) Validate() error {
 			err := cdag.Validate()
 			if err != nil {
 				return err
+			}
+
+			if !cdag.executionFlow {
+				// Subdag have data edge
+				this.executionFlow = false
 			}
 		}
 	}
@@ -464,7 +472,7 @@ func (this *Node) GetConditionalDag(condition string) *Dag {
 
 // generateUniqueId returns a unique ID of node throughout the DAG
 func (this *Node) generateUniqueId(dagId string) string {
-	return fmt.Sprintf("%s-%d.%s", dagId, this.index, this.Id)
+	return fmt.Sprintf("%s.%d-%s", dagId, this.index, this.Id)
 }
 
 // GetUniqueId returns a unique ID of the node

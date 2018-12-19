@@ -388,6 +388,8 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 	// recurse to the subdag - if a node is dynamic stop to evaluate it
 	for true {
 		if currentNode.Dynamic() {
+			// trace node - mark as start of node
+			startNodeSpan(currentNode.GetUniqueId(), fhandler.id)
 			return request, nil
 		}
 		subdag := currentNode.SubDag()
@@ -468,10 +470,10 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 		}
 	}
 
-	log.Printf("[Request `%s`] Node %s completed successfully", fhandler.id, currentNode.GetUniqueId())
+	log.Printf("[Request `%s`] Completed execution of Node %s", fhandler.id, currentNode.GetUniqueId())
 
 	// trace node - mark as end of node
-	stopNodeSpan(currentNode.GetUniqueId())
+	// stopNodeSpan(currentNode.GetUniqueId())
 
 	return result, nil
 }
@@ -578,38 +580,38 @@ func handleDynamicNode(fhandler *flowHandler, context *faasflow.Context, result 
 	pipeline.DynamicDependencyCount[currentNodeUniqueId] = dependencyCount
 	pipeline.AllDynamicOption[currentNodeUniqueId] = options
 
-	for dynamicOption, subdag := range subdags {
+	for dynamicKey, subdag := range subdags {
 
 		subNode := subdag.GetInitialNode()
-		intermediateData := subresults[dynamicOption]
+		intermediateData := subresults[dynamicKey]
 
-		err := fhandler.stateStore.Create(subdag.GetNodes(dynamicOption))
+		err := fhandler.stateStore.Create(subdag.GetNodes(dynamicKey))
 		if err != nil {
 			delete(pipeline.DynamicDependencyCount, currentNodeUniqueId)
 			delete(pipeline.AllDynamicOption, currentNodeUniqueId)
 			// NOTE: This error will happen for the first time,
 			// we dont perform depth decrement
-			return nil, fmt.Errorf("[Request `%s`] Dynamic DAG %s-%s state can not be initiated at StateStore, %v",
-				fhandler.id, subdag.Id, dynamicOption, err)
+			return nil, fmt.Errorf("[Request `%s`] Dynamic DAG %s key %s state can not be initiated at StateStore, %v",
+				fhandler.id, subdag.Id, dynamicKey, err)
 		}
 
 		// If intermediate storage is enabled store data to intermediate storage
 		if useIntermediateStorage() {
-			// <option>-<currentnodeid>-<subnodeid>
-			key := fmt.Sprintf("%s-%s-%s", dynamicOption, currentNodeUniqueId, subNode.GetUniqueId())
+			// <option>--<currentnodeid>--<subnodeid>
+			key := fmt.Sprintf("%s--%s--%s", dynamicKey, currentNodeUniqueId, subNode.GetUniqueId())
 			serr := context.Set(key, intermediateData)
 			if serr != nil {
 				return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
 			}
-			log.Printf("[Request `%s`] Intermidiate result from Node %s to %s stored as %s",
-				fhandler.id, currentNodeUniqueId, subNode.GetUniqueId(), key)
+			log.Printf("[Request `%s`] Intermidiate result for dynamic id %s from Node %s to %s stored as %s",
+				fhandler.id, dynamicKey, currentNodeUniqueId, subNode.GetUniqueId(), key)
 
 			// intermediateData is set to blank once its stored in storage
 			intermediateData = []byte("")
 		}
 
 		pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_INCREMENT, subNode.Id)
-		pipeline.CurrentDynamicOption[currentNode.GetUniqueId()] = dynamicOption
+		pipeline.CurrentDynamicOption[currentNode.GetUniqueId()] = dynamicKey
 
 		// forward the flow request
 		resp, forwardErr := forwardAsync(fhandler, currentNodeUniqueId, intermediateData)
@@ -623,18 +625,19 @@ func handleDynamicNode(fhandler *flowHandler, context *faasflow.Context, result 
 				string(resp), fhandler.asyncUrl)
 		}
 
-		log.Printf("[Request `%s`] Async request submitted for Node %s option %s",
-			fhandler.id, currentNodeUniqueId, dynamicOption)
+		log.Printf("[Request `%s`] Async request submitted for Node %s dynamic id %s",
+			fhandler.id, currentNodeUniqueId, dynamicKey)
 
-		delete(pipeline.CurrentDynamicOption, currentNodeUniqueId)
-	}
-
-	// reset pipeline
-	if dependencyCount > 0 {
+		// reset pipeline
 		pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_DECREMENT, currentNode.Id)
+		delete(pipeline.CurrentDynamicOption, currentNode.GetUniqueId())
 	}
+
 	delete(pipeline.DynamicDependencyCount, currentNodeUniqueId)
 	delete(pipeline.AllDynamicOption, currentNodeUniqueId)
+
+	// trace node - mark as end of node
+	stopNodeSpan(currentNodeUniqueId)
 
 	return []byte(""), nil
 
@@ -678,11 +681,11 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 				// TODO: Return empty for multinode
 				return result, nil
 			} else {
-
 				// Update position to upper depth
 				currentNode = currentDag.GetParentNode()
 				currentDag = currentNode.ParentDag()
 				pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_DECREMENT, currentNode.Id)
+				log.Printf("[Request `%s`] Executing parent dag Node %s", fhandler.id, currentNode.GetUniqueId())
 				continue
 			}
 		}
@@ -698,7 +701,7 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 		if currentNode.Dynamic() {
 			// For dynamic subgraph end add the count of dynamic dependency as indegree
 			// For the next node
-			inDegree = inDegree + pipeline.DynamicDependencyCount[nodeUniqueId]
+			inDegree = (inDegree - 1) + pipeline.DynamicDependencyCount[nodeUniqueId]
 		}
 
 		// Get forwarder for child node
@@ -717,17 +720,17 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 			dagNode := currentDag.GetParentNode()
 			if dagNode != nil && dagNode.Dynamic() {
 				// Forward data from internal node of a dynamic graph
-				// <option>-<currentnodeid>-<childnodeid>
+				// <option>--<currentnodeid>--<childnodeid>
 				option := pipeline.CurrentDynamicOption[dagNode.GetUniqueId()]
-				key = fmt.Sprintf("%s-%s-%s", option, nodeUniqueId, node.GetUniqueId())
+				key = fmt.Sprintf("%s--%s--%s", option, nodeUniqueId, node.GetUniqueId())
 			} else if currentNode.Dynamic() {
 				// Forward data from end node of a dynamic graph
 				option := pipeline.CurrentDynamicOption[nodeUniqueId]
-				key = fmt.Sprintf("%s-%s-%s", option, nodeUniqueId, node.GetUniqueId())
+				key = fmt.Sprintf("%s--%s--%s", option, nodeUniqueId, node.GetUniqueId())
 				delete(pipeline.CurrentDynamicOption, nodeUniqueId)
 			} else {
-				// <currentnodeid>-<childnodeid>
-				key = fmt.Sprintf("%s-%s", nodeUniqueId, node.GetUniqueId())
+				// <currentnodeid>--<childnodeid>
+				key = fmt.Sprintf("%s--%s", nodeUniqueId, node.GetUniqueId())
 			}
 
 			serr := context.Set(key, intermediateData)
@@ -743,8 +746,14 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 
 		// if indegree is > 1 then use statestore to get request state
 		if inDegree > 1 {
-			//key := fmt.Sprintf("%s-%s", currentDag.Id, node.Id)
-			key := node.GetUniqueId()
+			key := ""
+			dagNode := currentDag.GetParentNode()
+			if dagNode != nil && dagNode.Dynamic() {
+				option := pipeline.CurrentDynamicOption[dagNode.GetUniqueId()]
+				key = fmt.Sprintf("%s-%s", node.GetUniqueId(), option)
+			} else {
+				key = node.GetUniqueId()
+			}
 			// Update the state of indegree completion and get the updated state
 			inDegreeUpdatedCount, err := fhandler.stateStore.IncrementCounter(key)
 			if err != nil {
@@ -779,6 +788,9 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 
 	// reset dag execution position
 	pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_SAME, currentNode.Id)
+
+	// trace node - mark as end of node
+	stopNodeSpan(currentNodeUniqueId)
 
 	return []byte(""), nil
 }
@@ -852,8 +864,8 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 			subDataMap := make(map[string][]byte)
 			// Recive data from end node of a dynamic graph
 			for _, option := range pipeline.AllDynamicOption[node.GetUniqueId()] {
-				// <option>
-				key := fmt.Sprintf("%s", option)
+				//
+				key := fmt.Sprintf("%s--%s--%s", option, node.GetUniqueId(), currentNode.GetUniqueId())
 				idata, gerr := context.GetBytes(key)
 				if gerr != nil {
 					gerr := fmt.Errorf("key %s, %v", key, gerr)
@@ -892,12 +904,12 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 			dagNode := dag.GetParentNode()
 			if dagNode != nil && dagNode.Dynamic() {
 				// Recive data from internal node of a dynamic graph
-				// <option>-<dependencynodeid>-<currentnodeid>
+				// <option>--<dependencynodeid>--<currentnodeid>
 				option := pipeline.CurrentDynamicOption[dagNode.GetUniqueId()]
-				key = fmt.Sprintf("%s-%s-%s", option, node.GetUniqueId(), currentNode.GetUniqueId())
+				key = fmt.Sprintf("%s--%s--%s", option, node.GetUniqueId(), currentNode.GetUniqueId())
 			} else {
-				// <dependencynodeid>-<currentnodeid>
-				key = fmt.Sprintf("%s-%s", node.GetUniqueId(), currentNode.GetUniqueId())
+				// <dependencynodeid>--<currentnodeid>
+				key = fmt.Sprintf("%s--%s", node.GetUniqueId(), currentNode.GetUniqueId())
 			}
 			idata, gerr := context.GetBytes(key)
 			if gerr != nil {
@@ -1045,6 +1057,7 @@ func handleWorkflow(data []byte) string {
 			if serr != nil {
 				log.Fatalf("[Request `%s`] Failed to mark dag state, error %v", fhandler.id, serr)
 			}
+			log.Printf("[Request `%s`] DAG state initiated at StateStore", fhandler.id)
 		}
 
 		// If not a partial request set the execution position to initial node

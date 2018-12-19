@@ -47,6 +47,11 @@ func (o *Options) reset() {
 	o.sync = false
 	o.failureHandler = nil
 	o.responseHandler = nil
+	o.aggregator = nil
+	o.forwarder = nil
+	o.foreach = nil
+	o.condition = nil
+	o.noforwarder = false
 }
 
 // ForEach denotes the vertex will be executed in parralel for each value returned.
@@ -253,10 +258,10 @@ func (flow *Workflow) Apply(function string, opts ...Option) *Workflow {
 // All operation inside dag are async
 // returns error is dag is not valid
 // Note: If executing dag chain gets overridden
-func (flow *Workflow) ExecuteDag(dag *DagFlow) error {
+func (flow *Workflow) ExecuteDag(dag *DagFlow) {
 	pipeline := flow.pipeline
 	pipeline.SetDag(dag.udag)
-	return nil
+	return
 }
 
 // OnFailure set a failure handler routine for the pipeline

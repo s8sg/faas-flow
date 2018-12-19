@@ -207,7 +207,6 @@ func (this *DagFlow) AddEdge(from, to string, opts ...Option) error {
 	if err != nil {
 		return err
 	}
-
 	o := &Options{}
 	for _, opt := range opts {
 		o.reset()

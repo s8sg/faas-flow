@@ -2,7 +2,6 @@ package sdk
 
 import (
 	"fmt"
-	"log"
 	"strings"
 )
 
@@ -210,9 +209,6 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 					nextOperationDag = nextOperationNode.SubDag()
 					nextOperationNode = nextOperationDag.GetInitialNode()
 				}
-
-				log.Printf("nextOperationDag: %s", nextOperationDag.Id)
-				log.Printf("nextOperationNode: %s", nextOperationNode.GetUniqueId())
 
 				childOperationKey := ""
 				if nextOperationNode.Dynamic() {
