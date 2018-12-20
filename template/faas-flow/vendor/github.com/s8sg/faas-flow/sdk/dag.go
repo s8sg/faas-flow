@@ -5,6 +5,8 @@ import (
 )
 
 var (
+	// ERR_NO_VERTEX
+	ERR_NO_VERTEX = fmt.Errorf("dag has no vertex set")
 	// ERR_CYCLIC denotes that dag has a cycle
 	ERR_CYCLIC = fmt.Errorf("dag has cyclic dependency")
 	// ERR_DUPLICATE_EDGE denotes that a dag edge is duplicate
@@ -48,14 +50,16 @@ type Dag struct {
 
 // Node The vertex
 type Node struct {
-	Id    string // The id of the vertex
-	index int    // The index of the vertex
+	Id       string // The id of the vertex
+	index    int    // The index of the vertex
+	uniqueId string // The unique Id of the node
 
 	// Execution modes ([]operation / Dag)
 	subDag          *Dag            // Subdag
 	conditionalDags map[string]*Dag // Conditional subdags
 	operations      []*Operation    // The list of operations
 
+	dynamic       bool                 // Denotes if the node is dynamic
 	aggregator    Aggregator           // The aggregator aggregates multiple inputs to a node into one
 	foreach       ForEach              // If specified foreach allows to execute the vertex in parralel
 	condition     Condition            // If specified condition allows to execute only selected subdag
@@ -85,10 +89,6 @@ func NewDag() *Dag {
 // Its a way to define and reuse subdags
 // append causes disconnected dag which must be linked with edge in order to execute
 func (this *Dag) Append(dag *Dag) error {
-	err := dag.Validate()
-	if err != nil {
-		return err
-	}
 	for nodeId, node := range dag.nodes {
 		_, duplicate := this.nodes[nodeId]
 		if duplicate {
@@ -155,7 +155,7 @@ func (this *Dag) AddEdge(from, to string) error {
 	fromNode.outdegree++
 
 	// Add default forwarder for from node
-	fromNode.AddForwarder(to, DefaultForwarder)
+	fromNode.forwarder[to] = DefaultForwarder
 
 	return nil
 }
@@ -187,7 +187,12 @@ func (this *Dag) Validate() error {
 	initialNodeCount := 0
 	var endNodes []*Node
 
+	if len(this.nodes) == 0 {
+		return ERR_NO_VERTEX
+	}
+
 	for _, b := range this.nodes {
+		b.uniqueId = b.generateUniqueId(this.Id)
 		if b.indegree == 0 {
 			initialNodeCount = initialNodeCount + 1
 			this.initialNode = b
@@ -196,18 +201,49 @@ func (this *Dag) Validate() error {
 			endNodes = append(endNodes, b)
 		}
 		if b.subDag != nil {
+			if this.Id != "0" {
+				// Dag Id : <parent-dag-id>-<parent-node-unique-id>
+				b.subDag.Id = fmt.Sprintf("%s.%d", this.Id, b.index)
+			} else {
+				// Dag Id : <parent-dag-id>-<parent-node-unique-id>
+				b.subDag.Id = fmt.Sprintf("%d", b.index)
+			}
+
 			err := b.subDag.Validate()
 			if err != nil {
 				return err
 			}
-			// Set if Subdag doesn't have and data edge
-			this.executionFlow = b.subDag.executionFlow
+
+			if !b.subDag.executionFlow {
+				//  Subdag have data edge
+				this.executionFlow = false
+			}
+		}
+		for condition, cdag := range b.conditionalDags {
+			if this.Id != "0" {
+				// Dag Id : <parent-dag-id>-<parent-node-unique-id>
+				cdag.Id = fmt.Sprintf("%s.%d-%s", this.Id, b.index, condition)
+			} else {
+				// Dag Id : <parent-dag-id>-<parent-node-unique-id>
+				cdag.Id = fmt.Sprintf("%d-%s", b.index, condition)
+			}
+
+			err := cdag.Validate()
+			if err != nil {
+				return err
+			}
+
+			if !cdag.executionFlow {
+				// Subdag have data edge
+				this.executionFlow = false
+			}
 		}
 	}
 
 	if initialNodeCount > 1 {
-		return ERR_MULTIPLE_START
+		return fmt.Errorf("%v, dag: %s", ERR_MULTIPLE_START, this.Id)
 	}
+
 	if len(endNodes) > 1 {
 		endNodeId := fmt.Sprintf("end-%s", this.Id)
 		modifier := CreateModifier(BLANK_MODIFIER)
@@ -222,18 +258,27 @@ func (this *Dag) Validate() error {
 	} else {
 		this.endNode = endNodes[0]
 	}
+
 	return nil
 }
 
 // GetNodes returns a list of nodes (including subdags) belong to the dag
-// nodes are represented as <dagId>-<node>
-func (this *Dag) GetNodes() []string {
+func (this *Dag) GetNodes(dynamicOption string) []string {
 	var nodes []string
 	for _, b := range this.nodes {
-		nodeId := this.Id + "-" + b.Id
+		nodeId := ""
+		if dynamicOption == "" {
+			nodeId = b.GetUniqueId()
+		} else {
+			nodeId = b.GetUniqueId() + "-" + dynamicOption
+		}
 		nodes = append(nodes, nodeId)
+		// excludes the dynamic subdag
+		if b.dynamic {
+			continue
+		}
 		if b.subDag != nil {
-			subDagNodes := b.subDag.GetNodes()
+			subDagNodes := b.subDag.GetNodes(dynamicOption)
 			nodes = append(nodes, subDagNodes...)
 		}
 	}
@@ -285,6 +330,11 @@ func (this *Node) SubDag() *Dag {
 	return this.subDag
 }
 
+// Dynamic checks if the node is dynamic
+func (this *Node) Dynamic() bool {
+	return this.dynamic
+}
+
 // ParentDag returns the parent dag of the node
 func (this *Node) ParentDag() *Dag {
 	return this.parentDag
@@ -303,11 +353,13 @@ func (this *Node) AddAggregator(aggregator Aggregator) {
 // AddForEach add a aggregator to a node
 func (this *Node) AddForEach(foreach ForEach) {
 	this.foreach = foreach
+	this.dynamic = true
 }
 
 // AddCondition add a condition to a node
 func (this *Node) AddCondition(condition Condition) {
 	this.condition = condition
+	this.dynamic = true
 }
 
 // AddSubAggregator add a foreach aggregator to a node
@@ -329,6 +381,7 @@ func (this *Node) AddSubDag(subDag *Dag) error {
 	parentDag := this.parentDag
 	// Continue till there is no parent dag
 	for parentDag != nil {
+		// check if recursive inclusion
 		if parentDag == subDag {
 			return ERR_RECURSIVE_DEP
 		}
@@ -346,14 +399,6 @@ func (this *Node) AddSubDag(subDag *Dag) error {
 	// Set the node the subdag belongs to
 	subDag.parentNode = this
 
-	if this.parentDag.Id != "0" {
-		// Dag Id : <parent-dag-id>-<parent-node-index>
-		subDag.Id = fmt.Sprintf("%s.%d", this.parentDag.Id, this.index)
-	} else {
-		// Dag Id : <parent-dag-id>-<parent-node-index>
-		subDag.Id = fmt.Sprintf("%d", this.index)
-	}
-
 	return nil
 }
 
@@ -363,6 +408,7 @@ func (this *Node) AddConditionalDag(condition string, dag *Dag) error {
 	parentDag := this.parentDag
 	// Continue till there is no parent dag
 	for parentDag != nil {
+		// check if recursive inclusion
 		if parentDag == dag {
 			return ERR_RECURSIVE_DEP
 		}
@@ -382,13 +428,6 @@ func (this *Node) AddConditionalDag(condition string, dag *Dag) error {
 	this.conditionalDags[condition] = dag
 	// Set the node the subdag belongs to
 	dag.parentNode = this
-	if this.parentDag.Id != "0" {
-		// Dag Id : <parent-dag-id>-<parent-node-index>
-		dag.Id = fmt.Sprintf("%s.%d.%s", this.parentDag.Id, this.index, condition)
-	} else {
-		// Dag Id : <parent-dag-id>-<parent-node-index>
-		dag.Id = fmt.Sprintf("%d.%s", this.index, condition)
-	}
 
 	return nil
 }
@@ -403,7 +442,40 @@ func (this *Node) GetForwarder(children string) Forwarder {
 	return this.forwarder[children]
 }
 
-// GetUniqueId returns a quique ID of node throughout the DAG
+// GetSubAggregator gets the subaggregator for condition and foreach
+func (this *Node) GetSubAggregator() Aggregator {
+	return this.subAggregator
+}
+
+// GetCondition get the condition function
+func (this *Node) GetCondition() Condition {
+	return this.condition
+}
+
+// GetForEach get the foreach function
+func (this *Node) GetForEach() ForEach {
+	return this.foreach
+}
+
+// GetAllConditionalDags get all the subdags for all conditions
+func (this *Node) GetAllConditionalDags() map[string]*Dag {
+	return this.conditionalDags
+}
+
+// GetConditionalDag get the sundag for a specific condition
+func (this *Node) GetConditionalDag(condition string) *Dag {
+	if this.conditionalDags == nil {
+		return nil
+	}
+	return this.conditionalDags[condition]
+}
+
+// generateUniqueId returns a unique ID of node throughout the DAG
+func (this *Node) generateUniqueId(dagId string) string {
+	return fmt.Sprintf("%s.%d-%s", dagId, this.index, this.Id)
+}
+
+// GetUniqueId returns a unique ID of the node
 func (this *Node) GetUniqueId() string {
-	return fmt.Sprintf("%s.%d.%s", this.parentDag.Id, this.index, this.Id)
+	return this.uniqueId
 }

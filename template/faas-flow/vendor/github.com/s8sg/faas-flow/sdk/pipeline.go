@@ -30,6 +30,10 @@ type Pipeline struct {
 	ExecutionPosition map[string]string `json:"pipeline-execution-position"` // Denotes the node that is executing now
 	ExecutionDepth    int               `json:"pipeline-execution-depth"`    // Denotes the depth of subgraph its executing
 
+	CurrentDynamicOption   map[string]string   `json:"pipeline-dynamic-option"`           // Denotes the current dynamic option mapped against the dynamic Node UQ id
+	AllDynamicOption       map[string][]string `json:"pipeline-all-dynamic-options"`      // Denotes all options mapped  against the dynamic Node UQ id
+	DynamicDependencyCount map[string]int      `json:"pipeline-dynamic-dependency-count"` // Denotes the no of dependency for a nodes unique Id
+
 	FailureHandler PipelineErrorHandler `json:"-"`
 	Finally        PipelineHandler      `json:"-"`
 }
@@ -42,8 +46,12 @@ func CreatePipeline(name string) *Pipeline {
 	// For default dag set the Id to flow-name
 	pipeline.Dag.Id = name
 	pipeline.ExecutionPosition = make(map[string]string, 0)
+
+	pipeline.CurrentDynamicOption = make(map[string]string, 0)
+	pipeline.AllDynamicOption = make(map[string][]string, 0)
+	pipeline.DynamicDependencyCount = make(map[string]int, 0)
+
 	pipeline.ExecutionDepth = 0
-	// pipeline.ExecutionPosition["0"] = name
 	return pipeline
 }
 
@@ -54,8 +62,8 @@ func (pipeline *Pipeline) CountNodes() int {
 }
 
 // GetAllNodesId returns a recursive list of all nodes that belongs to the pipeline
-func (pipeline *Pipeline) GetAllNodesId() []string {
-	nodes := pipeline.Dag.GetNodes()
+func (pipeline *Pipeline) GetAllNodesUniqueId() []string {
+	nodes := pipeline.Dag.GetNodes("")
 	return nodes
 }
 
@@ -76,7 +84,12 @@ func (pipeline *Pipeline) GetCurrentNodeDag() (*Node, *Dag) {
 	for index < pipeline.ExecutionDepth {
 		indexStr = fmt.Sprintf("%d", index)
 		node := dag.GetNode(pipeline.ExecutionPosition[indexStr])
-		dag = node.subDag
+		if node.subDag != nil {
+			dag = node.subDag
+		} else {
+			option := pipeline.CurrentDynamicOption[node.GetUniqueId()]
+			dag = node.conditionalDags[option]
+		}
 		index++
 	}
 	indexStr = fmt.Sprintf("%d", index)
@@ -120,4 +133,8 @@ func (pipeline *Pipeline) ApplyState(state string) {
 	pipeline.ExecutionDepth = temp.ExecutionDepth
 	pipeline.ExecutionPosition = temp.ExecutionPosition
 	pipeline.PipelineType = temp.PipelineType
+
+	pipeline.CurrentDynamicOption = temp.CurrentDynamicOption
+	pipeline.AllDynamicOption = temp.AllDynamicOption
+	pipeline.DynamicDependencyCount = temp.DynamicDependencyCount
 }

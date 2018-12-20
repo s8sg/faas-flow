@@ -3,6 +3,7 @@ package faasflow
 import (
 	"fmt"
 	sdk "github.com/s8sg/faas-flow/sdk"
+	"log"
 )
 
 var (
@@ -20,8 +21,11 @@ func CreateDag() *DagFlow {
 
 // AppendDag generalizes a seperate dag by appending its properties into current dag.
 // Provided dag should be mutually exclusive
-func (this *DagFlow) AppendDag(dag *DagFlow) error {
-	return this.udag.Append(dag.udag)
+func (this *DagFlow) AppendDag(dag *DagFlow) {
+	err := this.udag.Append(dag.udag)
+	if err != nil {
+		log.Fatalf("Error at AppendDag, %v", err)
+	}
 }
 
 // AddVertex add a new vertex by id
@@ -47,14 +51,17 @@ func (this *DagFlow) AddVertex(vertex string, opts ...Option) {
 // If vertex already exist it will override the existing definition,
 // If not new vertex will be created.
 // When a vertex is dag, operations are ommited.
-func (this *DagFlow) AddSubDag(vertex string, dag *DagFlow) error {
+func (this *DagFlow) AddSubDag(vertex string, dag *DagFlow) {
 
 	node := this.udag.GetNode(vertex)
 
 	if node == nil {
 		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
 	}
-	return node.AddSubDag(dag.udag)
+	err := node.AddSubDag(dag.udag)
+	if err != nil {
+		log.Fatalf("Error at AddSubDag for %s, %v", vertex, err)
+	}
 }
 
 // AddForEachDag composites a seperate dag as a subdag which executes for each value
@@ -62,24 +69,27 @@ func (this *DagFlow) AddSubDag(vertex string, dag *DagFlow) error {
 // If not new vertex will be created.
 // When a vertex is dag, operations are ommited.
 // foreach: ForEach Option
-func (this *DagFlow) AddForEachDag(vertex string, dag *DagFlow, foreach Option) error {
+func (this *DagFlow) AddForEachDag(vertex string, dag *DagFlow, foreach Option) {
 	node := this.udag.GetNode(vertex)
 	if node == nil {
 		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
 	}
 	o := &Options{}
 	foreach(o)
-	if o.foreach == nil {
+	if o.foreach != nil {
 		node.AddForEach(o.foreach)
 	} else {
-		return INVAL_OPTION
+		log.Fatalf("Error at AddForEachDag for %s, %v", vertex, INVAL_OPTION)
 	}
-	if o.aggregator == nil {
+	if o.aggregator != nil {
 		node.AddSubAggregator(o.aggregator)
 	} else {
-		return INVAL_OPTION
+		log.Fatalf("Error at AddForEachDag for %s, %v", vertex, INVAL_OPTION)
 	}
-	return node.AddSubDag(dag.udag)
+	err := node.AddSubDag(dag.udag)
+	if err != nil {
+		log.Fatalf("Error at AddForEachDag for %s, %v", vertex, err)
+	}
 }
 
 // AddConditionalDag composites multiple seperate dag as a subdag which executes for a conditions matched
@@ -87,30 +97,29 @@ func (this *DagFlow) AddForEachDag(vertex string, dag *DagFlow, foreach Option) 
 // If not new vertex will be created.
 // When a vertex is dag, operations are ommited.
 // condition: Condition Option
-func (this *DagFlow) AddConditionalDags(vertex string, subdags map[string]*DagFlow, condition Option) error {
+func (this *DagFlow) AddConditionalDags(vertex string, subdags map[string]*DagFlow, condition Option) {
 	node := this.udag.GetNode(vertex)
 	if node == nil {
 		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
 	}
 	o := &Options{}
 	condition(o)
-	if o.condition == nil {
+	if o.condition != nil {
 		node.AddCondition(o.condition)
 	} else {
-		return INVAL_OPTION
+		log.Fatalf("Error at AddConditionalDags for %s, %v", vertex, INVAL_OPTION)
 	}
-	if o.aggregator == nil {
+	if o.aggregator != nil {
 		node.AddSubAggregator(o.aggregator)
 	} else {
-		return INVAL_OPTION
+		log.Fatalf("Error at AddConditionalDags for %s, %v", vertex, INVAL_OPTION)
 	}
 	for conditionKey, dag := range subdags {
 		err := node.AddConditionalDag(conditionKey, dag.udag)
 		if err != nil {
-			return err
+			log.Fatalf("Error at AddConditionalDags for %s, %v", vertex, err)
 		}
 	}
-	return nil
 }
 
 // AddModifier adds a new modifier to the given vertex
@@ -202,12 +211,11 @@ func (this *DagFlow) AddCallback(vertex string, url string, opts ...Option) {
 }
 
 // AddEdge adds a directed edge between two vertex as <from>-><to>
-func (this *DagFlow) AddEdge(from, to string, opts ...Option) error {
+func (this *DagFlow) AddEdge(from, to string, opts ...Option) {
 	err := this.udag.AddEdge(from, to)
 	if err != nil {
-		return err
+		log.Fatalf("Error at AddEdge for %s-%s, %v", from, to, err)
 	}
-
 	o := &Options{}
 	for _, opt := range opts {
 		o.reset()
@@ -223,6 +231,4 @@ func (this *DagFlow) AddEdge(from, to string, opts ...Option) error {
 			fromNode.AddForwarder(to, o.forwarder)
 		}
 	}
-
-	return nil
 }
