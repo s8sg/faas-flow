@@ -425,7 +425,6 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 					err = operation.FailureHandler(err)
 				}
 				if err != nil {
-					stopNodeSpan(currentNode.GetUniqueId())
 					return nil, err
 				}
 			}
@@ -445,7 +444,6 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 					err = operation.FailureHandler(err)
 				}
 				if err != nil {
-					stopNodeSpan(currentNode.GetUniqueId())
 					return nil, err
 				}
 			}
@@ -459,7 +457,6 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 				result, err = operation.Mod(result)
 			}
 			if err != nil {
-				stopNodeSpan(currentNode.GetUniqueId())
 				err = fmt.Errorf("Node(%s), error: Failed at modifier, %v",
 					currentNode.GetUniqueId(), err)
 				return nil, err
@@ -471,9 +468,6 @@ func execute(fhandler *flowHandler, request []byte) ([]byte, error) {
 	}
 
 	log.Printf("[Request `%s`] Completed execution of Node %s", fhandler.id, currentNode.GetUniqueId())
-
-	// trace node - mark as end of node
-	// stopNodeSpan(currentNode.GetUniqueId())
 
 	return result, nil
 }
@@ -539,6 +533,7 @@ func handleDynamicNode(fhandler *flowHandler, context *faasflow.Context, result 
 	currentNode, _ := pipeline.GetCurrentNodeDag()
 
 	currentNodeUniqueId := currentNode.GetUniqueId()
+	defer stopNodeSpan(currentNodeUniqueId)
 
 	log.Printf("[Request `%s`] Processing dynamic node %s", fhandler.id, currentNodeUniqueId)
 
@@ -579,6 +574,8 @@ func handleDynamicNode(fhandler *flowHandler, context *faasflow.Context, result 
 	// Set the no of depedency graph
 	pipeline.DynamicDependencyCount[currentNodeUniqueId] = dependencyCount
 	pipeline.AllDynamicOption[currentNodeUniqueId] = options
+	defer delete(pipeline.DynamicDependencyCount, currentNodeUniqueId)
+	defer delete(pipeline.AllDynamicOption, currentNodeUniqueId)
 
 	for dynamicKey, subdag := range subdags {
 
@@ -587,10 +584,6 @@ func handleDynamicNode(fhandler *flowHandler, context *faasflow.Context, result 
 
 		err := fhandler.stateStore.Create(subdag.GetNodes(dynamicKey))
 		if err != nil {
-			delete(pipeline.DynamicDependencyCount, currentNodeUniqueId)
-			delete(pipeline.AllDynamicOption, currentNodeUniqueId)
-			// NOTE: This error will happen for the first time,
-			// we dont perform depth decrement
 			return nil, fmt.Errorf("[Request `%s`] Dynamic DAG %s key %s state can not be initiated at StateStore, %v",
 				fhandler.id, subdag.Id, dynamicKey, err)
 		}
@@ -618,8 +611,6 @@ func handleDynamicNode(fhandler *flowHandler, context *faasflow.Context, result 
 		if forwardErr != nil {
 			// reset dag execution position
 			pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_DECREMENT, currentNode.Id)
-			delete(pipeline.DynamicDependencyCount, currentNodeUniqueId)
-			delete(pipeline.AllDynamicOption, currentNodeUniqueId)
 			return nil, fmt.Errorf("Node(%s): error: %v, %s, url %s",
 				currentNodeUniqueId, forwardErr,
 				string(resp), fhandler.asyncUrl)
@@ -633,14 +624,7 @@ func handleDynamicNode(fhandler *flowHandler, context *faasflow.Context, result 
 		delete(pipeline.CurrentDynamicOption, currentNode.GetUniqueId())
 	}
 
-	delete(pipeline.DynamicDependencyCount, currentNodeUniqueId)
-	delete(pipeline.AllDynamicOption, currentNodeUniqueId)
-
-	// trace node - mark as end of node
-	stopNodeSpan(currentNodeUniqueId)
-
 	return []byte(""), nil
-
 }
 
 // handleResponse Handle request Response for a faasflow perform response/asyncforward
@@ -664,6 +648,8 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 
 	currentNodeUniqueId := currentNode.GetUniqueId()
 
+	defer stopNodeSpan(currentNodeUniqueId)
+
 	// Check if the pipeline has completed excution return
 	// else change depth and continue executing
 	for true {
@@ -678,7 +664,6 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 			// If depth 0 then pipeline has finished
 			if pipeline.ExecutionDepth == 0 {
 				fhandler.finished = true
-				// TODO: Return empty for multinode
 				return result, nil
 			} else {
 				// Update position to upper depth
@@ -788,9 +773,6 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 
 	// reset dag execution position
 	pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_SAME, currentNode.Id)
-
-	// trace node - mark as end of node
-	stopNodeSpan(currentNodeUniqueId)
 
 	return []byte(""), nil
 }
