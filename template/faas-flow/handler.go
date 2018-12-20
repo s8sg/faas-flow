@@ -872,7 +872,7 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 					return data, gerr
 				}
 				log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s for option %s retrived from %s",
-					handler.id, node.GetUniqueId(), node.GetUniqueId(),
+					handler.id, node.GetUniqueId(), currentNode.GetUniqueId(),
 					option, key)
 				context.Del(key)
 
@@ -880,7 +880,7 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 			}
 
 			aggregator := node.GetSubAggregator()
-			idata, serr := aggregator(dataMap)
+			idata, serr := aggregator(subDataMap)
 			if serr != nil {
 				serr := fmt.Errorf("failed to aggregate dynamic node data, error %v", serr)
 				return data, serr
@@ -917,7 +917,7 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 				return data, gerr
 			}
 			log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s retrived from %s",
-				handler.id, node.GetUniqueId(), node.GetUniqueId(), key)
+				handler.id, node.GetUniqueId(), currentNode.GetUniqueId(), key)
 			context.Del(key)
 
 			dataMap[node.Id] = idata
