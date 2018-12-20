@@ -261,7 +261,6 @@ func (flow *Workflow) Apply(function string, opts ...Option) *Workflow {
 func (flow *Workflow) ExecuteDag(dag *DagFlow) {
 	pipeline := flow.pipeline
 	pipeline.SetDag(dag.udag)
-	return
 }
 
 // OnFailure set a failure handler routine for the pipeline
