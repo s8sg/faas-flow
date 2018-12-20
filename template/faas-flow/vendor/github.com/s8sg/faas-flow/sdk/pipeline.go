@@ -84,7 +84,12 @@ func (pipeline *Pipeline) GetCurrentNodeDag() (*Node, *Dag) {
 	for index < pipeline.ExecutionDepth {
 		indexStr = fmt.Sprintf("%d", index)
 		node := dag.GetNode(pipeline.ExecutionPosition[indexStr])
-		dag = node.subDag
+		if node.subDag != nil {
+			dag = node.subDag
+		} else {
+			option := pipeline.CurrentDynamicOption[node.GetUniqueId()]
+			dag = node.conditionalDags[option]
+		}
 		index++
 	}
 	indexStr = fmt.Sprintf("%d", index)

@@ -64,7 +64,15 @@ func generateConditionalDag(node *Node, dag *Dag, sb *strings.Builder, indent st
 		sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" -> \"%s\" [label=%s color=grey];",
 			indent, conditionKey, operationKey, condition))
 
-		previousOperation := generateDag(conditionDag, sb, indent+"\t")
+		sb.WriteString(fmt.Sprintf("\n%s\tsubgraph cluster_%s {", indent, condition))
+
+		sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%s.%d-%s\";", indent, dag.Id, node.index, condition))
+		sb.WriteString(fmt.Sprintf("\n%s\tcolor=lightgrey;", indent))
+		sb.WriteString(fmt.Sprintf("\n%s\tstyle=rounded;\n", indent))
+
+		previousOperation := generateDag(conditionDag, sb, indent+"\t\t")
+
+		sb.WriteString(fmt.Sprintf("\n%s\t}", indent))
 
 		sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" -> \"%s\" [label=\"1:1\" color=grey];",
 			indent, previousOperation, conditionEndKey))
@@ -130,11 +138,7 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 	// generate nodes
 	for _, node := range dag.nodes {
 
-		if dag.Id != "0" {
-			sb.WriteString(fmt.Sprintf("\n%ssubgraph cluster_%d {", indent, node.index))
-		} else {
-			sb.WriteString(fmt.Sprintf("\n%ssubgraph cluster_%s_%d {", indent, dag.Id, node.index))
-		}
+		sb.WriteString(fmt.Sprintf("\n%ssubgraph cluster_%d {", indent, node.index))
 
 		nodeIndexStr := fmt.Sprintf("%d", node.index-1)
 

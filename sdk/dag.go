@@ -225,7 +225,7 @@ func (this *Dag) Validate() error {
 				cdag.Id = fmt.Sprintf("%s.%d-%s", this.Id, b.index, condition)
 			} else {
 				// Dag Id : <parent-dag-id>-<parent-node-unique-id>
-				cdag.Id = fmt.Sprintf("%d.%s", b.index, condition)
+				cdag.Id = fmt.Sprintf("%d-%s", b.index, condition)
 			}
 
 			err := cdag.Validate()
