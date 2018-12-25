@@ -118,7 +118,7 @@ func DefineDataStore() (faasflow.DataStore, error) {
 ```
 
 
-## Sync or Async
+## Sync, Async or DAG
 
 Faasflow supports sync and async function call. By default all call are async. To call a function in Sync, faas-flow provide option `faasflow.Sync`:
 ```
@@ -132,7 +132,7 @@ Faasflow supports sync and async function call. By default all call are async. T
 **One or more `Async` function call results a pipeline to have multiple Nodes (Vertex) as a `chain`**
 ![alt multi node](https://github.com/s8sg/faas-flow/blob/master/doc/asynccall.jpg)
 
-**If pipeline is created as a `dag`, the pipeline will have multiple Nodes(Vertex)**
+**If pipeline is created as a `dag`, the pipeline will have multiple Nodes(Vertex). Vertex are executed in parralel in the most optimal way** 
 ![alt multi node dag](https://github.com/s8sg/faas-flow/blob/master/doc/asyncdag.jpg)
    
     
