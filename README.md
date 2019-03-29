@@ -13,6 +13,9 @@
 > - [x] **Available** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; as **`faas-flow`** template 
 
 **FYI**: Faasflow is into conceptual state and API which may change and under active development
+   
+**Dashboard:** Faasflow comes with a dashboard for visualizing dag generated from flow functions.   
+Available as https://github.com/s8sg/faas-flow-dashboard
 
 ## Overview
 
