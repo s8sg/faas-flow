@@ -3,7 +3,6 @@ package faasflow
 import (
 	"fmt"
 	sdk "github.com/s8sg/faas-flow/sdk"
-	"log"
 )
 
 var (
@@ -24,24 +23,23 @@ func CreateDag() *DagFlow {
 func (this *DagFlow) AppendDag(dag *DagFlow) {
 	err := this.udag.Append(dag.udag)
 	if err != nil {
-		log.Fatalf("Error at AppendDag, %v", err)
+		panic(fmt.Sprintf("Error at AppendDag, %v", err))
 	}
 }
 
-// AddVertex add a new vertex by id
+// AddVertex adds a new vertex by id
 // If exist overrides the vertex settings.
-// Allowed option: Aggregator, ForEach
-func (this *DagFlow) AddVertex(vertex string, opts ...Option) {
+// options: Aggregator
+func (this *DagFlow) AddVertex(vertex string, options ...BranchOption) {
 	node := this.udag.GetNode(vertex)
 	if node == nil {
 		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
 	}
-	o := &Options{}
-	for _, opt := range opts {
+	o := &BranchOptions{}
+	for _, opt := range options {
 		o.reset()
 		opt(o)
 		if o.aggregator != nil {
-			// Add aggregator only on node declearation
 			node.AddAggregator(o.aggregator)
 		}
 	}
@@ -51,6 +49,7 @@ func (this *DagFlow) AddVertex(vertex string, opts ...Option) {
 // If vertex already exist it will override the existing definition,
 // If not new vertex will be created.
 // When a vertex is dag, operations are ommited.
+/*
 func (this *DagFlow) AddSubDag(vertex string, dag *DagFlow) {
 
 	node := this.udag.GetNode(vertex)
@@ -60,66 +59,79 @@ func (this *DagFlow) AddSubDag(vertex string, dag *DagFlow) {
 	}
 	err := node.AddSubDag(dag.udag)
 	if err != nil {
-		log.Fatalf("Error at AddSubDag for %s, %v", vertex, err)
+		panic(fmt.Sprintf("Error at AddSubDag for %s, %v", vertex, err))
 	}
-}
+}*/
 
-// AddForEachDag composites a seperate dag as a subdag which executes for each value
-// If vertex already exist it will override the existing definition,
-// If not new vertex will be created.
+// AddForEachBranch composites a subdag which executes for each value
+// It returns the subdag that will be executed for each value
+// If vertex already exist it will panic
 // When a vertex is dag, operations are ommited.
-// foreach: ForEach Option
-func (this *DagFlow) AddForEachDag(vertex string, dag *DagFlow, foreach Option) {
+// options: ForEach Option
+// option Aggregator
+func (this *DagFlow) AddForEachBranch(vertex string, foreach sdk.ForEach, option BranchOption) (dag *DagFlow) {
 	node := this.udag.GetNode(vertex)
-	if node == nil {
-		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
+	if node != nil {
+		panic(fmt.Sprintf("Error at AddForEachBranch for %s, vertex already exists", vertex))
 	}
-	o := &Options{}
-	foreach(o)
-	if o.foreach != nil {
-		node.AddForEach(o.foreach)
-	} else {
-		log.Fatalf("Error at AddForEachDag for %s, %v", vertex, INVAL_OPTION)
+	node = this.udag.AddVertex(vertex, []*sdk.Operation{})
+
+	if foreach == nil {
+		panic(fmt.Sprintf("Error at AddForEachBranch for %s, foreach function not specified", vertex))
 	}
+	node.AddForEach(foreach)
+
+	o := &BranchOptions{}
+	option(o)
 	if o.aggregator != nil {
 		node.AddSubAggregator(o.aggregator)
-	} else {
-		log.Fatalf("Error at AddForEachDag for %s, %v", vertex, INVAL_OPTION)
+		// panic(fmt.Sprintf("Error at AddForEachDag for %s, %v\n foreach aggregator not specified", vertex, INVAL_OPTION))
 	}
-	err := node.AddSubDag(dag.udag)
+
+	dag = CreateDag()
+	err := node.AddForEachDag(dag.udag)
 	if err != nil {
-		log.Fatalf("Error at AddForEachDag for %s, %v", vertex, err)
+		panic(fmt.Sprintf("Error at AddForEachBranch for %s, %v", vertex, err))
 	}
+	return
 }
 
-// AddConditionalDag composites multiple seperate dag as a subdag which executes for a conditions matched
+// AddConditionalBranch composites multiple dags as a subdag which executes for a conditions matched
+// and returns the set of dags based on the condition passed
 // If vertex already exist it will override the existing definition,
 // If not new vertex will be created.
 // When a vertex is dag, operations are ommited.
 // condition: Condition Option
-func (this *DagFlow) AddConditionalDags(vertex string, subdags map[string]*DagFlow, condition Option) {
+// option: Aggregator
+func (this *DagFlow) AddConditionalBranch(vertex string, conditions []string,
+	condition sdk.Condition, option BranchOption) (conditiondags map[string]*DagFlow) {
+
 	node := this.udag.GetNode(vertex)
-	if node == nil {
-		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
+	if node != nil {
+		panic(fmt.Sprintf("Error at AddForEachBranch for %s, vertex already exists", vertex))
 	}
-	o := &Options{}
-	condition(o)
-	if o.condition != nil {
-		node.AddCondition(o.condition)
-	} else {
-		log.Fatalf("Error at AddConditionalDags for %s, %v", vertex, INVAL_OPTION)
+	node = this.udag.AddVertex(vertex, []*sdk.Operation{})
+	if condition == nil {
+		panic(fmt.Sprintf("Error at AddConditionalBranch for %s, condition function not specified", vertex))
 	}
+	node.AddCondition(condition)
+
+	o := &BranchOptions{}
+	option(o)
 	if o.aggregator != nil {
 		node.AddSubAggregator(o.aggregator)
-	} else {
-		log.Fatalf("Error at AddConditionalDags for %s, %v", vertex, INVAL_OPTION)
+		// panic(fmt.Sprintf("Error at AddConditionalDags for %s, %v", vertex, INVAL_OPTION))
 	}
-	for conditionKey, dag := range subdags {
+	conditiondags = make(map[string]*DagFlow)
+	for _, conditionKey := range conditions {
+		dag := CreateDag()
 		err := node.AddConditionalDag(conditionKey, dag.udag)
 		if err != nil {
-			log.Fatalf("Error at AddConditionalDags for %s, %v", vertex, err)
+			panic(fmt.Sprintf("Error at AddConditionalBranch for %s, %v", vertex, err))
 		}
+		conditiondags[conditionKey] = dag
 	}
+	return
 }
 
 // AddModifier adds a new modifier to the given vertex
@@ -214,7 +226,7 @@ func (this *DagFlow) AddCallback(vertex string, url string, opts ...Option) {
 func (this *DagFlow) AddEdge(from, to string, opts ...Option) {
 	err := this.udag.AddEdge(from, to)
 	if err != nil {
-		log.Fatalf("Error at AddEdge for %s-%s, %v", from, to, err)
+		panic(fmt.Sprintf("Error at AddEdge for %s-%s, %v", from, to, err))
 	}
 	o := &Options{}
 	for _, opt := range opts {
@@ -222,12 +234,13 @@ func (this *DagFlow) AddEdge(from, to string, opts ...Option) {
 		opt(o)
 		if o.noforwarder == true {
 			fromNode := this.udag.GetNode(from)
-			// Add a nil forwarder
+			// Add a nil forwarder overriding the default forwarder
 			fromNode.AddForwarder(to, nil)
 		}
+
+		// in case there is a override
 		if o.forwarder != nil {
 			fromNode := this.udag.GetNode(from)
-			// Add aggregator only on node declearation
 			fromNode.AddForwarder(to, o.forwarder)
 		}
 	}

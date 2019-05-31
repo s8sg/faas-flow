@@ -42,6 +42,9 @@ type Dag struct {
 
 	initialNode *Node // The start of a valid dag
 	endNode     *Node // The end of a valid dag
+	hasBranch   bool  // denotes the dag or its subdag has a branch
+	hasEdge     bool  // denotes the dag or its subdag has edge
+	validated   bool  // denotes the dag has been validated
 
 	executionFlow bool // Flag to denote if none data dependency
 
@@ -157,6 +160,13 @@ func (this *Dag) AddEdge(from, to string) error {
 	// Add default forwarder for from node
 	fromNode.forwarder[to] = DefaultForwarder
 
+	// set has branch property
+	if toNode.indegree > 1 || fromNode.outdegree > 1 {
+		this.hasBranch = true
+	}
+
+	this.hasEdge = true
+
 	return nil
 }
 
@@ -180,12 +190,26 @@ func (this *Dag) GetEndNode() *Node {
 	return this.endNode
 }
 
+// HasBranch check if dag or its subdags has branch
+func (this *Dag) HasBranch() bool {
+	return this.hasBranch
+}
+
+// HasEdge check if dag or its subdags has edge
+func (this *Dag) HasEdge() bool {
+	return this.hasEdge
+}
+
 // Validate validates a dag and all subdag as per faas-flow dag requirments
 // A validated graph has only one initialNode and one EndNode set
 // if a graph has more than one endnode, a seperate endnode gets added
 func (this *Dag) Validate() error {
 	initialNodeCount := 0
 	var endNodes []*Node
+
+	if this.validated {
+		return nil
+	}
 
 	if len(this.nodes) == 0 {
 		return ERR_NO_VERTEX
@@ -214,6 +238,14 @@ func (this *Dag) Validate() error {
 				return err
 			}
 
+			if b.subDag.hasBranch {
+				this.hasBranch = true
+			}
+
+			if b.subDag.hasEdge {
+				this.hasEdge = true
+			}
+
 			if !b.subDag.executionFlow {
 				//  Subdag have data edge
 				this.executionFlow = false
@@ -231,6 +263,14 @@ func (this *Dag) Validate() error {
 			err := cdag.Validate()
 			if err != nil {
 				return err
+			}
+
+			if cdag.hasBranch {
+				this.hasBranch = true
+			}
+
+			if cdag.hasEdge {
+				this.hasEdge = true
 			}
 
 			if !cdag.executionFlow {
@@ -258,6 +298,8 @@ func (this *Dag) Validate() error {
 	} else {
 		this.endNode = endNodes[0]
 	}
+
+	this.validated = true
 
 	return nil
 }
@@ -377,7 +419,6 @@ func (this *Node) AddForwarder(children string, forwarder Forwarder) {
 
 // AddSubDag adds a subdag to the node
 func (this *Node) AddSubDag(subDag *Dag) error {
-	// Sub dags parent dag
 	parentDag := this.parentDag
 	// Continue till there is no parent dag
 	for parentDag != nil {
@@ -402,25 +443,21 @@ func (this *Node) AddSubDag(subDag *Dag) error {
 	return nil
 }
 
+// AddForEachDag adds a foreach subdag to the node
+func (this *Node) AddForEachDag(subDag *Dag) error {
+	// Set the subdag in the node
+	this.subDag = subDag
+	// Set the node the subdag belongs to
+	subDag.parentNode = this
+
+	this.parentDag.hasBranch = true
+	this.parentDag.hasEdge = true
+
+	return nil
+}
+
 // AddConditionalDag adds conditional dag to node
 func (this *Node) AddConditionalDag(condition string, dag *Dag) error {
-	// Sub dags parent dag
-	parentDag := this.parentDag
-	// Continue till there is no parent dag
-	for parentDag != nil {
-		// check if recursive inclusion
-		if parentDag == dag {
-			return ERR_RECURSIVE_DEP
-		}
-		// Check if the parent dag is a subdag and has a parent node
-		parentNode := parentDag.parentNode
-		if parentNode != nil {
-			// If a subdag, move to the parent dag
-			parentDag = parentNode.parentDag
-			continue
-		}
-		break
-	}
 	// Set the conditional subdag in the node
 	if this.conditionalDags == nil {
 		this.conditionalDags = make(map[string]*Dag)
@@ -428,6 +465,9 @@ func (this *Node) AddConditionalDag(condition string, dag *Dag) error {
 	this.conditionalDags[condition] = dag
 	// Set the node the subdag belongs to
 	dag.parentNode = this
+
+	this.parentDag.hasBranch = true
+	this.parentDag.hasEdge = true
 
 	return nil
 }
