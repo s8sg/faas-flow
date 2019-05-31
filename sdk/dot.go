@@ -138,32 +138,8 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 	// generate nodes
 	for _, node := range dag.nodes {
 
-		sb.WriteString(fmt.Sprintf("\n%ssubgraph cluster_%d {", indent, node.index))
-
-		nodeIndexStr := fmt.Sprintf("%d", node.index-1)
-
-		if nodeIndexStr != node.Id {
-			if dag.Id != "0" {
-				sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%s.%d-%s\";", indent, dag.Id, node.index, node.Id))
-			} else {
-				sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%d-%s\";", indent, node.index, node.Id))
-
-			}
-		} else {
-			if dag.Id != "0" {
-				sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%s-%d\";", indent, dag.Id, node.index))
-			} else {
-
-				sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%d\";", indent, node.index))
-
-			}
-		}
-		sb.WriteString(fmt.Sprintf("\n%s\tcolor=lightgrey;", indent))
-		sb.WriteString(fmt.Sprintf("\n%s\tstyle=rounded;\n", indent))
-
 		previousOperation := ""
 
-		subdag := node.SubDag()
 		if node.Dynamic() {
 			if node.GetCondition() != nil {
 				previousOperation = generateConditionalDag(node, dag, sb, indent)
@@ -171,7 +147,34 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 			if node.GetForEach() != nil {
 				previousOperation = generateForeachDag(node, dag, sb, indent)
 			}
-		} else if subdag != nil {
+		} else {
+
+			sb.WriteString(fmt.Sprintf("\n%ssubgraph cluster_%d {", indent, node.index))
+
+			nodeIndexStr := fmt.Sprintf("%d", node.index-1)
+
+			if nodeIndexStr != node.Id {
+				if dag.Id != "0" {
+					sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%s.%d-%s\";", indent, dag.Id, node.index, node.Id))
+				} else {
+					sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%d-%s\";", indent, node.index, node.Id))
+
+				}
+			} else {
+				if dag.Id != "0" {
+					sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%s-%d\";", indent, dag.Id, node.index))
+				} else {
+
+					sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%d\";", indent, node.index))
+
+				}
+			}
+			sb.WriteString(fmt.Sprintf("\n%s\tcolor=lightgrey;", indent))
+			sb.WriteString(fmt.Sprintf("\n%s\tstyle=rounded;\n", indent))
+		}
+
+		subdag := node.SubDag()
+		if subdag != nil {
 			previousOperation = generateDag(subdag, sb, indent+"\t")
 		} else {
 			for opsindex, operation := range node.Operations() {
@@ -198,7 +201,9 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 			}
 		}
 
-		sb.WriteString(fmt.Sprintf("\n%s}\n", indent))
+		if !node.Dynamic() {
+			sb.WriteString(fmt.Sprintf("\n%s}\n", indent))
+		}
 
 		if node.children != nil {
 			for _, child := range node.children {

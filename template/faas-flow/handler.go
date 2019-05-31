@@ -848,11 +848,7 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 			for _, option := range pipeline.AllDynamicOption[node.GetUniqueId()] {
 				//
 				key := fmt.Sprintf("%s--%s--%s", option, node.GetUniqueId(), currentNode.GetUniqueId())
-				idata, gerr := context.GetBytes(key)
-				if gerr != nil {
-					gerr := fmt.Errorf("key %s, %v", key, gerr)
-					return data, gerr
-				}
+				idata := context.GetBytes(key)
 				log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s for option %s retrived from %s",
 					handler.id, node.GetUniqueId(), currentNode.GetUniqueId(),
 					option, key)
@@ -893,11 +889,7 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 				// <dependencynodeid>--<currentnodeid>
 				key = fmt.Sprintf("%s--%s", node.GetUniqueId(), currentNode.GetUniqueId())
 			}
-			idata, gerr := context.GetBytes(key)
-			if gerr != nil {
-				gerr := fmt.Errorf("key %s, %v", key, gerr)
-				return data, gerr
-			}
+			idata := context.GetBytes(key)
 			log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s retrived from %s",
 				handler.id, node.GetUniqueId(), currentNode.GetUniqueId(), key)
 			context.Del(key)
@@ -1019,17 +1011,21 @@ func handleWorkflow(data []byte) string {
 			panic(fmt.Sprintf("[Request `%s`] Invalid dag, %v", fhandler.id, err))
 		}
 
-		// For branches StateStore need to be external
+		// For dag which has branches
+		// StateStore need to be external
 		if fhandler.getPipeline().Dag.HasBranch() {
-			// For dag with branch we need external state store
 			if !stateSDefined {
 				panic(fmt.Sprintf("[Request `%s`] Failed, DAG flow need external StateStore", fhandler.id))
 			}
 		}
 
-		// For Multinodes and executionFlow dag data store need to be external
-		if fhandler.getPipeline().Dag.HasEdge() && !fhandler.getPipeline().Dag.IsExecutionFlow() && !dataSOverride {
-			panic(fmt.Sprintf("[Request `%s`] Failed not an execution flow, DAG data flow need external DataStore", fhandler.id))
+		// Id dags has more than one nodes
+		// and nodes forwards data, data store need to be external
+		if fhandler.getPipeline().Dag.HasEdge() &&
+			!fhandler.getPipeline().Dag.IsExecutionFlow() {
+			if !dataSOverride {
+				panic(fmt.Sprintf("[Request `%s`] Failed not an execution flow, DAG data flow need external DataStore", fhandler.id))
+			}
 		}
 
 		// For a new dag pipeline Create the vertex in stateStore

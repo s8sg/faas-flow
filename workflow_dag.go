@@ -67,9 +67,9 @@ func (this *DagFlow) AddSubDag(vertex string, dag *DagFlow) {
 // It returns the subdag that will be executed for each value
 // If vertex already exist it will panic
 // When a vertex is dag, operations are ommited.
-// options: ForEach Option
-// option Aggregator
-func (this *DagFlow) AddForEachBranch(vertex string, foreach sdk.ForEach, option BranchOption) (dag *DagFlow) {
+// foreach: Foreach function
+// options: Aggregator
+func (this *DagFlow) AddForEachBranch(vertex string, foreach sdk.ForEach, options ...BranchOption) (dag *DagFlow) {
 	node := this.udag.GetNode(vertex)
 	if node != nil {
 		panic(fmt.Sprintf("Error at AddForEachBranch for %s, vertex already exists", vertex))
@@ -81,11 +81,14 @@ func (this *DagFlow) AddForEachBranch(vertex string, foreach sdk.ForEach, option
 	}
 	node.AddForEach(foreach)
 
-	o := &BranchOptions{}
-	option(o)
-	if o.aggregator != nil {
-		node.AddSubAggregator(o.aggregator)
-		// panic(fmt.Sprintf("Error at AddForEachDag for %s, %v\n foreach aggregator not specified", vertex, INVAL_OPTION))
+	for _, option := range options {
+		o := &BranchOptions{}
+		option(o)
+		if o.aggregator != nil {
+			node.AddSubAggregator(o.aggregator)
+			// panic(fmt.Sprintf("Error at AddForEachDag for %s, %v\n foreach aggregator not specified", vertex, INVAL_OPTION))
+		}
+		break
 	}
 
 	dag = CreateDag()
@@ -101,10 +104,10 @@ func (this *DagFlow) AddForEachBranch(vertex string, foreach sdk.ForEach, option
 // If vertex already exist it will override the existing definition,
 // If not new vertex will be created.
 // When a vertex is dag, operations are ommited.
-// condition: Condition Option
-// option: Aggregator
+// condition: Condition function
+// options: Aggregator
 func (this *DagFlow) AddConditionalBranch(vertex string, conditions []string,
-	condition sdk.Condition, option BranchOption) (conditiondags map[string]*DagFlow) {
+	condition sdk.Condition, options ...BranchOption) (conditiondags map[string]*DagFlow) {
 
 	node := this.udag.GetNode(vertex)
 	if node != nil {
@@ -116,11 +119,14 @@ func (this *DagFlow) AddConditionalBranch(vertex string, conditions []string,
 	}
 	node.AddCondition(condition)
 
-	o := &BranchOptions{}
-	option(o)
-	if o.aggregator != nil {
-		node.AddSubAggregator(o.aggregator)
-		// panic(fmt.Sprintf("Error at AddConditionalDags for %s, %v", vertex, INVAL_OPTION))
+	for _, option := range options {
+		o := &BranchOptions{}
+		option(o)
+		if o.aggregator != nil {
+			node.AddSubAggregator(o.aggregator)
+			// panic(fmt.Sprintf("Error at AddConditionalDags for %s, %v", vertex, INVAL_OPTION))
+		}
+		break
 	}
 	conditiondags = make(map[string]*DagFlow)
 	for _, conditionKey := range conditions {
