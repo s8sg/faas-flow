@@ -599,7 +599,6 @@ func handleDynamicNode(fhandler *flowHandler, context *faasflow.Context, result 
 
 	for dynamicKey, subdag := range subdags {
 
-		log.Printf("%s %v", dynamicKey, subdag)
 		subNode := subdag.GetInitialNode()
 		intermediateData := subresults[dynamicKey]
 
