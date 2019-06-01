@@ -550,15 +550,35 @@ func handleDynamicNode(fhandler *flowHandler, context *faasflow.Context, result 
 	switch {
 	case condition != nil:
 		conditions := condition(result)
+		if conditions == nil {
+			panic(fmt.Sprintf("Condition function at %s returned nil, failed to proceed",
+				currentNodeUniqueId))
+		}
 		for _, conditionKey := range conditions {
+			if len(conditionKey) == 0 {
+				panic(fmt.Sprintf("Condition function at %s returned invalid condiiton, failed to proceed",
+					currentNodeUniqueId))
+			}
 			subdags[conditionKey] = currentNode.GetConditionalDag(conditionKey)
+			if subdags[conditionKey] == nil {
+				panic(fmt.Sprintf("Condition function at %s returned invalid condiiton, failed to proceed",
+					currentNodeUniqueId))
+			}
 			subresults[conditionKey] = result
 			options = append(options, conditionKey)
 			dependencyCount = dependencyCount + 1
 		}
 	case foreach != nil:
 		foreachResults := foreach(result)
+		if foreachResults == nil {
+			panic(fmt.Sprintf("Foreach function at %s returned nil, failed to proceed",
+				currentNodeUniqueId))
+		}
 		for foreachKey, foreachResult := range foreachResults {
+			if len(foreachKey) == 0 {
+				panic(fmt.Sprintf("Foreach function at %s returned invalid key, failed to proceed",
+					currentNodeUniqueId))
+			}
 			subdags[foreachKey] = currentNode.SubDag()
 			subresults[foreachKey] = foreachResult
 			options = append(options, foreachKey)
@@ -579,6 +599,7 @@ func handleDynamicNode(fhandler *flowHandler, context *faasflow.Context, result 
 
 	for dynamicKey, subdag := range subdags {
 
+		log.Printf("%s %v", dynamicKey, subdag)
 		subNode := subdag.GetInitialNode()
 		intermediateData := subresults[dynamicKey]
 

@@ -12,8 +12,7 @@ var (
 // CreateDag creates a new dag definition
 func CreateDag() *DagFlow {
 	dag := &DagFlow{}
-	udag := sdk.NewDag()
-	dag.udag = udag
+	dag.udag = sdk.NewDag()
 
 	return dag
 }
@@ -86,7 +85,6 @@ func (this *DagFlow) AddForEachBranch(vertex string, foreach sdk.ForEach, option
 		option(o)
 		if o.aggregator != nil {
 			node.AddSubAggregator(o.aggregator)
-			// panic(fmt.Sprintf("Error at AddForEachDag for %s, %v\n foreach aggregator not specified", vertex, INVAL_OPTION))
 		}
 		break
 	}
@@ -124,17 +122,13 @@ func (this *DagFlow) AddConditionalBranch(vertex string, conditions []string,
 		option(o)
 		if o.aggregator != nil {
 			node.AddSubAggregator(o.aggregator)
-			// panic(fmt.Sprintf("Error at AddConditionalDags for %s, %v", vertex, INVAL_OPTION))
 		}
 		break
 	}
 	conditiondags = make(map[string]*DagFlow)
 	for _, conditionKey := range conditions {
 		dag := CreateDag()
-		err := node.AddConditionalDag(conditionKey, dag.udag)
-		if err != nil {
-			panic(fmt.Sprintf("Error at AddConditionalBranch for %s, %v", vertex, err))
-		}
+		node.AddConditionalDag(conditionKey, dag.udag)
 		conditiondags[conditionKey] = dag
 	}
 	return

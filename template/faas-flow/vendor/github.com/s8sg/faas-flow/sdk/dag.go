@@ -457,7 +457,7 @@ func (this *Node) AddForEachDag(subDag *Dag) error {
 }
 
 // AddConditionalDag adds conditional dag to node
-func (this *Node) AddConditionalDag(condition string, dag *Dag) error {
+func (this *Node) AddConditionalDag(condition string, dag *Dag) {
 	// Set the conditional subdag in the node
 	if this.conditionalDags == nil {
 		this.conditionalDags = make(map[string]*Dag)
@@ -468,8 +468,6 @@ func (this *Node) AddConditionalDag(condition string, dag *Dag) error {
 
 	this.parentDag.hasBranch = true
 	this.parentDag.hasEdge = true
-
-	return nil
 }
 
 // GetAggregator get a aggregator from a node
