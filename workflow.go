@@ -11,11 +11,12 @@ type Options struct {
 	sync            bool
 	failureHandler  sdk.FuncErrorHandler
 	responseHandler sdk.RespHandler
-	aggregator      sdk.Aggregator
 	forwarder       sdk.Forwarder
-	foreach         sdk.ForEach
-	condition       sdk.Condition
 	noforwarder     bool
+}
+
+type BranchOptions struct {
+	aggregator sdk.Aggregator
 }
 
 type Workflow struct {
@@ -27,70 +28,57 @@ type DagFlow struct {
 }
 
 type Option func(*Options)
+type BranchOption func(*BranchOptions)
 
 var (
 	// Sync can be used instead of SyncCall
 	Sync = SyncCall()
 	// Execution specify a edge doesn't forwards a data
 	// but rather mention a execution direction
-	Execution = ExecutionOnly()
+	Execution = InvokeEdge()
 	// Denote if last node doesn't contain any function call
 	emptyNode = false
 	// the reference of lastnode when applied as chain
 	lastnode *sdk.Node = nil
 )
 
-// reset reset the options
+// reset reset the Options
 func (o *Options) reset() {
 	o.header = map[string]string{}
 	o.query = map[string][]string{}
 	o.sync = false
 	o.failureHandler = nil
 	o.responseHandler = nil
-	o.aggregator = nil
 	o.forwarder = nil
-	o.foreach = nil
-	o.condition = nil
 	o.noforwarder = false
+}
+
+// reset reset the BranchOptions
+func (o *BranchOptions) reset() {
+	o.aggregator = nil
 }
 
 // ForEach denotes the vertex will be executed in parralel for each value returned.
 // aggregator aggregates all outputs into one
-func ForEach(foreach sdk.ForEach, aggregator sdk.Aggregator) Option {
-	return func(o *Options) {
-		o.foreach = foreach
+func Aggregator(aggregator sdk.Aggregator) BranchOption {
+	return func(o *BranchOptions) {
 		o.aggregator = aggregator
 	}
 }
 
-// Condition denotes the corresponding subdags will be executed for each condition matched
-// aggregator aggregates all dags outputs into one
-func Condition(condition sdk.Condition, aggregator sdk.Aggregator) Option {
-	return func(o *Options) {
-		o.condition = condition
-		o.aggregator = aggregator
-	}
-}
-
-// ExecutionOnly denotes a edge doesn't forwards a data,
-// but rather provides only an execution direction
-func ExecutionOnly() Option {
+// InvokeEdge denotes a edge doesn't forwards a data,
+// but rather provides only an execution flow
+func InvokeEdge() Option {
 	return func(o *Options) {
 		o.noforwarder = true
 	}
 }
 
 // Forwarder encodes request based on need for children vertex
+// by default the data gets forwarded as it is
 func Forwarder(forwarder sdk.Forwarder) Option {
 	return func(o *Options) {
 		o.forwarder = forwarder
-	}
-}
-
-// Aggregator aggregates multiple inputs to a node into one
-func Aggregator(aggregator sdk.Aggregator) Option {
-	return func(o *Options) {
-		o.aggregator = aggregator
 	}
 }
 

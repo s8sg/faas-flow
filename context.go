@@ -118,10 +118,10 @@ func (context *Context) Get(key string) (interface{}, error) {
 }
 
 // GetInt retrive a integer value from the context using DataStore
-func (context *Context) GetInt(key string) (int, error) {
+func (context *Context) GetInt(key string) int {
 	data, err := context.dataStore.Get(key)
 	if err != nil {
-		return 0, err
+		panic(fmt.Sprintf("error %v", err))
 	}
 
 	c := struct {
@@ -130,17 +130,17 @@ func (context *Context) GetInt(key string) (int, error) {
 	}{}
 	err = json.Unmarshal([]byte(data), &c)
 	if err != nil {
-		return 0, fmt.Errorf("Failed to unmarshal data, error %v", err)
+		panic(fmt.Sprintf("Failed to unmarshal data, error %v", err))
 	}
 
-	return c.Value, nil
+	return c.Value
 }
 
 // GetString retrive a string value from the context using DataStore
-func (context *Context) GetString(key string) (string, error) {
+func (context *Context) GetString(key string) string {
 	data, err := context.dataStore.Get(key)
 	if err != nil {
-		return "", err
+		panic(fmt.Sprintf("error %v", err))
 	}
 
 	c := struct {
@@ -149,17 +149,17 @@ func (context *Context) GetString(key string) (string, error) {
 	}{}
 	err = json.Unmarshal([]byte(data), &c)
 	if err != nil {
-		return "", fmt.Errorf("Failed to unmarshal data, error %v", err)
+		panic(fmt.Sprintf("Failed to unmarshal data, error %v", err))
 	}
 
-	return c.Value, nil
+	return c.Value
 }
 
 // GetBytes retrive a byte array from the context using DataStore
-func (context *Context) GetBytes(key string) ([]byte, error) {
+func (context *Context) GetBytes(key string) []byte {
 	data, err := context.dataStore.Get(key)
 	if err != nil {
-		return nil, err
+		panic(fmt.Sprintf("error %v", err))
 	}
 
 	c := struct {
@@ -168,17 +168,17 @@ func (context *Context) GetBytes(key string) ([]byte, error) {
 	}{}
 	err = json.Unmarshal([]byte(data), &c)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to unmarshal data, error %v", err)
+		panic(fmt.Sprintf("Failed to unmarshal data, error %v", err))
 	}
 
-	return c.Value, nil
+	return c.Value
 }
 
 // GetBool retrive a boolean value from the context using DataStore
-func (context *Context) GetBool(key string) (bool, error) {
+func (context *Context) GetBool(key string) bool {
 	data, err := context.dataStore.Get(key)
 	if err != nil {
-		return false, err
+		panic(fmt.Sprintf("error %v", err))
 	}
 
 	c := struct {
@@ -187,10 +187,10 @@ func (context *Context) GetBool(key string) (bool, error) {
 	}{}
 	err = json.Unmarshal([]byte(data), &c)
 	if err != nil {
-		return false, fmt.Errorf("Failed to unmarshal data, error %v", err)
+		panic(fmt.Sprintf("Failed to unmarshal data, error %v", err))
 	}
 
-	return c.Value, nil
+	return c.Value
 }
 
 // Del deletes a value from the context using DataStore

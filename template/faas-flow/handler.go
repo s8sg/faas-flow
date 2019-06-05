@@ -249,8 +249,8 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 		// New Request
 		if verifyRequest() {
 			if validateErr != nil {
-				log.Fatalf("Failed to verify incoming request with Hmac, %v",
-					validateErr.Error())
+				panic(fmt.Sprintf("Failed to verify incoming request with Hmac, %v",
+					validateErr.Error()))
 			} else {
 				log.Printf("Incoming request verified successfully")
 			}
@@ -285,8 +285,8 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 
 		if hmacEnabled() {
 			if validateErr != nil {
-				log.Fatalf("[Request `%s`] Invalid Hmac, %v",
-					requestId, validateErr.Error())
+				panic(fmt.Sprintf("[Request `%s`] Invalid Hmac, %v",
+					requestId, validateErr.Error()))
 			} else {
 				log.Printf("[Request `%s`] Valid Hmac", requestId)
 			}
@@ -550,15 +550,35 @@ func handleDynamicNode(fhandler *flowHandler, context *faasflow.Context, result 
 	switch {
 	case condition != nil:
 		conditions := condition(result)
+		if conditions == nil {
+			panic(fmt.Sprintf("Condition function at %s returned nil, failed to proceed",
+				currentNodeUniqueId))
+		}
 		for _, conditionKey := range conditions {
+			if len(conditionKey) == 0 {
+				panic(fmt.Sprintf("Condition function at %s returned invalid condiiton, failed to proceed",
+					currentNodeUniqueId))
+			}
 			subdags[conditionKey] = currentNode.GetConditionalDag(conditionKey)
+			if subdags[conditionKey] == nil {
+				panic(fmt.Sprintf("Condition function at %s returned invalid condiiton, failed to proceed",
+					currentNodeUniqueId))
+			}
 			subresults[conditionKey] = result
 			options = append(options, conditionKey)
 			dependencyCount = dependencyCount + 1
 		}
 	case foreach != nil:
 		foreachResults := foreach(result)
+		if foreachResults == nil {
+			panic(fmt.Sprintf("Foreach function at %s returned nil, failed to proceed",
+				currentNodeUniqueId))
+		}
 		for foreachKey, foreachResult := range foreachResults {
+			if len(foreachKey) == 0 {
+				panic(fmt.Sprintf("Foreach function at %s returned invalid key, failed to proceed",
+					currentNodeUniqueId))
+			}
 			subdags[foreachKey] = currentNode.SubDag()
 			subresults[foreachKey] = foreachResult
 			options = append(options, foreachKey)
@@ -824,7 +844,7 @@ func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) 
 	// flash any pending trace item if tracing enabled
 	flushTracer()
 
-	log.Fatalf("[Request `%s`] Failed, %v", fhandler.id, err)
+	panic(fmt.Sprintf("[Request `%s`] Failed, %v", fhandler.id, err))
 }
 
 // getDagIntermediateData gets the intermediate data from earlier vertex
@@ -848,11 +868,7 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 			for _, option := range pipeline.AllDynamicOption[node.GetUniqueId()] {
 				//
 				key := fmt.Sprintf("%s--%s--%s", option, node.GetUniqueId(), currentNode.GetUniqueId())
-				idata, gerr := context.GetBytes(key)
-				if gerr != nil {
-					gerr := fmt.Errorf("key %s, %v", key, gerr)
-					return data, gerr
-				}
+				idata := context.GetBytes(key)
 				log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s for option %s retrived from %s",
 					handler.id, node.GetUniqueId(), currentNode.GetUniqueId(),
 					option, key)
@@ -893,11 +909,7 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 				// <dependencynodeid>--<currentnodeid>
 				key = fmt.Sprintf("%s--%s", node.GetUniqueId(), currentNode.GetUniqueId())
 			}
-			idata, gerr := context.GetBytes(key)
-			if gerr != nil {
-				gerr := fmt.Errorf("key %s, %v", key, gerr)
-				return data, gerr
-			}
+			idata := context.GetBytes(key)
 			log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s retrived from %s",
 				handler.id, node.GetUniqueId(), currentNode.GetUniqueId(), key)
 			context.Del(key)
@@ -978,7 +990,7 @@ func handleWorkflow(data []byte) string {
 	// Get flow name
 	flowName = getWorkflowName()
 	if flowName == "" {
-		log.Fatalf("Error: workflow_name must be provided, specify workflow_name: <fucntion_name> using environment")
+		panic(fmt.Sprintf("Error: workflow_name must be provided, specify workflow_name: <fucntion_name> using environment"))
 	}
 
 	// initialize traceserve if tracing enabled
@@ -995,12 +1007,12 @@ func handleWorkflow(data []byte) string {
 		// INIT STORE: Get definition of StateStore and DataStore
 		stateSDefined, dataSOverride, err := initializeStore(fhandler)
 		if err != nil {
-			log.Fatalf("[Request `%s`] Failed to init flow, %v", fhandler.id, err)
+			panic(fmt.Sprintf("[Request `%s`] Failed to init flow, %v", fhandler.id, err))
 		}
 
 		// Check if the pipeline is active
 		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG && fhandler.partial && !isActive(fhandler) {
-			log.Fatalf("flow has been terminated")
+			panic(fmt.Sprintf("flow has been terminated"))
 		}
 
 		// MAKE CONTEXT: make the request context from flow
@@ -1009,23 +1021,30 @@ func handleWorkflow(data []byte) string {
 		// DEFINE: Get Pipeline definition from user implemented Define()
 		err = function.Define(fhandler.flow, context)
 		if err != nil {
-			log.Fatalf("[Request `%s`] Failed to define flow, %v", fhandler.id, err)
+			panic(fmt.Sprintf("[Request `%s`] Failed to define flow, %v", fhandler.id, err))
 		}
 
 		// VALIDATE: Validate Pipeline Definition
 		// Dag need to be valid
 		err = fhandler.getPipeline().Dag.Validate()
 		if err != nil {
-			log.Fatalf("[Request `%s`] Invalid dag, %v", fhandler.id, err)
+			panic(fmt.Sprintf("[Request `%s`] Invalid dag, %v", fhandler.id, err))
 		}
 
-		// For DAG, DataStore and StateStore need to be external
-		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG {
+		// For dag which has branches
+		// StateStore need to be external
+		if fhandler.getPipeline().Dag.HasBranch() {
 			if !stateSDefined {
-				log.Fatalf("[Request `%s`] Failed, DAG flow need external StateStore", fhandler.id)
+				panic(fmt.Sprintf("[Request `%s`] Failed, DAG flow need external StateStore", fhandler.id))
 			}
-			if !fhandler.getPipeline().Dag.IsExecutionFlow() && !dataSOverride {
-				log.Fatalf("[Request `%s`] Failed not an execution flow, DAG data flow need external DataStore", fhandler.id)
+		}
+
+		// Id dags has more than one nodes
+		// and nodes forwards data, data store need to be external
+		if fhandler.getPipeline().Dag.HasEdge() &&
+			!fhandler.getPipeline().Dag.IsExecutionFlow() {
+			if !dataSOverride {
+				panic(fmt.Sprintf("[Request `%s`] Failed not an execution flow, DAG data flow need external DataStore", fhandler.id))
 			}
 		}
 
@@ -1033,11 +1052,11 @@ func handleWorkflow(data []byte) string {
 		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG && !fhandler.partial {
 			err = fhandler.stateStore.Create(fhandler.getPipeline().GetAllNodesUniqueId())
 			if err != nil {
-				log.Fatalf("[Request `%s`] DAG state can not be initiated at StateStore, %v", fhandler.id, err)
+				panic(fmt.Sprintf("[Request `%s`] DAG state can not be initiated at StateStore, %v", fhandler.id, err))
 			}
 			serr := fhandler.stateStore.SetState(true)
 			if serr != nil {
-				log.Fatalf("[Request `%s`] Failed to mark dag state, error %v", fhandler.id, serr)
+				panic(fmt.Sprintf("[Request `%s`] Failed to mark dag state, error %v", fhandler.id, serr))
 			}
 			log.Printf("[Request `%s`] DAG state initiated at StateStore", fhandler.id)
 		}
@@ -1106,14 +1125,14 @@ func handleDotGraph() string { // Get flow name
 
 	err := function.Define(fhandler.flow, context)
 	if err != nil {
-		log.Fatalf("failed to generate dot graph, error %v", err)
+		panic(fmt.Sprintf("failed to generate dot graph, error %v", err))
 	}
 
 	// VALIDATE: Validate Pipeline Definition
 	// Dag need to be valid
 	err = fhandler.getPipeline().Dag.Validate()
 	if err != nil {
-		log.Fatalf("[Request `%s`] Invalid dag, %v", fhandler.id, err)
+		panic(fmt.Sprintf("[Request `%s`] Invalid dag, %v", fhandler.id, err))
 	}
 
 	return fhandler.getPipeline().MakeDotGraph()
