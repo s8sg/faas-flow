@@ -82,11 +82,14 @@ func (this *DagFlow) AddForEachBranch(vertex string, foreach sdk.ForEach, option
 
 	for _, option := range options {
 		o := &BranchOptions{}
+		o.reset()
 		option(o)
 		if o.aggregator != nil {
 			node.AddSubAggregator(o.aggregator)
 		}
-		break
+		if o.noforwarder == true {
+			node.AddForwarder("dynamic", nil)
+		}
 	}
 
 	dag = CreateDag()
@@ -119,11 +122,14 @@ func (this *DagFlow) AddConditionalBranch(vertex string, conditions []string,
 
 	for _, option := range options {
 		o := &BranchOptions{}
+		o.reset()
 		option(o)
 		if o.aggregator != nil {
 			node.AddSubAggregator(o.aggregator)
 		}
-		break
+		if o.noforwarder == true {
+			node.AddForwarder("dynamic", nil)
+		}
 	}
 	conditiondags = make(map[string]*DagFlow)
 	for _, conditionKey := range conditions {

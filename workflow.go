@@ -16,7 +16,8 @@ type Options struct {
 }
 
 type BranchOptions struct {
-	aggregator sdk.Aggregator
+	aggregator  sdk.Aggregator
+	noforwarder bool
 }
 
 type Workflow struct {
@@ -35,7 +36,8 @@ var (
 	Sync = SyncCall()
 	// Execution specify a edge doesn't forwards a data
 	// but rather mention a execution direction
-	Execution = InvokeEdge()
+	Execution       = InvokeEdge()
+	ExecutionBranch = InvokeEdgeDynamic()
 	// Denote if last node doesn't contain any function call
 	emptyNode = false
 	// the reference of lastnode when applied as chain
@@ -56,13 +58,20 @@ func (o *Options) reset() {
 // reset reset the BranchOptions
 func (o *BranchOptions) reset() {
 	o.aggregator = nil
+	o.noforwarder = false
 }
 
-// ForEach denotes the vertex will be executed in parralel for each value returned.
-// aggregator aggregates all outputs into one
+// Aggregator aggregates all outputs into one
 func Aggregator(aggregator sdk.Aggregator) BranchOption {
 	return func(o *BranchOptions) {
 		o.aggregator = aggregator
+	}
+}
+
+// InvokeEdgeDynamic() denotes a dynamic node doesn't forwards a data
+func InvokeEdgeDynamic() BranchOption {
+	return func(o *BranchOptions) {
+		o.noforwarder = true
 	}
 }
 
