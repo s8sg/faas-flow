@@ -664,12 +664,14 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 	// Check if the pipeline has completed excution return
 	// else change depth and continue executing
 	for true {
+		/*
+			// In case current node is a dynamic node stop
+			if currentNode.Dynamic() {
+				break
+			}
+		*/
 		// Get the next nodes
 		nextNodes = currentNode.Children()
-		// In case current node is a dynamic node stop
-		if currentNode.Dynamic() {
-			break
-		}
 		// If no nodes left
 		if nextNodes == nil {
 			// If depth 0 then pipeline has finished
