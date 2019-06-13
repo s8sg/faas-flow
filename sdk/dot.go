@@ -44,13 +44,14 @@ func generateConditionalDag(node *Node, dag *Dag, sb *strings.Builder, indent st
 		nextOperationNode := conditionDag.GetInitialNode()
 		nextOperationDag := conditionDag
 
-		// Find out the first operation on a subdag
+		// Find out the first operation on a subdag (recursively)
 		for nextOperationNode.SubDag() != nil && !nextOperationNode.Dynamic() {
 			nextOperationDag = nextOperationNode.SubDag()
 			nextOperationNode = nextOperationDag.GetInitialNode()
 		}
 
 		operationKey := ""
+
 		if nextOperationNode.Dynamic() {
 			if nextOperationNode.GetCondition() != nil {
 				operationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 0, nil, "conditions")
@@ -215,7 +216,7 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 				nextOperationNode := child
 				nextOperationDag := dag
 
-				// Find out the first operation on a subdag
+				// Find out the first operation on a subdag (recursively)
 				for nextOperationNode.SubDag() != nil && !nextOperationNode.Dynamic() {
 					nextOperationDag = nextOperationNode.SubDag()
 					nextOperationNode = nextOperationDag.GetInitialNode()

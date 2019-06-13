@@ -47,20 +47,20 @@ func (this *DagFlow) AddVertex(vertex string, options ...BranchOption) {
 // AddSubDag composites a seperate dag as a subdag to the given vertex.
 // If vertex already exist it will override the existing definition,
 // If not new vertex will be created.
-// When a vertex is dag, operations are ommited.
-/*
-func (this *DagFlow) AddSubDag(vertex string, dag *DagFlow) {
+func (this *DagFlow) AddSubDag(vertex string) (dag *DagFlow) {
 
 	node := this.udag.GetNode(vertex)
 
 	if node == nil {
 		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
 	}
+	dag = CreateDag()
 	err := node.AddSubDag(dag.udag)
 	if err != nil {
 		panic(fmt.Sprintf("Error at AddSubDag for %s, %v", vertex, err))
 	}
-}*/
+	return
+}
 
 // AddForEachBranch composites a subdag which executes for each value
 // It returns the subdag that will be executed for each value
