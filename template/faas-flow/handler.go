@@ -1130,13 +1130,41 @@ func handleDotGraph() string { // Get flow name
 	return fhandler.getPipeline().MakeDotGraph()
 }
 
+// handleDagExport() handle the dag export request
+func handleDagExport() string {
+	flowName = getWorkflowName()
+
+	fhandler := newWorkflowHandler("", flowName, "", "", nil)
+	context := createContext(fhandler)
+
+	err := function.Define(fhandler.flow, context)
+	if err != nil {
+		panic(fmt.Sprintf("failed to export graph, error %v", err))
+	}
+
+	return fhandler.getPipeline().GetDagDefinition()
+}
+
 // isDotGraphRequest check if the request is for dot graph generation
 func isDotGraphRequest() bool {
 	values, err := url.ParseQuery(os.Getenv("Http_Query"))
 	if err != nil {
 		return false
 	}
+
 	if strings.ToUpper(values.Get("generate-dot-graph")) == "TRUE" {
+		return true
+	}
+	return false
+}
+
+func isDagExportRequest() bool {
+	values, err := url.ParseQuery(os.Getenv("Http_Query"))
+	if err != nil {
+		return false
+	}
+
+	if strings.ToUpper(values.Get("export-dag")) == "TRUE" {
 		return true
 	}
 	return false
@@ -1146,6 +1174,9 @@ func isDotGraphRequest() bool {
 func handle(data []byte) string {
 	if isDotGraphRequest() {
 		return handleDotGraph()
+	} else if isDagExportRequest() {
+		return handleDagExport()
 	}
+
 	return handleWorkflow(data)
 }
