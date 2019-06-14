@@ -1104,26 +1104,6 @@ func handleWorkflow(data []byte) string {
 	return string(resp)
 }
 
-// handleDotGraph() handle the dot graph request
-func handleDotGraph() string { // Get flow name
-	flowName = getWorkflowName()
-
-	fhandler := newWorkflowHandler("", flowName, "", "", nil)
-	context := createContext(fhandler)
-
-	err := function.Define(fhandler.flow, context)
-	if err != nil {
-		panic(fmt.Sprintf("failed to generate dot graph, error %v", err))
-	}
-
-	err = fhandler.getPipeline().Dag.Validate()
-	if err != nil {
-		panic(fmt.Sprintf("[Request `%s`] Invalid dag, %v", fhandler.id, err))
-	}
-
-	return fhandler.getPipeline().MakeDotGraph()
-}
-
 // handleDagExport() handle the dag export request
 func handleDagExport() string {
 	flowName = getWorkflowName()
@@ -1139,19 +1119,7 @@ func handleDagExport() string {
 	return fhandler.getPipeline().GetDagDefinition()
 }
 
-// isDotGraphRequest check if the request is for dot graph generation
-func isDotGraphRequest() bool {
-	values, err := url.ParseQuery(os.Getenv("Http_Query"))
-	if err != nil {
-		return false
-	}
-
-	if strings.ToUpper(values.Get("generate-dot-graph")) == "TRUE" {
-		return true
-	}
-	return false
-}
-
+// isDagExportRequest check if dag export request
 func isDagExportRequest() bool {
 	values, err := url.ParseQuery(os.Getenv("Http_Query"))
 	if err != nil {
@@ -1166,9 +1134,7 @@ func isDagExportRequest() bool {
 
 // handle handle the requests
 func handle(data []byte) string {
-	if isDotGraphRequest() {
-		return handleDotGraph()
-	} else if isDagExportRequest() {
+	if isDagExportRequest() {
 		return handleDagExport()
 	}
 
