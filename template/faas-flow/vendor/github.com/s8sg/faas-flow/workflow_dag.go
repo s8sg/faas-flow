@@ -47,20 +47,20 @@ func (this *DagFlow) AddVertex(vertex string, options ...BranchOption) {
 // AddSubDag composites a seperate dag as a subdag to the given vertex.
 // If vertex already exist it will override the existing definition,
 // If not new vertex will be created.
-// When a vertex is dag, operations are ommited.
-/*
-func (this *DagFlow) AddSubDag(vertex string, dag *DagFlow) {
+func (this *DagFlow) AddSubDag(vertex string) (dag *DagFlow) {
 
 	node := this.udag.GetNode(vertex)
 
 	if node == nil {
 		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
 	}
+	dag = CreateDag()
 	err := node.AddSubDag(dag.udag)
 	if err != nil {
 		panic(fmt.Sprintf("Error at AddSubDag for %s, %v", vertex, err))
 	}
-}*/
+	return
+}
 
 // AddForEachBranch composites a subdag which executes for each value
 // It returns the subdag that will be executed for each value
@@ -82,11 +82,14 @@ func (this *DagFlow) AddForEachBranch(vertex string, foreach sdk.ForEach, option
 
 	for _, option := range options {
 		o := &BranchOptions{}
+		o.reset()
 		option(o)
 		if o.aggregator != nil {
 			node.AddSubAggregator(o.aggregator)
 		}
-		break
+		if o.noforwarder == true {
+			node.AddForwarder("dynamic", nil)
+		}
 	}
 
 	dag = CreateDag()
@@ -119,11 +122,14 @@ func (this *DagFlow) AddConditionalBranch(vertex string, conditions []string,
 
 	for _, option := range options {
 		o := &BranchOptions{}
+		o.reset()
 		option(o)
 		if o.aggregator != nil {
 			node.AddSubAggregator(o.aggregator)
 		}
-		break
+		if o.noforwarder == true {
+			node.AddForwarder("dynamic", nil)
+		}
 	}
 	conditiondags = make(map[string]*DagFlow)
 	for _, conditionKey := range conditions {

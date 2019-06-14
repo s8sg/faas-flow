@@ -131,15 +131,6 @@ func getWorkflowName() string {
 	return os.Getenv("workflow_name")
 }
 
-// useIntermediateStorage check if IntermidiateStorage is enabled
-func useIntermediateStorage() bool {
-	storage := os.Getenv("intermediate_storage")
-	if strings.ToUpper(storage) == "TRUE" {
-		return true
-	}
-	return false
-}
-
 // getPipeline returns the underline flow.pipeline object
 func (fhandler *flowHandler) getPipeline() *sdk.Pipeline {
 	return fhandler.flow.GetPipeline()
@@ -608,8 +599,8 @@ func handleDynamicNode(fhandler *flowHandler, context *faasflow.Context, result 
 				fhandler.id, subdag.Id, dynamicKey, err)
 		}
 
-		// If intermediate storage is enabled store data to intermediate storage
-		if useIntermediateStorage() {
+		// If forwarder is not nil its not an execution flow
+		if currentNode.GetForwarder("dynamic") != nil {
 			// <option>--<currentnodeid>--<subnodeid>
 			key := fmt.Sprintf("%s--%s--%s", dynamicKey, currentNodeUniqueId, subNode.GetUniqueId())
 			serr := context.Set(key, intermediateData)
@@ -673,12 +664,14 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 	// Check if the pipeline has completed excution return
 	// else change depth and continue executing
 	for true {
+		/*
+			// In case current node is a dynamic node stop
+			if currentNode.Dynamic() {
+				break
+			}
+		*/
 		// Get the next nodes
 		nextNodes = currentNode.Children()
-		// In case current node is a dynamic node stop
-		if currentNode.Dynamic() {
-			break
-		}
 		// If no nodes left
 		if nextNodes == nil {
 			// If depth 0 then pipeline has finished
@@ -712,14 +705,8 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 		// Get forwarder for child node
 		forwarder := currentNode.GetForwarder(node.Id)
 		if forwarder != nil {
+			// call default or user defined forwarder
 			intermediateData = forwarder(result)
-		} else {
-			// in case NoneForward forwarder in nil
-			intermediateData = []byte{}
-		}
-
-		// If intermediate storage is enabled store data to intermediate storage
-		if forwarder != nil && useIntermediateStorage() {
 
 			key := ""
 			dagNode := currentDag.GetParentNode()
@@ -746,6 +733,9 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 				fhandler.id, nodeUniqueId, node.GetUniqueId(), key)
 
 			// intermediateData is set to blank once its stored in storage
+			intermediateData = []byte("")
+		} else {
+			// in case NoneForward forwarder in nil
 			intermediateData = []byte("")
 		}
 
@@ -848,7 +838,9 @@ func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) 
 }
 
 // getDagIntermediateData gets the intermediate data from earlier vertex
-func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, data []byte) ([]byte, error) {
+func getDagIntermediateData(handler *flowHandler, context *faasflow.Context) ([]byte, error) {
+	var data []byte
+
 	pipeline := handler.getPipeline()
 	currentNode, dag := pipeline.GetCurrentNodeDag()
 	dataMap := make(map[string][]byte)
@@ -881,7 +873,7 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context, dat
 			idata, serr := aggregator(subDataMap)
 			if serr != nil {
 				serr := fmt.Errorf("failed to aggregate dynamic node data, error %v", serr)
-				return data, serr
+				return nil, serr
 			}
 			delete(pipeline.AllDynamicOption, node.GetUniqueId())
 
@@ -1001,18 +993,13 @@ func handleWorkflow(data []byte) string {
 
 	// Pipeline Execution Steps
 	{
-		// BUILD: build the flow based on execution request
+		// BUILD: build the flow based on the request data
 		fhandler, data := buildWorkflow(data)
 
-		// INIT STORE: Get definition of StateStore and DataStore
+		// INIT STORE: Get definition of StateStore and DataStore from user
 		stateSDefined, dataSOverride, err := initializeStore(fhandler)
 		if err != nil {
 			panic(fmt.Sprintf("[Request `%s`] Failed to init flow, %v", fhandler.id, err))
-		}
-
-		// Check if the pipeline is active
-		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG && fhandler.partial && !isActive(fhandler) {
-			panic(fmt.Sprintf("flow has been terminated"))
 		}
 
 		// MAKE CONTEXT: make the request context from flow
@@ -1025,10 +1012,16 @@ func handleWorkflow(data []byte) string {
 		}
 
 		// VALIDATE: Validate Pipeline Definition
-		// Dag need to be valid
 		err = fhandler.getPipeline().Dag.Validate()
 		if err != nil {
 			panic(fmt.Sprintf("[Request `%s`] Invalid dag, %v", fhandler.id, err))
+		}
+
+		// For dag one of the branch can cause the pipeline to terminate
+		// hence we Check if the pipeline is active
+		if fhandler.getPipeline().Dag.HasBranch() &&
+			fhandler.partial && !isActive(fhandler) {
+			panic(fmt.Sprintf("flow has been terminated"))
 		}
 
 		// For dag which has branches
@@ -1039,7 +1032,7 @@ func handleWorkflow(data []byte) string {
 			}
 		}
 
-		// Id dags has more than one nodes
+		// If dags has more than one nodes
 		// and nodes forwards data, data store need to be external
 		if fhandler.getPipeline().Dag.HasEdge() &&
 			!fhandler.getPipeline().Dag.IsExecutionFlow() {
@@ -1064,16 +1057,17 @@ func handleWorkflow(data []byte) string {
 		// If not a partial request set the execution position to initial node
 		if !fhandler.partial {
 			// On the 0th depth set the initial node as the current execution position
-			fhandler.getPipeline().UpdatePipelineExecutionPosition(sdk.DEPTH_SAME, fhandler.getPipeline().GetInitialNodeId())
+			fhandler.getPipeline().UpdatePipelineExecutionPosition(sdk.DEPTH_SAME,
+				fhandler.getPipeline().GetInitialNodeId())
 		}
 
-		// GETDATA: Get intermediate data from data store if not using default
+		// GETDATA: Get intermediate data from data store
 		// For partially completed requests if IntermidiateStorage is enabled
 		// get the data from dataStoretore
-		if fhandler.partial && useIntermediateStorage() {
+		if fhandler.partial &&
+			!fhandler.getPipeline().Dag.IsExecutionFlow() {
 
-			data, gerr = getDagIntermediateData(fhandler, context, data)
-
+			data, gerr = getDagIntermediateData(fhandler, context)
 			if gerr != nil {
 				gerr := fmt.Errorf("failed to retrive intermediate result, error %v", gerr)
 				handleFailure(fhandler, context, gerr)
@@ -1128,8 +1122,6 @@ func handleDotGraph() string { // Get flow name
 		panic(fmt.Sprintf("failed to generate dot graph, error %v", err))
 	}
 
-	// VALIDATE: Validate Pipeline Definition
-	// Dag need to be valid
 	err = fhandler.getPipeline().Dag.Validate()
 	if err != nil {
 		panic(fmt.Sprintf("[Request `%s`] Invalid dag, %v", fhandler.id, err))
@@ -1138,13 +1130,41 @@ func handleDotGraph() string { // Get flow name
 	return fhandler.getPipeline().MakeDotGraph()
 }
 
+// handleDagExport() handle the dag export request
+func handleDagExport() string {
+	flowName = getWorkflowName()
+
+	fhandler := newWorkflowHandler("", flowName, "", "", nil)
+	context := createContext(fhandler)
+
+	err := function.Define(fhandler.flow, context)
+	if err != nil {
+		panic(fmt.Sprintf("failed to export graph, error %v", err))
+	}
+
+	return fhandler.getPipeline().GetDagDefinition()
+}
+
 // isDotGraphRequest check if the request is for dot graph generation
 func isDotGraphRequest() bool {
 	values, err := url.ParseQuery(os.Getenv("Http_Query"))
 	if err != nil {
 		return false
 	}
+
 	if strings.ToUpper(values.Get("generate-dot-graph")) == "TRUE" {
+		return true
+	}
+	return false
+}
+
+func isDagExportRequest() bool {
+	values, err := url.ParseQuery(os.Getenv("Http_Query"))
+	if err != nil {
+		return false
+	}
+
+	if strings.ToUpper(values.Get("export-dag")) == "TRUE" {
 		return true
 	}
 	return false
@@ -1154,6 +1174,9 @@ func isDotGraphRequest() bool {
 func handle(data []byte) string {
 	if isDotGraphRequest() {
 		return handleDotGraph()
+	} else if isDagExportRequest() {
+		return handleDagExport()
 	}
+
 	return handleWorkflow(data)
 }

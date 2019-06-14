@@ -369,20 +369,11 @@ Once a DataStore is set it can be used by calling `Get()` and `Set()` from `cont
 ```
 * **[MinioDataStore](https://github.com/s8sg/faas-flow-minio-datastore)** allows to store data in **amazon s3** or local **minio DB**
 
-> **Default `requestEmbedDataStore`:**   
-> By default faas-flow template use `requestEmbedDataStore` which embed the state data along with the request for the next node. For bigger values it is recommended to pass it with custom `DataStore`. 
-    
-Once `DataStore` is overridden, all call to `Set()`, `Get()` and `del()` will call the provided `DataStore`
+Once `DataStore` is overridden, all call to `Set()`, `Get()` and `del()` will call the provided `DataStore` otherwise they are maintained in request context.
 
-### Use **DataStore** to store intermediate result
-By default **`partially`** completed data gets forwarded along with the async request. When using external `DataStore` it can be saved and retrived from the `DataStore` if the flag `intermediate_storage` is set. Default is `false`
-```yaml
-   intermediate_storage: true
-```
-Due to **nats** `1mb` storage limitation, async call may fail. In such scenario using `intermediate_storage` is recommended
 
 ### Manage State of Pipeline in a DAG with `StateStore`
-In a `faas-flow` DAG execution faas-flow state is not only depends on the execution position, as the DAG execution happens on a shared state, a 3rd party **Synchoronous KV store** can be used as a `StateStore`
+Any DAG which has a branch needs external statestore which can be a 3rd party **Synchoronous KV store**. It can be provided by Implementing `StateStore` interface
 `StateStore` provides the below interface:
 ```go
 type StateStore interface {
@@ -413,8 +404,8 @@ func DefineStateStore() (faasflow.StateStore, error) {
 }
 ```
 
-* **[ConsulStateStore](https://github.com/s8sg/faas-flow-consul-statestore)** manage state in **consul** for dag execution.  
-* **[EtcdStateStore](https://github.com/s8sg/faas-flow-etcd-statestore)** manage state in **etcd** for dag execution.      
+* **[ConsulStateStore](https://github.com/s8sg/faas-flow-consul-statestore)** statestore implementation with **consul**    
+* **[EtcdStateStore](https://github.com/s8sg/faas-flow-etcd-statestore)** statewtore implementation with **etcd**      
 
 
 ### Geting Http Query to Workflow: 
