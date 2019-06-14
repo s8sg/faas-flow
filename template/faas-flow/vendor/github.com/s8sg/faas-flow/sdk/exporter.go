@@ -35,7 +35,7 @@ type NodeExporter struct {
 	ConditionalDags map[string]*DagExporter `json:"conditiondags,omitempty"`
 	Operations      []*OperationExporter    `json:"operations,omitempty"`
 
-	Childrens []string `json:"childrens"`
+	Childrens []string `json:"childrens,omitempty"`
 }
 
 type OperationExporter struct {

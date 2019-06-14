@@ -35,12 +35,12 @@ func generateOperationKey(dagId string, nodeIndex int, opsIndex int, operation *
 func generateConditionalDag(node *Node, dag *Dag, sb *strings.Builder, indent string) string {
 	// Create a condition vertex
 	conditionKey := generateOperationKey(dag.Id, node.index, 0, nil, "conditions")
-	sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" [shape=diamond style=filled color=\"#f9af4d\"];",
+	sb.WriteString(fmt.Sprintf("\n%s\"%s\" [shape=diamond style=filled color=\"#f9af4d\"];",
 		indent, conditionKey))
 
 	// Create a end operation vertex
 	conditionEndKey := generateOperationKey(dag.Id, node.index, 0, nil, "end")
-	sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" [shape=invhouse style=filled color=pink];",
+	sb.WriteString(fmt.Sprintf("\n%s\"%s\" [shape=invhouse style=filled color=pink];",
 		indent, conditionEndKey))
 
 	// Create condition graph
@@ -67,18 +67,21 @@ func generateConditionalDag(node *Node, dag *Dag, sb *strings.Builder, indent st
 			operation := nextOperationNode.Operations()[0]
 			operationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 1, operation, "")
 		}
-		sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" -> \"%s\" [label=%s color=black];",
+		sb.WriteString(fmt.Sprintf("\n%s\"%s\" -> \"%s\" [label=%s color=black];",
 			indent, conditionKey, operationKey, condition))
 
-		sb.WriteString(fmt.Sprintf("\n%s\tsubgraph cluster_%s {", indent, condition))
+		sb.WriteString(fmt.Sprintf("\n%ssubgraph cluster_%s {", indent, condition))
 
-		sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%s.%d-%s\";", indent, dag.Id, node.index, condition))
-		sb.WriteString(fmt.Sprintf("\n%s\tcolor=grey;", indent))
-		sb.WriteString(fmt.Sprintf("\n%s\tstyle=rounded;\n", indent))
-		sb.WriteString(fmt.Sprintf("\n%s\tstyle=dashed;\n", indent))
-		previousOperation := generateDag(conditionDag, sb, indent+"\t\t")
-		sb.WriteString(fmt.Sprintf("\n%s\t}", indent))
-		sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" -> \"%s\" [color=\"#152730\"];",
+		sb.WriteString(fmt.Sprintf("\n%slabel=\"%s.%d-%s\";", indent+"\t", dag.Id, node.index, condition))
+		sb.WriteString(fmt.Sprintf("\n%scolor=grey;", indent+"\t"))
+		sb.WriteString(fmt.Sprintf("\n%sstyle=rounded;\n", indent+"\t"))
+		sb.WriteString(fmt.Sprintf("\n%sstyle=dashed;\n", indent+"\t"))
+
+		previousOperation := generateDag(conditionDag, sb, indent+"\t")
+
+		sb.WriteString(fmt.Sprintf("\n%s}", indent))
+
+		sb.WriteString(fmt.Sprintf("\n%s\"%s\" -> \"%s\" [color=\"#152730\"];",
 			indent, previousOperation, conditionEndKey))
 	}
 
@@ -91,12 +94,12 @@ func generateForeachDag(node *Node, dag *Dag, sb *strings.Builder, indent string
 
 	// Create a foreach operation vertex
 	foreachKey := generateOperationKey(dag.Id, node.index, 0, nil, "foreach")
-	sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" [shape=diamond style=filled color=\"#f9af4d\"];",
+	sb.WriteString(fmt.Sprintf("\n%s\"%s\" [shape=diamond style=filled color=\"#f9af4d\"];",
 		indent, foreachKey))
 
 	// Create a end operation vertex
 	foreachEndKey := generateOperationKey(dag.Id, node.index, 0, nil, "end")
-	sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" [shape=doublecircle style=filled color=pink];",
+	sb.WriteString(fmt.Sprintf("\n%s\"%s\" [shape=doublecircle style=filled color=pink];",
 		indent, foreachEndKey))
 
 	// Create Foreach Graph
@@ -124,12 +127,12 @@ func generateForeachDag(node *Node, dag *Dag, sb *strings.Builder, indent string
 			operationKey = generateOperationKey(nextOperationDag.Id, nextOperationNode.index, 1, operation, "")
 		}
 
-		sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" -> \"%s\" [label=\"1:N\" color=\"#152730\"];",
+		sb.WriteString(fmt.Sprintf("\n%s\"%s\" -> \"%s\" [label=\"1:N\" color=\"#152730\"];",
 			indent, foreachKey, operationKey))
 
 		previousOperation := generateDag(subdag, sb, indent+"\t")
 
-		sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" -> \"%s\" [label=\"N:1\" color=\"#152730\"];",
+		sb.WriteString(fmt.Sprintf("\n%s\"%s\" -> \"%s\" [label=\"N:1\" color=\"#152730\"];",
 			indent, previousOperation, foreachEndKey))
 	}
 
@@ -159,22 +162,22 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 
 			if nodeIndexStr != node.Id {
 				if dag.Id != "0" {
-					sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%s.%d-%s\";", indent, dag.Id, node.index, node.Id))
+					sb.WriteString(fmt.Sprintf("\n%slabel=\"%s.%d-%s\";", indent+"\t", dag.Id, node.index, node.Id))
 				} else {
-					sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%d-%s\";", indent, node.index, node.Id))
+					sb.WriteString(fmt.Sprintf("\n%slabel=\"%d-%s\";", indent+"\t", node.index, node.Id))
 
 				}
 			} else {
 				if dag.Id != "0" {
-					sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%s-%d\";", indent, dag.Id, node.index))
+					sb.WriteString(fmt.Sprintf("\n%slabel=\"%s-%d\";", indent+"\t", dag.Id, node.index))
 				} else {
 
-					sb.WriteString(fmt.Sprintf("\n%s\tlabel=\"%d\";", indent, node.index))
+					sb.WriteString(fmt.Sprintf("\n%slabel=\"%d\";", indent+"\t", node.index))
 
 				}
 			}
-			sb.WriteString(fmt.Sprintf("\n%s\tcolor=grey;", indent))
-			sb.WriteString(fmt.Sprintf("\n%s\tstyle=rounded;\n", indent))
+			sb.WriteString(fmt.Sprintf("\n%scolor=grey;", indent+"\t"))
+			sb.WriteString(fmt.Sprintf("\n%sstyle=rounded;\n", indent+"\t"))
 		}
 
 		subdag := node.SubDag()
@@ -184,25 +187,12 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 			for opsindex, operation := range node.Operations() {
 				operationKey := generateOperationKey(dag.Id, node.index, opsindex+1, operation, "")
 
-				/*
-					switch {
-					case len(node.children) == 0 &&
-						opsindex == len(node.Operations())-1:
-						sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" [style=rounded];",
-							indent, operationKey))
-					case node.indegree == 0 && opsindex == 0:
-						sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" [style=rounded];",
-							indent, operationKey))
-					default:
-						sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" [style=rounded];",
-							indent, operationKey))
-					}*/
-				sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" [shape=rectangle color=\"#68b8e2\" style=filled];",
-					indent, operationKey))
+				sb.WriteString(fmt.Sprintf("\n%s\"%s\" [shape=rectangle color=\"#68b8e2\" style=filled];",
+					indent+"\t", operationKey))
 
 				if previousOperation != "" {
-					sb.WriteString(fmt.Sprintf("\n%s\t\"%s\" -> \"%s\" [color=\"#152730\"];",
-						indent, previousOperation, operationKey))
+					sb.WriteString(fmt.Sprintf("\n%s\"%s\" -> \"%s\" [color=\"#152730\"];",
+						indent+"\t", previousOperation, operationKey))
 				}
 				previousOperation = operationKey
 			}
@@ -241,15 +231,6 @@ func generateDag(dag *Dag, sb *strings.Builder, indent string) string {
 				}
 
 				if previousOperation != "" {
-					/*
-						if node.GetForwarder(child.Id) == nil {
-							sb.WriteString(
-								fmt.Sprintf("\n%s\"%s\" -> \"%s\" [style=dashed color=black];",
-									indent, previousOperation, childOperationKey))
-						} else {
-							sb.WriteString(fmt.Sprintf("\n%s\"%s\" -> \"%s\" [color=black];",
-								indent, previousOperation, childOperationKey))
-						}*/
 					sb.WriteString(fmt.Sprintf("\n%s\"%s\" -> \"%s\" [color=\"#152730\"];",
 						indent, previousOperation, childOperationKey))
 				}
@@ -268,22 +249,21 @@ func (pipeline *Pipeline) MakeDotGraph() string {
 
 	var sb strings.Builder
 
+	indent := "\t"
 	sb.WriteString("digraph depgraph {")
-	sb.WriteString("\n\trankdir=TD;")
-	sb.WriteString("\n\tpack=1;")
-	sb.WriteString("\n\tpad=0;")
-	sb.WriteString("\n\tnodesep=0;")
-	sb.WriteString("\n\tranksep=0;")
-	sb.WriteString("\n\tsplines=curved;")
-	//sb.WriteString("\n\tsplines=ortho;")
-	sb.WriteString("\n\tfontname=\"Courier New\";")
-	sb.WriteString("\n\tfontcolor=\"#44413b\";")
+	sb.WriteString(fmt.Sprintf("\n%srankdir=TD;", indent))
+	sb.WriteString(fmt.Sprintf("\n%spack=1;", indent))
+	sb.WriteString(fmt.Sprintf("\n%spad=0;", indent))
+	sb.WriteString(fmt.Sprintf("\n%snodesep=0;", indent))
+	sb.WriteString(fmt.Sprintf("\n%sranksep=0;", indent))
+	sb.WriteString(fmt.Sprintf("\n%ssplines=curved;", indent))
+	sb.WriteString(fmt.Sprintf("\n%sfontname=\"Courier New\";", indent))
+	sb.WriteString(fmt.Sprintf("\n%sfontcolor=\"#44413b\";", indent))
 
-	sb.WriteString("\n\tnode [style=filled fontname=\"Courier\" fontcolor=black]\n")
+	sb.WriteString(fmt.Sprintf("\n%snode [style=filled fontname=\"Courier\" fontcolor=black]\n", indent))
 
-	generateDag(pipeline.Dag, &sb, "\t")
+	generateDag(pipeline.Dag, &sb, indent)
 
 	sb.WriteString("}\n")
 	return sb.String()
-
 }
