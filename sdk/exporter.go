@@ -93,7 +93,7 @@ func exportNode(exportNode *NodeExporter, node *Node) {
 	if node.subAggregator != nil {
 		exportNode.HasSubAggregator = true
 	}
-	if node.subDag != nil {
+	if node.subDag != nil && !node.dynamic {
 		exportNode.HasSubDag = true
 		exportNode.SubDag = &DagExporter{}
 		exportDag(exportNode.SubDag, node.subDag)
