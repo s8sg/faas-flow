@@ -226,10 +226,10 @@ func (this *Dag) Validate() error {
 		}
 		if b.subDag != nil {
 			if this.Id != "0" {
-				// Dag Id : <parent-dag-id>-<parent-node-unique-id>
-				b.subDag.Id = fmt.Sprintf("%s.%d", this.Id, b.index)
+				// Dag Id : <parent-dag-id>_<parent-node-unique-id>
+				b.subDag.Id = fmt.Sprintf("%s_%d", this.Id, b.index)
 			} else {
-				// Dag Id : <parent-dag-id>-<parent-node-unique-id>
+				// Dag Id : <parent-node-unique-id>
 				b.subDag.Id = fmt.Sprintf("%d", b.index)
 			}
 
@@ -253,11 +253,11 @@ func (this *Dag) Validate() error {
 		}
 		for condition, cdag := range b.conditionalDags {
 			if this.Id != "0" {
-				// Dag Id : <parent-dag-id>-<parent-node-unique-id>
-				cdag.Id = fmt.Sprintf("%s.%d-%s", this.Id, b.index, condition)
+				// Dag Id : <parent-dag-id>_<parent-node-unique-id>_<condition_key>
+				cdag.Id = fmt.Sprintf("%s_%d_%s", this.Id, b.index, condition)
 			} else {
-				// Dag Id : <parent-dag-id>-<parent-node-unique-id>
-				cdag.Id = fmt.Sprintf("%d-%s", b.index, condition)
+				// Dag Id : <parent-node-unique-id>_<condition_key>
+				cdag.Id = fmt.Sprintf("%d_%s", b.index, condition)
 			}
 
 			err := cdag.Validate()
@@ -285,7 +285,7 @@ func (this *Dag) Validate() error {
 	}
 
 	if len(endNodes) > 1 {
-		endNodeId := fmt.Sprintf("end-%s", this.Id)
+		endNodeId := fmt.Sprintf("end_%s", this.Id)
 		modifier := CreateModifier(BLANK_MODIFIER)
 		endNode := this.AddVertex(endNodeId, []*Operation{modifier})
 		for _, b := range endNodes {
@@ -312,7 +312,7 @@ func (this *Dag) GetNodes(dynamicOption string) []string {
 		if dynamicOption == "" {
 			nodeId = b.GetUniqueId()
 		} else {
-			nodeId = b.GetUniqueId() + "-" + dynamicOption
+			nodeId = b.GetUniqueId() + "_" + dynamicOption
 		}
 		nodes = append(nodes, nodeId)
 		// excludes the dynamic subdag
@@ -510,7 +510,8 @@ func (this *Node) GetConditionalDag(condition string) *Dag {
 
 // generateUniqueId returns a unique ID of node throughout the DAG
 func (this *Node) generateUniqueId(dagId string) string {
-	return fmt.Sprintf("%s.%d-%s", dagId, this.index, this.Id)
+	// Node Id : <dag-id>_<node_index_in_dag>_<node_id>
+	return fmt.Sprintf("%s_%d_%s", dagId, this.index, this.Id)
 }
 
 // GetUniqueId returns a unique ID of the node
