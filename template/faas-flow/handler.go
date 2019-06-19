@@ -506,10 +506,10 @@ func forwardAsync(fhandler *flowHandler, currentNodeId string, result []byte) ([
 
 	client := &http.Client{}
 	res, resErr := client.Do(httpreq)
-	resdata, _ := ioutil.ReadAll(res.Body)
 	if resErr != nil {
-		return resdata, resErr
+		return nil, resErr
 	}
+	resdata, _ := ioutil.ReadAll(res.Body)
 
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {
 		return resdata, fmt.Errorf(res.Status)
