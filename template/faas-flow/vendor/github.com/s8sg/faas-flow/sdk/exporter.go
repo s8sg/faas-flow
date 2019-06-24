@@ -5,13 +5,13 @@ import (
 )
 
 type DagExporter struct {
-	Id           string                   `json:"id"`
-	StartNode    string                   `json:"start-node"`
-	EndNode      string                   `json:"end-node"`
-	HasBranch    bool                     `json:"has-branch"`
-	HasEdge      bool                     `json:"has-edge"`
-	ExecutionDag bool                     `json:"is-execution-dag"`
-	Nodes        map[string]*NodeExporter `json:"nodes"`
+	Id               string                   `json:"id"`
+	StartNode        string                   `json:"start-node"`
+	EndNode          string                   `json:"end-node"`
+	HasBranch        bool                     `json:"has-branch"`
+	HasEdge          bool                     `json:"has-edge"`
+	ExecutionOnlyDag bool                     `json:"exec-only-dag"`
+	Nodes            map[string]*NodeExporter `json:"nodes"`
 
 	IsValid         bool   `json:"is-valid"`
 	ValidationError string `json:"validation-error,omitempty"`
@@ -30,12 +30,14 @@ type NodeExporter struct {
 	InDegree         int  `json:"in-degree"`
 	OutDegree        int  `json:"out-degree"`
 
-	SubDag          *DagExporter            `json:"subdag,omitempty"`
-	ForeachDag      *DagExporter            `json:"foreachdag,omitempty"`
-	ConditionalDags map[string]*DagExporter `json:"conditiondags,omitempty"`
+	SubDag          *DagExporter            `json:"sub-dag,omitempty"`
+	ForeachDag      *DagExporter            `json:"foreach-dag,omitempty"`
+	ConditionalDags map[string]*DagExporter `json:"conditional-dags,omitempty"`
+	DynamicExecOnly bool                    `json:"dynamic-exec-only"`
 	Operations      []*OperationExporter    `json:"operations,omitempty"`
 
-	Childrens []string `json:"childrens,omitempty"`
+	Childrens        []string        `json:"childrens,omitempty"`
+	ChildrenExecOnly map[string]bool `json:"child-exec-only"`
 }
 
 type OperationExporter struct {
@@ -74,6 +76,9 @@ func exportNode(exportNode *NodeExporter, node *Node) {
 	exportNode.IsDynamic = node.dynamic
 	if node.GetCondition() != nil {
 		exportNode.IsCondition = true
+		if node.forwarder["dynamic"] == nil {
+			exportNode.DynamicExecOnly = true
+		}
 		for condition, sdag := range node.conditionalDags {
 			if exportNode.ConditionalDags == nil {
 				exportNode.ConditionalDags = make(map[string]*DagExporter)
@@ -86,6 +91,9 @@ func exportNode(exportNode *NodeExporter, node *Node) {
 		exportNode.IsForeach = true
 		exportNode.ForeachDag = &DagExporter{}
 		exportDag(exportNode.ForeachDag, node.subDag)
+		if node.forwarder["dynamic"] == nil {
+			exportNode.DynamicExecOnly = true
+		}
 	}
 	if node.aggregator != nil {
 		exportNode.HasAgregator = true
@@ -105,8 +113,14 @@ func exportNode(exportNode *NodeExporter, node *Node) {
 		exportNode.Operations = append(exportNode.Operations, exportedOperation)
 	}
 
+	exportNode.ChildrenExecOnly = make(map[string]bool)
 	for _, snode := range node.children {
 		exportNode.Childrens = append(exportNode.Childrens, snode.Id)
+		if node.forwarder[snode.Id] == nil {
+			exportNode.ChildrenExecOnly[snode.Id] = true
+		} else {
+			exportNode.ChildrenExecOnly[snode.Id] = false
+		}
 	}
 }
 
@@ -120,7 +134,7 @@ func exportDag(exportDag *DagExporter, dag *Dag) {
 	}
 	exportDag.HasBranch = dag.hasBranch
 	exportDag.HasEdge = dag.hasEdge
-	exportDag.ExecutionDag = dag.executionFlow
+	exportDag.ExecutionOnlyDag = dag.executionFlow
 
 	for nodeId, node := range dag.nodes {
 		if exportDag.Nodes == nil {

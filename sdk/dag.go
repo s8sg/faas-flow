@@ -46,7 +46,8 @@ type Dag struct {
 	hasEdge     bool  // denotes the dag or its subdag has edge
 	validated   bool  // denotes the dag has been validated
 
-	executionFlow bool // Flag to denote if none data dependency
+	executionFlow      bool // Flag to denote if none of the node forwards data
+	dataForwarderCount int  // Count of nodes that forwards data
 
 	nodeIndex int // NodeIndex
 }
@@ -158,7 +159,7 @@ func (this *Dag) AddEdge(from, to string) error {
 	fromNode.outdegree++
 
 	// Add default forwarder for from node
-	fromNode.forwarder[to] = DefaultForwarder
+	fromNode.AddForwarder(to, DefaultForwarder)
 
 	// set has branch property
 	if toNode.indegree > 1 || fromNode.outdegree > 1 {
@@ -251,6 +252,9 @@ func (this *Dag) Validate() error {
 				this.executionFlow = false
 			}
 		}
+		if b.dynamic && b.forwarder["dynamic"] != nil {
+			this.executionFlow = false
+		}
 		for condition, cdag := range b.conditionalDags {
 			if this.Id != "0" {
 				// Dag Id : <parent-dag-id>_<parent-node-unique-id>_<condition_key>
@@ -284,6 +288,7 @@ func (this *Dag) Validate() error {
 		return fmt.Errorf("%v, dag: %s", ERR_MULTIPLE_START, this.Id)
 	}
 
+	// If there is multiple ends add a virtual end node to combine them
 	if len(endNodes) > 1 {
 		endNodeId := fmt.Sprintf("end_%s", this.Id)
 		modifier := CreateModifier(BLANK_MODIFIER)
@@ -396,12 +401,14 @@ func (this *Node) AddAggregator(aggregator Aggregator) {
 func (this *Node) AddForEach(foreach ForEach) {
 	this.foreach = foreach
 	this.dynamic = true
+	this.AddForwarder("dynamic", DefaultForwarder)
 }
 
 // AddCondition add a condition to a node
 func (this *Node) AddCondition(condition Condition) {
 	this.condition = condition
 	this.dynamic = true
+	this.AddForwarder("dynamic", DefaultForwarder)
 }
 
 // AddSubAggregator add a foreach aggregator to a node
@@ -413,7 +420,13 @@ func (this *Node) AddSubAggregator(aggregator Aggregator) {
 func (this *Node) AddForwarder(children string, forwarder Forwarder) {
 	this.forwarder[children] = forwarder
 	if forwarder != nil {
+		this.parentDag.dataForwarderCount = this.parentDag.dataForwarderCount + 1
 		this.parentDag.executionFlow = false
+	} else {
+		this.parentDag.dataForwarderCount = this.parentDag.dataForwarderCount - 1
+		if this.parentDag.dataForwarderCount == 0 {
+			this.parentDag.executionFlow = true
+		}
 	}
 }
 
