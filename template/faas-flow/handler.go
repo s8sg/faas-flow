@@ -840,67 +840,89 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context) ([]
 	dataMap := make(map[string][]byte)
 
 	dependencyCount := 0
-
 	dependencies := currentNode.Dependency()
 
-	// XXX - handle data from parent Node - and multiple options of prev node
-	for _, node := range dependencies {
+	// handle if current node is initial node of a dynamic branch dag
+	dagNode := dag.GetParentNode()
+	if dag.GetInitialNode() == currentNode && dagNode != nil && dagNode.Dynamic() {
+		option := pipeline.CurrentDynamicOption[dagNode.GetUniqueId()]
+		// Skip if NoDataForward is specified
+		if dagNode.GetForwarder("dynamic") != nil {
+			// <option>--<dependency_node_Id>--<current_node_id>
+			key := fmt.Sprintf("%s--%s--%s", option, dagNode.GetUniqueId(), currentNode.GetUniqueId())
+			data = context.GetBytes(key)
+			log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s for option %s retrived from %s",
+				handler.id, dagNode.GetUniqueId(), currentNode.GetUniqueId(),
+				option, key)
+		}
 
-		dependencyCount = dependencyCount + 1
+	} else { // current node has dependencies in same dag
 
-		if node.Dynamic() {
-			subDataMap := make(map[string][]byte)
-			// Recive data from end node of a dynamic graph
-			for _, option := range pipeline.AllDynamicOption[node.GetUniqueId()] {
-				//
-				key := fmt.Sprintf("%s--%s--%s", option, node.GetUniqueId(), currentNode.GetUniqueId())
+		for _, node := range dependencies {
+
+			dependencyCount = dependencyCount + 1
+
+			if node.Dynamic() {
+
+				// Skip if NoDataForward is specified
+				if node.GetForwarder("dynamic") == nil {
+					continue
+				}
+
+				subDataMap := make(map[string][]byte)
+				// Recive data from end node of a dynamic graph
+				for _, option := range pipeline.AllDynamicOption[node.GetUniqueId()] {
+					// <option>--<dependency_node_Id>--<current_node_id>
+					key := fmt.Sprintf("%s--%s--%s", option, node.GetUniqueId(), currentNode.GetUniqueId())
+					idata := context.GetBytes(key)
+					log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s for option %s retrived from %s",
+						handler.id, node.GetUniqueId(), currentNode.GetUniqueId(),
+						option, key)
+					context.Del(key)
+
+					subDataMap[option] = idata
+				}
+
+				aggregator := node.GetSubAggregator()
+				idata, serr := aggregator(subDataMap)
+				if serr != nil {
+					serr := fmt.Errorf("failed to aggregate dynamic node data, error %v", serr)
+					return nil, serr
+				}
+				delete(pipeline.AllDynamicOption, node.GetUniqueId())
+
+				// Skip storage if NoDataForward is specified
+				if node.GetForwarder(currentNode.Id) == nil {
+					continue
+				}
+
+				dataMap[node.Id] = idata
+			} else {
+
+				// Skip if NoDataForward is specified
+				if node.GetForwarder(currentNode.Id) == nil {
+					continue
+				}
+
+				key := ""
+				dagNode := dag.GetParentNode()
+				if dagNode != nil && dagNode.Dynamic() {
+					// Recive data from internal node of a dynamic graph
+					// <option>--<dependencynodeid>--<currentnodeid>
+					option := pipeline.CurrentDynamicOption[dagNode.GetUniqueId()]
+					key = fmt.Sprintf("%s--%s--%s", option, node.GetUniqueId(), currentNode.GetUniqueId())
+				} else {
+					// <dependencynodeid>--<currentnodeid>
+					key = fmt.Sprintf("%s--%s", node.GetUniqueId(), currentNode.GetUniqueId())
+				}
 				idata := context.GetBytes(key)
-				log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s for option %s retrived from %s",
-					handler.id, node.GetUniqueId(), currentNode.GetUniqueId(),
-					option, key)
+				log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s retrived from %s",
+					handler.id, node.GetUniqueId(), currentNode.GetUniqueId(), key)
 				context.Del(key)
 
-				subDataMap[option] = idata
+				dataMap[node.Id] = idata
+
 			}
-
-			aggregator := node.GetSubAggregator()
-			idata, serr := aggregator(subDataMap)
-			if serr != nil {
-				serr := fmt.Errorf("failed to aggregate dynamic node data, error %v", serr)
-				return nil, serr
-			}
-			delete(pipeline.AllDynamicOption, node.GetUniqueId())
-
-			// Skip storage if NoDataForward is specified
-			if node.GetForwarder(currentNode.Id) == nil {
-				continue
-			}
-
-			dataMap[node.Id] = idata
-		} else {
-
-			// Skip if NoDataForward is specified
-			if node.GetForwarder(currentNode.Id) == nil {
-				continue
-			}
-
-			key := ""
-			dagNode := dag.GetParentNode()
-			if dagNode != nil && dagNode.Dynamic() {
-				// Recive data from internal node of a dynamic graph
-				// <option>--<dependencynodeid>--<currentnodeid>
-				option := pipeline.CurrentDynamicOption[dagNode.GetUniqueId()]
-				key = fmt.Sprintf("%s--%s--%s", option, node.GetUniqueId(), currentNode.GetUniqueId())
-			} else {
-				// <dependencynodeid>--<currentnodeid>
-				key = fmt.Sprintf("%s--%s", node.GetUniqueId(), currentNode.GetUniqueId())
-			}
-			idata := context.GetBytes(key)
-			log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s retrived from %s",
-				handler.id, node.GetUniqueId(), currentNode.GetUniqueId(), key)
-			context.Del(key)
-
-			dataMap[node.Id] = idata
 		}
 	}
 
@@ -912,6 +934,7 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context) ([]
 		data = dataMap[dependencies[0].Id]
 	}
 
+	// If Aggregator is available get agregator
 	aggregator := currentNode.GetAggregator()
 	if aggregator != nil {
 		sdata, serr := aggregator(dataMap)
