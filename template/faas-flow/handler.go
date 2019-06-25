@@ -854,6 +854,8 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context) ([]
 			log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s for option %s retrived from %s",
 				handler.id, dagNode.GetUniqueId(), currentNode.GetUniqueId(),
 				option, key)
+			// delete intermidiate data after retrival
+			context.Del(key)
 		}
 
 	} else { // current node has dependencies in same dag
@@ -878,6 +880,7 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context) ([]
 					log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s for option %s retrived from %s",
 						handler.id, node.GetUniqueId(), currentNode.GetUniqueId(),
 						option, key)
+					// delete intermidiate data after retrival
 					context.Del(key)
 
 					subDataMap[option] = idata
@@ -918,6 +921,7 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context) ([]
 				idata := context.GetBytes(key)
 				log.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s retrived from %s",
 					handler.id, node.GetUniqueId(), currentNode.GetUniqueId(), key)
+				// delete intermidiate data after retrival
 				context.Del(key)
 
 				dataMap[node.Id] = idata
