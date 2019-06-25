@@ -18,8 +18,9 @@ type DagExporter struct {
 }
 
 type NodeExporter struct {
-	Id    string `json:"id"`
-	Index int    `json:"node-index"`
+	Id       string `json:"id"`
+	Index    int    `json:"node-index"`
+	UniqueId string `json:"unique-id"` // required to fetch intermediate data and state
 
 	IsDynamic        bool `json:"is-dynamic"`
 	IsCondition      bool `json:"is-condition"`
@@ -72,6 +73,7 @@ func exportOperation(exportOperation *OperationExporter, operation *Operation) {
 func exportNode(exportNode *NodeExporter, node *Node) {
 	exportNode.Id = node.Id
 	exportNode.Index = node.index
+	exportNode.UniqueId = node.uniqueId
 
 	exportNode.IsDynamic = node.dynamic
 	if node.GetCondition() != nil {
