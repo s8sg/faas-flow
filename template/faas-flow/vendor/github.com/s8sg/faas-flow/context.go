@@ -40,12 +40,6 @@ type StateStore interface {
 	Configure(flowName string, requestId string)
 	// Initialize the StateStore (called only once in a request span)
 	Init() error
-	// create counters as a map[string]int, init with zero
-	CreateCounters(counters []string) error
-	// synchronously increment counter by given terms, returns the updated value
-	IncrementCounter(counter string, incrementBy int) (int, error)
-	// retrive counter retrives a value of counter
-	RetriveCounter(counter string) (int, error)
 	// Set a value (override existing, or create one)
 	Set(key string, value string) error
 	// Get a value

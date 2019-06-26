@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	hmac "github.com/alexellis/hmac"
 	"github.com/rs/xid"
@@ -15,12 +16,14 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 )
 
 const (
 	// A signature of SHA265 equivalent of "github.com/s8sg/faas-flow"
-	defaultHmacKey = "71F1D3011F8E6160813B4997BA29856744375A7F26D427D491E1CCABD4627E7C"
+	defaultHmacKey          = "71F1D3011F8E6160813B4997BA29856744375A7F26D427D491E1CCABD4627E7C"
+	counterUpdateRetryCount = 10
 )
 
 var (
@@ -42,31 +45,80 @@ type flowHandler struct {
 }
 
 func (fhandler *flowHandler) SetRequestState(state bool) error {
-	return nil
+	return fhandler.stateStore.Set("request-state", "true")
 }
 
 func (fhandler *flowHandler) GetRequestState() (bool, error) {
-	return false, nil
+	value, err := fhandler.stateStore.Get("request-state")
+	if value == "true" {
+		return true, nil
+	}
+	return false, err
 }
 
-func (fhandler *flowHandler) InitVertexIndegreeCounter(vertex []string) error {
+func (fhandler *flowHandler) InitVertexIndegreeCounter(vertexs []string) error {
+	for _, vertex := range vertexs {
+		err := fhandler.stateStore.Set(vertex, "0")
+		if err != nil {
+			return fmt.Errorf("failed to create counter for vertex %s, error %v", vertex, err)
+		}
+	}
 	return nil
 }
 
 func (fhandler *flowHandler) SetDynamicBranchOptions(nodeUniqueId string, options []string) error {
-	return nil
+	encoded, err := json.Marshal(options)
+	if err != nil {
+		return err
+	}
+	return fhandler.stateStore.Set(nodeUniqueId, string(encoded))
 }
 
 func (fhandler *flowHandler) GetDynamicBranchOptions(nodeUniqueId string) ([]string, error) {
-	return nil, nil
+	encoded, err := fhandler.stateStore.Get(nodeUniqueId)
+	if err != nil {
+		return nil, err
+	}
+	var option []string
+	err = json.Unmarshal([]byte(encoded), option)
+	return option, err
 }
 
 func (fhandler *flowHandler) IncrementCounter(counter string, incrementby int) (int, error) {
-	return 0, nil
+	var serr error
+	count := 0
+	for i := 0; i < counterUpdateRetryCount; i++ {
+		encoded, err := fhandler.stateStore.Get(counter)
+		if err != nil {
+			return 0, fmt.Errorf("failed to update counter %s, error %v", counter, err)
+		}
+		current, err := strconv.Atoi(encoded)
+		if err != nil {
+			return 0, fmt.Errorf("failed to update counter %s, error %v", counter, err)
+		}
+
+		count = current + incrementby
+		counterStr := fmt.Sprintf("%d", count)
+
+		err = fhandler.stateStore.Update(counter, encoded, counterStr)
+		if err == nil {
+			return count, nil
+		}
+		serr = err
+	}
+	return 0, fmt.Errorf("failed to update counter after max retry for %s, error %v", counter, serr)
 }
 
 func (fhandler *flowHandler) RetriveCounter(counter string) (int, error) {
-	return 0, nil
+	encoded, err := fhandler.stateStore.Get(counter)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get counter %s, error %v", counter, err)
+	}
+	current, err := strconv.Atoi(encoded)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get counter %s, error %v", counter, err)
+	}
+	return current, nil
 }
 
 // buildURL builds openfaas function execution url for the flow
