@@ -40,16 +40,18 @@ type StateStore interface {
 	Configure(flowName string, requestId string)
 	// Initialize the StateStore (called only once in a request span)
 	Init() error
-	// create Vertexes for request
-	// creates a map[<vertexId>]<Indegree Completion Count>
-	Create(vertexs []string) error
-	// Increment Vertex Indegree Completion
-	// synchronously increment map[<vertexId>] Indegree Completion Count by 1 and return updated count
-	IncrementCounter(vertex string) (int, error)
-	// Set state of pipeline
-	SetState(state bool) error
-	// Get State of pipeline
-	GetState() (bool, error)
+	// create counters as a map[string]int, init with zero
+	CreateCounters(counters []string) error
+	// synchronously increment counter by given terms, returns the updated value
+	IncrementCounter(counter string, incrementBy int) (int, error)
+	// retrive counter retrives a value of counter
+	RetriveCounter(counter string) (int, error)
+	// Set a value (override existing, or create one)
+	Set(key string, value string) error
+	// Get a value
+	Get(key string) (string, error)
+	// Compare and Update a value
+	Update(key string, oldValue string, newValue string) error
 	// Cleanup all the resorces in StateStore (called only once in a request span)
 	Cleanup() error
 }
@@ -64,7 +66,9 @@ const (
 )
 
 // CreateContext create request context (used by template)
-func CreateContext(id string, node string, name string, dstore DataStore) *Context {
+func CreateContext(id string, node string, name string,
+	dstore DataStore) *Context {
+
 	context := &Context{}
 	context.requestId = id
 	context.node = node
