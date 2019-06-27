@@ -80,18 +80,25 @@ func (fhandler *flowHandler) GetDynamicBranchOptions(nodeUniqueId string) ([]str
 		return nil, err
 	}
 	var option []string
-	err = json.Unmarshal([]byte(encoded), option)
+	err = json.Unmarshal([]byte(encoded), &option)
 	return option, err
 }
 
+// IncrementCounter increment counter by given term, if doesn't exist init with incrementby
 func (fhandler *flowHandler) IncrementCounter(counter string, incrementby int) (int, error) {
 	var serr error
 	count := 0
 	for i := 0; i < counterUpdateRetryCount; i++ {
 		encoded, err := fhandler.stateStore.Get(counter)
 		if err != nil {
-			return 0, fmt.Errorf("failed to update counter %s, error %v", counter, err)
+			// if doesn't exist try to create
+			err := fhandler.stateStore.Set(counter, fmt.Sprintf("%d", incrementby))
+			if err != nil {
+				return 0, fmt.Errorf("failed to update counter %s, error %v", counter, err)
+			}
+			return incrementby, nil
 		}
+
 		current, err := strconv.Atoi(encoded)
 		if err != nil {
 			return 0, fmt.Errorf("failed to update counter %s, error %v", counter, err)
@@ -662,18 +669,20 @@ func handleDynamicNode(fhandler *flowHandler, context *faasflow.Context, result 
 			fhandler.id, currentNodeUniqueId)
 	}
 
-	// Increment/Set the no of dynamic branch count for current node
-	indegree, err := fhandler.IncrementCounter(
-		currentNodeUniqueId+"-dynamic-branch-count", branchCount-1)
-	if err != nil {
-		return nil, fmt.Errorf("[Request `%s`] Dynamic Node %s, failed to store increment dynamic branch count",
-			fhandler.id, currentNodeUniqueId)
+	// Increment/Set the no of dynamic branch count for the next nodes
+	for _, cnode := range currentNode.Children() {
+		indegree, err := fhandler.IncrementCounter(
+			cnode.GetUniqueId()+"-dynamic-indegree", branchCount-1)
+		if err != nil {
+			return nil, fmt.Errorf("[Request `%s`] Failed to store/increment dynamic indegree count of %s, err %v",
+				fhandler.id, cnode.GetUniqueId(), err)
+		}
+		log.Printf("[Request `%s`] Dynamic indegree count for %s set to %d",
+			fhandler.id, cnode.GetUniqueId(), indegree)
 	}
-	log.Printf("[Request `%s`] Dynamic Branch count for %s set to %d",
-		fhandler.id, currentNodeUniqueId, indegree)
 
 	// Set all the dynamic options for the current dynamic node
-	err = fhandler.SetDynamicBranchOptions(currentNodeUniqueId+"-dynamic-branch-options", options)
+	err := fhandler.SetDynamicBranchOptions(currentNodeUniqueId+"-dynamic-branch-options", options)
 	if err != nil {
 		return nil, fmt.Errorf("[Request `%s`] Dynamic Node %s, failed to store dynamic options",
 			fhandler.id, currentNodeUniqueId)
@@ -740,7 +749,7 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 
 	// Check if pipeline is active
 	if pipeline.PipelineType == sdk.TYPE_DAG && !isActive(fhandler) {
-		return []byte(""), fmt.Errorf("flow has been terminated")
+		return []byte(""), fmt.Errorf("flow state not present in statestore, flow has been terminated")
 	}
 
 	currentNode, currentDag := pipeline.GetCurrentNodeDag()
@@ -782,19 +791,17 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 
 		var intermediateData []byte
 
+		// Node's total Indegree
 		inDegree := node.Indegree()
 
-		// handle response after a dynamic node execution
-		if currentNode.Dynamic() {
-			// For dynamic subgraph end add the count of dynamic dependency as indegree
-			// For the next node
-			dynamicBranchCount, err := fhandler.RetriveCounter(
-				node.GetUniqueId() + "-dynamic-branch-count")
+		// If child node has dynamic indegree
+		if node.DynamicIndegree() > 0 {
+			totalDynamicBranchCount, err := fhandler.RetriveCounter(node.GetUniqueId() + "-dynamic-indegree")
 			if err != nil {
-				return nil, fmt.Errorf("Failed to retrive branch count for %s, error %v",
+				return nil, fmt.Errorf("Failed to retrive dynamic indegree count for %s, error %v",
 					node.GetUniqueId(), err)
 			}
-			inDegree = inDegree + dynamicBranchCount
+			inDegree = inDegree + totalDynamicBranchCount
 		}
 
 		// Get forwarder for child node
@@ -834,7 +841,7 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 			intermediateData = []byte("")
 		}
 
-		// if indegree is > 1 then use statestore to get request state
+		// if indegree is > 1 then use statestore to get indegree completion state
 		if inDegree > 1 {
 			key := ""
 			dagNode := currentDag.GetParentNode()
@@ -918,6 +925,7 @@ func handleFailure(fhandler *flowHandler, context *faasflow.Context, err error) 
 		fmt.Printf("%s", string(data))
 	}
 
+	// Cleanup data and state for failure
 	if fhandler.stateStore != nil {
 		fhandler.stateStore.Cleanup()
 	}
@@ -1221,6 +1229,8 @@ func handleWorkflow(data []byte) string {
 					fhandler.id, faasflow.StateSuccess)
 				fhandler.getPipeline().Finally(faasflow.StateSuccess)
 			}
+
+			// Cleanup data and state for failure
 			if fhandler.stateStore != nil {
 				fhandler.stateStore.Cleanup()
 			}
