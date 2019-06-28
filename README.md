@@ -15,7 +15,7 @@
 **FYI**: Faasflow is into conceptual state and API which may change and under active development
    
 **Dashboard:** Faasflow comes with a dashboard for visualizing dag generated from flow functions.   
-Available as https://github.com/s8sg/faas-flow-dashboard
+Available as https://github.com/s8sg/faas-flow-tower
 
 ## Overview
 
@@ -49,7 +49,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
      return nil
 }
 ```
-> AYNC-Call
+> AYNC-Call   
 ```go
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
@@ -71,7 +71,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 	return nil
 }
 ```
-> DAG-Call
+> DAG-Call and Branching
 ```go
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
@@ -119,6 +119,9 @@ func DefineDataStore() (faasflow.DataStore, error) {
         return miniods, err
 }
 ```
+> Dynamic Branching   
+Check example dag: https://github.com/s8sg/branching-in-faas-flow
+
 
 
 ## Sync, Async or DAG
