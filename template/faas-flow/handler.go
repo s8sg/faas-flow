@@ -404,6 +404,10 @@ func executeFunction(pipeline *sdk.Pipeline, operation *sdk.Operation, data []by
 
 	httpreq := buildFunctionRequest(name, data, params, headers)
 
+	if operation.Requesthandler != nil {
+		operation.Requesthandler(httpreq)
+	}
+
 	client := &http.Client{}
 	resp, err := client.Do(httpreq)
 	if err != nil {
@@ -415,13 +419,9 @@ func executeFunction(pipeline *sdk.Pipeline, operation *sdk.Operation, data []by
 	} else {
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
 			result, _ = ioutil.ReadAll(resp.Body)
-			return result, err
+			err = fmt.Errorf("invalid return status %d", resp.StatusCode)
 		}
-
 		result, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return result, err
-		}
 	}
 
 	return result, err
@@ -437,18 +437,26 @@ func executeCallback(pipeline *sdk.Pipeline, operation *sdk.Operation, data []by
 
 	httpreq := buildCallbackRequest(cburl, data, params, headers)
 
+	if operation.Requesthandler != nil {
+		operation.Requesthandler(httpreq)
+	}
+
 	client := &http.Client{}
 	resp, err := client.Do(httpreq)
-	cbresult, _ := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		err := fmt.Errorf("%v:%s", err, string(cbresult))
 		return err
 	}
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		err := fmt.Errorf("%v:%s", err, string(cbresult))
-		return err
+
+	if operation.OnResphandler != nil {
+		_, err = operation.OnResphandler(resp)
+	} else {
+		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			cbresult, _ := ioutil.ReadAll(resp.Body)
+			err := fmt.Errorf("%v:%s", err, string(cbresult))
+			return err
+		}
 	}
-	return nil
+	return err
 
 }
 

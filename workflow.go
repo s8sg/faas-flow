@@ -11,6 +11,7 @@ type Options struct {
 	header          map[string]string
 	query           map[string][]string
 	failureHandler  sdk.FuncErrorHandler
+	requestHandler  sdk.ReqHandler
 	responseHandler sdk.RespHandler
 
 	// Operation Chaining options
@@ -53,6 +54,7 @@ func (o *Options) reset() {
 	o.query = map[string][]string{}
 	o.sync = false
 	o.failureHandler = nil
+	o.requestHandler = nil
 	o.responseHandler = nil
 }
 
@@ -118,7 +120,14 @@ func OnFailure(handler sdk.FuncErrorHandler) Option {
 	}
 }
 
-// OnResponse Specify a resp handler callback for function
+// RequestHdlr Specify a request handler for function and callback
+func RequestHdlr(handler sdk.ReqHandler) Option {
+	return func(o *Options) {
+		o.requestHandler = handler
+	}
+}
+
+// OnResponse Specify a response handler for function and callback
 func OnReponse(handler sdk.RespHandler) Option {
 	return func(o *Options) {
 		o.responseHandler = handler
@@ -214,6 +223,9 @@ func (flow *Workflow) Apply(function string, opts ...Option) *Workflow {
 		}
 		if o.responseHandler != nil {
 			newfunc.AddResponseHandler(o.responseHandler)
+		}
+		if o.requestHandler != nil {
+			newfunc.AddRequestHandler(o.requestHandler)
 		}
 	}
 
