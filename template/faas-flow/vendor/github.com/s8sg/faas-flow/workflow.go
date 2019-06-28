@@ -5,18 +5,22 @@ import (
 	"github.com/s8sg/faas-flow/sdk"
 )
 
+// Options options for operation execution
 type Options struct {
+	// Operation options
 	header          map[string]string
 	query           map[string][]string
-	sync            bool
 	failureHandler  sdk.FuncErrorHandler
 	responseHandler sdk.RespHandler
-	forwarder       sdk.Forwarder
-	noforwarder     bool
+
+	// Operation Chaining options
+	sync bool
 }
 
+// BranchOptions options for branching in DAG
 type BranchOptions struct {
 	aggregator  sdk.Aggregator
+	forwarder   sdk.Forwarder
 	noforwarder bool
 }
 
@@ -36,8 +40,7 @@ var (
 	Sync = SyncCall()
 	// Execution specify a edge doesn't forwards a data
 	// but rather mention a execution direction
-	Execution       = InvokeEdge()
-	ExecutionBranch = InvokeEdgeDynamic()
+	Execution = InvokeEdge()
 	// Denote if last node doesn't contain any function call
 	emptyNode = false
 	// the reference of lastnode when applied as chain
@@ -51,14 +54,13 @@ func (o *Options) reset() {
 	o.sync = false
 	o.failureHandler = nil
 	o.responseHandler = nil
-	o.forwarder = nil
-	o.noforwarder = false
 }
 
 // reset reset the BranchOptions
 func (o *BranchOptions) reset() {
 	o.aggregator = nil
 	o.noforwarder = false
+	o.forwarder = nil
 }
 
 // Aggregator aggregates all outputs into one
@@ -68,25 +70,18 @@ func Aggregator(aggregator sdk.Aggregator) BranchOption {
 	}
 }
 
-// InvokeEdgeDynamic() denotes a dynamic node doesn't forwards a data
-func InvokeEdgeDynamic() BranchOption {
-	return func(o *BranchOptions) {
-		o.noforwarder = true
-	}
-}
-
 // InvokeEdge denotes a edge doesn't forwards a data,
 // but rather provides only an execution flow
-func InvokeEdge() Option {
-	return func(o *Options) {
+func InvokeEdge() BranchOption {
+	return func(o *BranchOptions) {
 		o.noforwarder = true
 	}
 }
 
 // Forwarder encodes request based on need for children vertex
 // by default the data gets forwarded as it is
-func Forwarder(forwarder sdk.Forwarder) Option {
-	return func(o *Options) {
+func Forwarder(forwarder sdk.Forwarder) BranchOption {
+	return func(o *BranchOptions) {
 		o.forwarder = forwarder
 	}
 }

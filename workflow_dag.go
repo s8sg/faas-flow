@@ -229,12 +229,12 @@ func (this *DagFlow) AddCallback(vertex string, url string, opts ...Option) {
 }
 
 // AddEdge adds a directed edge between two vertex as <from>-><to>
-func (this *DagFlow) AddEdge(from, to string, opts ...Option) {
+func (this *DagFlow) AddEdge(from, to string, opts ...BranchOption) {
 	err := this.udag.AddEdge(from, to)
 	if err != nil {
 		panic(fmt.Sprintf("Error at AddEdge for %s-%s, %v", from, to, err))
 	}
-	o := &Options{}
+	o := &BranchOptions{}
 	for _, opt := range opts {
 		o.reset()
 		opt(o)
