@@ -70,11 +70,12 @@ type Node struct {
 	subAggregator Aggregator           // Aggregates foreach/condition outputs into one
 	forwarder     map[string]Forwarder // The forwarder handle forwarding output to a children
 
-	parentDag *Dag    // The reference of the dag this node part of
-	indegree  int     // The vertex dag indegree
-	outdegree int     // The vertex dag outdegree
-	children  []*Node // The children of the vertex
-	dependsOn []*Node // The parents of the vertex
+	parentDag       *Dag    // The reference of the dag this node part of
+	indegree        int     // The vertex dag indegree
+	dynamicIndegree int     // The vertex dag dynamic indegree
+	outdegree       int     // The vertex dag outdegree
+	children        []*Node // The children of the vertex
+	dependsOn       []*Node // The parents of the vertex
 
 	next []*Node
 	prev []*Node
@@ -156,6 +157,9 @@ func (this *Dag) AddEdge(from, to string) error {
 	fromNode.children = append(fromNode.children, toNode)
 	toNode.dependsOn = append(toNode.dependsOn, fromNode)
 	toNode.indegree++
+	if fromNode.Dynamic() {
+		toNode.dynamicIndegree++
+	}
 	fromNode.outdegree++
 
 	// Add default forwarder for from node
@@ -365,6 +369,11 @@ func (this *Node) Operations() []*Operation {
 // Indegree returns the no of input in a node
 func (this *Node) Indegree() int {
 	return this.indegree
+}
+
+// DynamicIndegree returns the no of dynamic input in a node
+func (this *Node) DynamicIndegree() int {
+	return this.dynamicIndegree
 }
 
 // Outdegree returns the no of output in a node
