@@ -183,6 +183,9 @@ func (this *DagFlow) AddFunction(vertex string, function string, opts ...Option)
 		if o.responseHandler != nil {
 			newfunc.AddResponseHandler(o.responseHandler)
 		}
+		if o.requestHandler != nil {
+			newfunc.AddRequestHandler(o.requestHandler)
+		}
 	}
 
 	node := this.udag.GetNode(vertex)
@@ -217,6 +220,12 @@ func (this *DagFlow) AddCallback(vertex string, url string, opts ...Option) {
 		}
 		if o.failureHandler != nil {
 			newCallback.AddFailureHandler(o.failureHandler)
+		}
+		if o.responseHandler != nil {
+			newCallback.AddResponseHandler(o.responseHandler)
+		}
+		if o.requestHandler != nil {
+			newCallback.AddRequestHandler(o.requestHandler)
 		}
 	}
 

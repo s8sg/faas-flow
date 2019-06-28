@@ -18,6 +18,9 @@ type Modifier func([]byte) ([]byte, error)
 // RespHandler definition for OnResponse() option on operation
 type RespHandler func(*http.Response) ([]byte, error)
 
+// Reqhandler definition for RequestHdlr() option on operation
+type ReqHandler func(*http.Request)
+
 type Operation struct {
 	// Operations
 	Function    string   // The name of the function
@@ -29,6 +32,7 @@ type Operation struct {
 	Param  map[string][]string // The Parameter in Query string
 
 	FailureHandler FuncErrorHandler // The Failure handler of the operation
+	Requesthandler ReqHandler       // The http request handler of the operation
 	OnResphandler  RespHandler      // The http Resp handler of the operation
 }
 
@@ -78,6 +82,10 @@ func (operation *Operation) AddFailureHandler(handler FuncErrorHandler) {
 
 func (operation *Operation) AddResponseHandler(handler RespHandler) {
 	operation.OnResphandler = handler
+}
+
+func (operation *Operation) AddRequestHandler(handler ReqHandler) {
+	operation.Requesthandler = handler
 }
 
 func (operation *Operation) GetParams() map[string][]string {
