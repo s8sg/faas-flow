@@ -304,16 +304,9 @@ Request tracing can be enabled by providing by specifying
     
 ### Start The Trace Server 
 `jaeger` (opentracing-1.x) used for traceing   
-To start the trace server we run `jaegertracing/all-in-one` as a service.  
-```bash
-docker service rm jaegertracing
-docker pull jaegertracing/all-in-one:latest
-docker service create --constraint="node.role==manager" --detach=true \
-        --network func_functions --name jaegertracing -p 5775:5775/udp -p 16686:16686 \
-        jaegertracing/all-in-one:latest
-```
+Quick start with jaegertracing: https://www.jaegertracing.io/docs/1.8/getting-started/   
     
-Below is an example of tracing for an async request with 3 Nodes    
+Below is an example of tracing for: https://github.com/s8sg/branching-in-faas-flow    
       
 ![alt multi node](https://github.com/s8sg/faas-flow/blob/master/doc/tracing.png)
     
