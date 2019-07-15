@@ -141,7 +141,7 @@ func newWorkflowHandler(gateway string, name string, id string,
 
 	fhandler := &flowHandler{}
 
-	flow := faasflow.NewFaasflow(name)
+	flow := faasflow.GetWorkflow(name)
 
 	fhandler.flow = flow
 
