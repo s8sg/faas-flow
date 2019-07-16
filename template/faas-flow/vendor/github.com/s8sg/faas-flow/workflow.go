@@ -2,7 +2,9 @@ package faasflow
 
 import (
 	"fmt"
-	"github.com/s8sg/faas-flow/sdk"
+	sdk "github.com/s8sg/faas-flow/sdk"
+	"sync"
+	"sync/atomic"
 )
 
 // Options options for operation execution
@@ -13,9 +15,6 @@ type Options struct {
 	failureHandler  sdk.FuncErrorHandler
 	requestHandler  sdk.ReqHandler
 	responseHandler sdk.RespHandler
-
-	// Operation Chaining options
-	sync bool
 }
 
 // BranchOptions options for branching in DAG
@@ -29,30 +28,31 @@ type Workflow struct {
 	pipeline *sdk.Pipeline // underline pipeline definition object
 }
 
-type DagFlow struct {
+type Dag struct {
 	udag *sdk.Dag
+}
+
+type Node struct {
+	unode *sdk.Node
 }
 
 type Option func(*Options)
 type BranchOption func(*BranchOptions)
 
 var (
-	// Sync can be used instead of SyncCall
-	Sync = SyncCall()
 	// Execution specify a edge doesn't forwards a data
 	// but rather mention a execution direction
 	Execution = InvokeEdge()
-	// Denote if last node doesn't contain any function call
-	emptyNode = false
-	// the reference of lastnode when applied as chain
-	lastnode *sdk.Node = nil
+	// initialized and lock make sure workflow is singleton
+	initialized uint32
+	lock        sync.Mutex
+	workflow    *Workflow
 )
 
 // reset reset the Options
 func (o *Options) reset() {
 	o.header = map[string]string{}
 	o.query = map[string][]string{}
-	o.sync = false
 	o.failureHandler = nil
 	o.requestHandler = nil
 	o.responseHandler = nil
@@ -88,13 +88,6 @@ func Forwarder(forwarder sdk.Forwarder) BranchOption {
 	}
 }
 
-// SyncCall Set sync flag, denotes a call to be in sync
-func SyncCall() Option {
-	return func(o *Options) {
-		o.sync = true
-	}
-}
-
 // Header Specify a header in a http call
 func Header(key, value string) Option {
 	return func(o *Options) {
@@ -120,8 +113,8 @@ func OnFailure(handler sdk.FuncErrorHandler) Option {
 	}
 }
 
-// RequestHdlr Specify a request handler for function and callback
-func RequestHdlr(handler sdk.ReqHandler) Option {
+// RequestHandler Specify a request handler for function and callback request
+func RequestHandler(handler sdk.ReqHandler) Option {
 	return func(o *Options) {
 		o.requestHandler = handler
 	}
@@ -134,29 +127,227 @@ func OnReponse(handler sdk.RespHandler) Option {
 	}
 }
 
-// Modify allows to apply inline callback function
-// the callback fucntion prototype is
-// func([]byte) ([]byte, error)
-func (flow *Workflow) Modify(mod sdk.Modifier) *Workflow {
-	newMod := sdk.CreateModifier(mod)
-
-	if flow.pipeline.CountNodes() == 0 {
-		id := fmt.Sprintf("%d", flow.pipeline.CountNodes())
-		// create a new vertex and add modifier
-		flow.pipeline.Dag.AddVertex(id, []*sdk.Operation{newMod})
-		lastnode = flow.pipeline.Dag.GetNode(id)
-		emptyNode = true
-	} else {
-		node := lastnode
-		node.AddOperation(newMod)
+// GetWorkflow initiates a flow with a pipeline
+// Singleton - only one object instenciated by faas-flow template
+func GetWorkflow() *Workflow {
+	if atomic.LoadUint32(&initialized) == 1 {
+		return workflow
 	}
+
+	lock.Lock()
+	defer lock.Unlock()
+
+	if initialized == 0 {
+		defer atomic.StoreUint32(&initialized, 1)
+		workflow = &Workflow{}
+		workflow.pipeline = sdk.CreatePipeline()
+	}
+	return workflow
+}
+
+// OnFailure set a failure handler routine for the pipeline
+func (flow *Workflow) OnFailure(handler sdk.PipelineErrorHandler) *Workflow {
+	flow.pipeline.FailureHandler = handler
 	return flow
 }
 
-// Callback register a callback url as a part of pipeline definition
-// One or more callback function can be placed for sending
-// either partial pipeline data or after the pipeline completion
-func (flow *Workflow) Callback(url string, opts ...Option) *Workflow {
+// Finally sets an execution finish handler routine
+// it will be called once the execution has finished with state either Success/Failure
+func (flow *Workflow) Finally(handler sdk.PipelineHandler) *Workflow {
+	flow.pipeline.Finally = handler
+	return flow
+}
+
+// GetPipeline expose the underlying pipeline object
+func (flow *Workflow) GetPipeline() *sdk.Pipeline {
+	return flow.pipeline
+}
+
+// Dag provides the workflow dag object
+func (flow *Workflow) Dag() *Dag {
+	dag := &Dag{}
+	dag.udag = flow.pipeline.Dag
+	return dag
+}
+
+// SetDag apply a predefined dag, and override the default dag
+func (flow *Workflow) SetDag(dag *Dag) {
+	pipeline := flow.pipeline
+	pipeline.SetDag(dag.udag)
+}
+
+// NewDag creates a new dag seperately from pipeline
+func NewDag() *Dag {
+	dag := &Dag{}
+	dag.udag = sdk.NewDag()
+	return dag
+}
+
+// Append generalizes a seperate dag by appending its properties into current dag.
+// Provided dag should be mutually exclusive
+func (this *Dag) Append(dag *Dag) {
+	err := this.udag.Append(dag.udag)
+	if err != nil {
+		panic(fmt.Sprintf("Error at AppendDag, %v", err))
+	}
+}
+
+// Node adds a new vertex by id
+func (this *Dag) Node(vertex string, options ...BranchOption) *Node {
+	node := this.udag.GetNode(vertex)
+	if node == nil {
+		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
+	}
+	o := &BranchOptions{}
+	for _, opt := range options {
+		o.reset()
+		opt(o)
+		if o.aggregator != nil {
+			node.AddAggregator(o.aggregator)
+		}
+	}
+	return &Node{unode: node}
+}
+
+// Edge adds a directed edge between two vertex as <from>-><to>
+func (this *Dag) Edge(from, to string, opts ...BranchOption) {
+	err := this.udag.AddEdge(from, to)
+	if err != nil {
+		panic(fmt.Sprintf("Error at AddEdge for %s-%s, %v", from, to, err))
+	}
+	o := &BranchOptions{}
+	for _, opt := range opts {
+		o.reset()
+		opt(o)
+		if o.noforwarder == true {
+			fromNode := this.udag.GetNode(from)
+			// Add a nil forwarder overriding the default forwarder
+			fromNode.AddForwarder(to, nil)
+		}
+
+		// in case there is a override
+		if o.forwarder != nil {
+			fromNode := this.udag.GetNode(from)
+			fromNode.AddForwarder(to, o.forwarder)
+		}
+	}
+}
+
+// SubDag composites a seperate dag as a node.
+func (this *Dag) SubDag(vertex string, dag *Dag) {
+	node := this.udag.AddVertex(vertex, []*sdk.Operation{})
+	err := node.AddSubDag(dag.udag)
+	if err != nil {
+		panic(fmt.Sprintf("Error at AddSubDag for %s, %v", vertex, err))
+	}
+	return
+}
+
+// ForEachBranch composites a subdag which executes for each value
+// It returns the subdag that will be executed for each value
+func (this *Dag) ForEachBranch(vertex string, foreach sdk.ForEach, options ...BranchOption) (dag *Dag) {
+	node := this.udag.AddVertex(vertex, []*sdk.Operation{})
+	if foreach == nil {
+		panic(fmt.Sprintf("Error at AddForEachBranch for %s, foreach function not specified", vertex))
+	}
+	node.AddForEach(foreach)
+
+	for _, option := range options {
+		o := &BranchOptions{}
+		o.reset()
+		option(o)
+		if o.aggregator != nil {
+			node.AddSubAggregator(o.aggregator)
+		}
+		if o.noforwarder == true {
+			node.AddForwarder("dynamic", nil)
+		}
+	}
+
+	dag = NewDag()
+	err := node.AddForEachDag(dag.udag)
+	if err != nil {
+		panic(fmt.Sprintf("Error at AddForEachBranch for %s, %v", vertex, err))
+	}
+	return
+}
+
+// ConditionalBranch composites multiple dags as a subdag which executes for a conditions matched
+// and returns the set of dags based on the condition passed
+func (this *Dag) ConditionalBranch(vertex string, conditions []string, condition sdk.Condition,
+	options ...BranchOption) (conditiondags map[string]*Dag) {
+
+	node := this.udag.AddVertex(vertex, []*sdk.Operation{})
+	if condition == nil {
+		panic(fmt.Sprintf("Error at AddConditionalBranch for %s, condition function not specified", vertex))
+	}
+	node.AddCondition(condition)
+
+	for _, option := range options {
+		o := &BranchOptions{}
+		o.reset()
+		option(o)
+		if o.aggregator != nil {
+			node.AddSubAggregator(o.aggregator)
+		}
+		if o.noforwarder == true {
+			node.AddForwarder("dynamic", nil)
+		}
+	}
+	conditiondags = make(map[string]*Dag)
+	for _, conditionKey := range conditions {
+		dag := NewDag()
+		node.AddConditionalDag(conditionKey, dag.udag)
+		conditiondags[conditionKey] = dag
+	}
+	return
+}
+
+// Modify adds a new modifier to the given vertex
+func (node *Node) Modify(mod sdk.Modifier) *Node {
+	newMod := sdk.CreateModifier(mod)
+	node.unode.AddOperation(newMod)
+	return node
+}
+
+// Apply adds a new function to the given vertex
+func (node *Node) Apply(function string, opts ...Option) *Node {
+
+	newfunc := sdk.CreateFunction(function)
+
+	o := &Options{}
+	for _, opt := range opts {
+		o.reset()
+		opt(o)
+		if len(o.header) != 0 {
+			for key, value := range o.header {
+				newfunc.Addheader(key, value)
+			}
+		}
+		if len(o.query) != 0 {
+			for key, array := range o.query {
+				for _, value := range array {
+					newfunc.Addparam(key, value)
+				}
+			}
+		}
+		if o.failureHandler != nil {
+			newfunc.AddFailureHandler(o.failureHandler)
+		}
+		if o.responseHandler != nil {
+			newfunc.AddResponseHandler(o.responseHandler)
+		}
+		if o.requestHandler != nil {
+			newfunc.AddRequestHandler(o.requestHandler)
+		}
+	}
+
+	node.unode.AddOperation(newfunc)
+	return node
+}
+
+// Callback adds a new callback to the given vertex
+func (node *Node) AddCallback(vertex string, url string, opts ...Option) *Node {
 	newCallback := sdk.CreateCallback(url)
 
 	o := &Options{}
@@ -178,116 +369,34 @@ func (flow *Workflow) Callback(url string, opts ...Option) *Workflow {
 		if o.failureHandler != nil {
 			newCallback.AddFailureHandler(o.failureHandler)
 		}
-	}
-
-	if flow.pipeline.CountNodes() == 0 {
-		id := fmt.Sprintf("%d", flow.pipeline.CountNodes())
-		// create a new vertex and add callback
-		flow.pipeline.Dag.AddVertex(id, []*sdk.Operation{newCallback})
-		lastnode = flow.pipeline.Dag.GetNode(id)
-		emptyNode = true
-	} else {
-		node := lastnode
-		node.AddOperation(newCallback)
-	}
-	return flow
-}
-
-// Apply apply a function with given name and options
-// default call is async, provide Sync option to call synchronously
-func (flow *Workflow) Apply(function string, opts ...Option) *Workflow {
-	newfunc := sdk.CreateFunction(function)
-	sync := false
-
-	o := &Options{}
-	for _, opt := range opts {
-		o.reset()
-		opt(o)
-		if len(o.header) != 0 {
-			for key, value := range o.header {
-				newfunc.Addheader(key, value)
-			}
-		}
-		if len(o.query) != 0 {
-			for key, array := range o.query {
-				for _, value := range array {
-					newfunc.Addparam(key, value)
-				}
-			}
-		}
-		if o.sync {
-			sync = true
-		}
-		if o.failureHandler != nil {
-			newfunc.AddFailureHandler(o.failureHandler)
-		}
 		if o.responseHandler != nil {
-			newfunc.AddResponseHandler(o.responseHandler)
+			newCallback.AddResponseHandler(o.responseHandler)
 		}
 		if o.requestHandler != nil {
-			newfunc.AddRequestHandler(o.requestHandler)
+			newCallback.AddRequestHandler(o.requestHandler)
 		}
 	}
 
-	if sync {
-		if flow.pipeline.CountNodes() == 0 {
-			id := fmt.Sprintf("%d", flow.pipeline.CountNodes())
-			// create a new vertex and add function
-			flow.pipeline.Dag.AddVertex(id, []*sdk.Operation{newfunc})
-			lastnode = flow.pipeline.Dag.GetNode(id)
-		} else {
-			node := lastnode
-			node.AddOperation(newfunc)
-		}
-	} else {
-		// If last node doesn't have any function its emptyNode
-		if emptyNode {
-			node := lastnode
-			node.AddOperation(newfunc)
-		} else {
-			from := lastnode.Id
-			id := fmt.Sprintf("%d", flow.pipeline.CountNodes())
-			// create a new vertex and add function
-			flow.pipeline.Dag.AddVertex(id, []*sdk.Operation{newfunc})
-			lastnode = flow.pipeline.Dag.GetNode(id)
-			flow.pipeline.Dag.AddEdge(from, id)
+	node.unode.AddOperation(newCallback)
+	return node
+}
+
+// SyncNode adds a new vertex named Sync
+func (flow *Workflow) SyncNode(options ...BranchOption) *Node {
+
+	dag := flow.pipeline.Dag
+
+	node := dag.GetNode("sync")
+	if node == nil {
+		node = dag.AddVertex("sync", []*sdk.Operation{})
+	}
+	o := &BranchOptions{}
+	for _, opt := range options {
+		o.reset()
+		opt(o)
+		if o.aggregator != nil {
+			node.AddAggregator(o.aggregator)
 		}
 	}
-	emptyNode = false
-
-	return flow
-}
-
-// ExecuteDag apply a predefined dag
-// All operation inside dag are async
-// returns error is dag is not valid
-// Note: If executing dag chain gets overridden
-func (flow *Workflow) ExecuteDag(dag *DagFlow) {
-	pipeline := flow.pipeline
-	pipeline.SetDag(dag.udag)
-}
-
-// OnFailure set a failure handler routine for the pipeline
-func (flow *Workflow) OnFailure(handler sdk.PipelineErrorHandler) *Workflow {
-	flow.pipeline.FailureHandler = handler
-	return flow
-}
-
-// Finally sets an execution finish handler routine
-// it will be called once the execution has finished with state either Success/Failure
-func (flow *Workflow) Finally(handler sdk.PipelineHandler) *Workflow {
-	flow.pipeline.Finally = handler
-	return flow
-}
-
-// NewFaasflow initiates a flow with a pipeline
-func NewFaasflow(name string) *Workflow {
-	flow := &Workflow{}
-	flow.pipeline = sdk.CreatePipeline(name)
-	return flow
-}
-
-// GetPipeline expose the underlying pipeline object
-func (flow *Workflow) GetPipeline() *sdk.Pipeline {
-	return flow.pipeline
+	return &Node{unode: node}
 }

@@ -25,7 +25,7 @@ faas-flow allows you to realize OpenFaaS function composition with ease. By defi
 import faasflow "github.com/s8sg/faas-flow"
 
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
-  flow.Apply("yourFunc1", faasflow.Sync).
+  flow.SyncNode().Apply("yourFunc1", faasflow.Sync).
        Apply("yourFunc2", faasflow.Sync)
 }
 ```
@@ -37,11 +37,10 @@ By supplying a number of pipeline operators, complex compostion can be achieved 
 ![alt overview](https://github.com/s8sg/faas-flow/blob/master/doc/overview.jpg)
 
 The above pipeline can be achieved with little, but powerfull code:
-> SYNC-Call
+> SYNC Chain
 ```go
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
-     flow.Apply("func1", faasflow.Sync).
-          Apply("func2", faasflow.Sync).
+     flow.SyncNode().Apply("func1").Apply("func2").
 	  Modify(func(data []byte) ([]byte, error) {
 	  	// Do something
 		return data, nil
@@ -49,137 +48,93 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
      return nil
 }
 ```
-> AYNC-Call   
+> ASYNC Chain
 ```go
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
-
-     flow.
-        Apply("func1").
-	Apply("func2").
+     dag := flow.Dag()
+     dag.Node("n1").Apply("func1")
+     dag.Node("n2").Apply("func2").
         Modify(func(data []byte) ([]byte, error) {
 	        // Do something
                	return data
         }).
-        Callback("storage.io/bucket?id=3345612358265349126&file=" + context.Query.Get("filename")).
-        OnFailure(func(err error) {
+     dag.Node("n3").callback("storage.io/bucket?id=3345612358265349126&file=result.dat")
+     dag.Edge("n1", "n2")
+     dag.Edge("n2", "n3")
+     flow.OnFailure(func(err error) {
               // failure handler
         }).
         Finally(func(state string) {
               // cleanup code
         })
-	
-	return nil
-}
-```
-> DAG-Call and Branching
-```go
-func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
-
-     dag := faasflow.CreateDag()
-     dag.AddModifier("mod1", func(data []byte) ([]byte, error) {
-     		// do something
-		return data, nil
-     })
-     dag.AddFunction("func1", "function_1_name")
-     dag.AddFunction("func2", "function_2_name")
-     dag.AddModifier("mod2", func(data []byte) ([]byte, error) {
-     		// do something
-		return data, nil
-     })
-     // To Serialize multiple input the dag need be defined with a Aggregator
-     dag.AddVertex("callback", faasflow.Aggregator(func(inputs map[string][]byte) ([]byte, error) {
-				          mod2Data := inputs["mod2"]
-					  func2Data := inputs["func2"]
-				          // Serialize input for callback
-					  return data, nil
-				    }))
-     dag.AddCallback("callback", "storage.io/bucket?id=3345612358265349126&file=" + context.Query.Get("filename"))
-				    
-
-     dag.AddEdge("mod1", "func1")
-     dag.AddEdge("mod1", "func2")
-     dag.AddEdge("func1", "mod2")
-     dag.AddEdge("func2", "callback")
-     dag.AddEdge("mod2", "callback")
-     
-     flow.ExecuteDag(dag)
      
      return nil
 }
-
-func DefineStateStore() (faasflow.StateStore, error) {
-        // use consul StateStore
-        consulss, err := consulStateStore.GetConsulStateStore()
-        return consulss, err
+```
+> PARALLEL Branching
+```go
+func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
+     dag := flow.Dag()
+     dag.Node("n1").Modify(func(data []byte) ([]byte, error) {
+     		// do something
+		return data, nil
+     })
+     dag.Node("n2").Apply("func1")
+     dag.Node("n3").Apply("func2").Modify(func(data []byte) ([]byte, error) {
+     		// do something
+		return data, nil
+     })
+     dag.Node("n4").Callback("storage.io/bucket?id=3345612358265349126&file=result")
+     dag.Edge("n1", "n2")
+     dag.Edge("n1", "n3")
+     dag.Edge("n2", "n4")
+     dag.Edge("n3", "n4")
 }
-
-func DefineDataStore() (faasflow.DataStore, error) {
-        // use minio DataStore
-        miniods, err := minioDataStore.InitFromEnv()
-        return miniods, err
+```
+> DYNAMIC Branching  
+```go
+func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
+     dag := flow.Dag()
+     dag.Node("n1").Modify(func(data []byte) ([]byte, error) {
+                return data, nil
+     })
+     conditionalDags := dag.ConditionalBranch("C", 
+                []string{"c1", "c2"}, // possible conditions
+		func(response []byte) []string {
+                        // for each returned condition the corresponding branch will execute
+                        // this function executes in the runtime of condition C
+                        return []string{"c1", "c2"}
+                },
+     )
+     conditionalDags["c2"].Node("n1").Apply("func").Modify(func(data []byte) ([]byte, error) {
+		return data, nil
+     })
+     foreachDag := conditionalDags["c1"].ForEachBranch("F",
+		func(data []byte) map[string][]byte {
+			// for each returned key in the hashmap a new branch will be executed
+                        // this function executes in the runtime of foreach F
+                        return map[string][]byte{ "f1": data, "f2": data }
+                },
+     )
+     foreachDag.Node("n1").Modify(func(data []byte) ([]byte, error) {
+                return data, nil
+     }) 
+     dag.Node("n2").Callback("storage.io/bucket?id=3345612358265349126&file=result")
+     dag.Edge("n1", "C")
+     dag.Edge("C", "n2")
 }
-```
-> Dynamic Branching   
-Check example dag: https://github.com/s8sg/branching-in-faas-flow
-
-
-
-## Sync, Async or DAG
-
-Faasflow supports sync and async function call. By default all call are async. To call a function in Sync, faas-flow provide option `faasflow.Sync`:
-```
- flow.Apply("function", faasflow.Sync)
-```
-
-
-**If all calls are `Sync`, pipeline will have one Node (Vertex) and return the result to the caller**
-![alt single node](https://github.com/s8sg/faas-flow/blob/master/doc/synccall.jpg)
-
-**One or more `Async` function call results a pipeline to have multiple Nodes (Vertex) as a `chain`**
-![alt multi node](https://github.com/s8sg/faas-flow/blob/master/doc/asynccall.jpg)
-
-**If pipeline is created as a `dag`, the pipeline will have multiple Nodes(Vertex). Vertex are executed in parralel in the most optimal way** 
-![alt multi node dag](https://github.com/s8sg/faas-flow/blob/master/doc/asyncdag.jpg)
-   
-    
-| Acronyms |  description |
-| ---- | ----- |
-| Pipeline Definition | User define the flow as a pipeline by implementing the template `Handle()`. For a given flow the definition is always the same |
-| Function | A FaaS Function. A function is applied to flow by calling `flow.Apply(funcName, Sync)` or `flow.Apply(funcName)`. By Default function call are async |
-| Modifier | A inline function. A inline modifier function is applied as ```flow.Modify(func(data []byte) ([]byte, error) { return data, nil } )``` |
-| Callback | A URL that will be called with the final/partial result. `flow.Callback(url)` |
-| Handler | A Failure handler registered as `flow.OnFailure(func(err error){})`. If registered it is called if an error occured | 
-| Finally | A Cleanup handler registered as `flow.Finally(func(){})`. If registered it is called at the end if state is `StateFailure` otherwise `StateSuccess` |
-| Node | A vertex that represent a segment of a pipeline definiton which consist of one or more call to `Operation`. A pipeline definition has one or more nodes. Async call results in a new node in a chain. A dag is a composition of multiple nodes |
-| Context | Request context has the state of request. It abstracts the `StateHandler` and provide API to manage state of the request. Interface `StateHandler{}` can be set by user to use 3rd party storage to manage state. |
-
-## Internal
-
-Faasflow runs four major steps to define and run the pipeline
-![alt internal](https://github.com/s8sg/faas-flow/blob/master/doc/internal.jpg)
-
-| Step |  description |
-| ---- | ----- |
-| Build Workflow | Identify a request and build a flow. A incoming request could be a partially finished pipeline or a fresh raw request. For a partial request `faas-flow` parse and understand the state of the pipeline from the incoming request |
-| Get Definition |  FaasWorkflow create simple **pipeline-definition** with one or multiple nodes based on the flow defined at `Define()` function in `handler.go`. A **pipeline-definition** consist of multiple `nodes`. Each `Node` includes one or more `Function Call`, `Modifier` or `Callback`. Always a single `node` is executed in a single invokation of the flow. A same flow always outputs to same pipeline definition, which allows `faas-flow` to be completly `stateless`|
-| Execute | Execute executes a `Node` by calling the `Modifier`, `Functions` or `Callback` based on how user defines the pipeline. Only one `Node` gets executed at a single execution of `faas-flow function`. |
-| Repeat Or Response | If pipeline is not yet completed, FaasWorkflow forwards the remaining pipeline with `partial execution state` and the `partial result` to the same `flow function` via `gateway`. If the pipeline has only one node or completed `faas-flow` returns the output to the gateway otherwise it returns `empty`| 
-   
-   
-## Example
-https://github.com/s8sg/faas-flow-examples
-
+``` 
 
 ## Getting Started
     
 #### Get the `faas-flow` template with `faas-cli`
 ```
-faas-cli template pull https://github.com/s8sg/faas-flow
+faas template pull https://github.com/s8sg/faas-flow
 ```
    
 #### Create a new `func` with `faas-flow` template 
 ```bash
-faas-cli new test-flow --lang faas-flow
+faas new test-flow --lang faas-flow
 ```
    
 #### Edit the `test-flow.yml`
@@ -216,10 +171,10 @@ environment:
 > `workflow_name` : The name of the flow function. Faasflow use this to forward partial request.   
 > `gateway` : We need to tell faas-flow the address of openfaas gateway. All calls are made via gateway
 > ```
->              # swarm
->              gateway: "gateway:8080"
->              # k8
->              gateway: "gateway.openfaas:8080"
+>  # swarm
+>  gateway: "gateway:8080"
+>  # k8
+>  gateway: "gateway.openfaas:8080"
 > ```
 > `enable_tracing` : It enables the opentracing for requests and their nodes.  
 > `trace_server` : The address of opentracing backend jaeger.  
@@ -227,66 +182,41 @@ environment:
 
       
 ##### Edit the `test-flow/handler.go`  
+Update `Define()`
 ```go
-    flow.Apply("yourFunc1", Header("method","post")).
-        Modify(func(data []byte) ([]byte, error) {
-                // Check, update/customize data, replay data ...   
-                return []byte(fmt.Sprintf("{ \"data\" : \"%s\" }", string(data))), nil
-        }).Apply("yourFunc2", Header("method","post")).
-        Callback("http://gateway:8080/function/send2slack", 
-                 Header("method", "post"), Query("authtoken", os.Getenv(token)))
+func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
+      flow.SyncNode().Apply("func1").Apply("func2").
+	  Modify(func(data []byte) ([]byte, error) {
+	  	// Do something
+		return data, nil
+	  }).
+          Callback("storage.io/bucket?id=3345612358265349126&file=result.dat")
+      return nil
+}
 ```
-> This function will generate two nodes as:     
+> This function will generate one node as:     
 > ```
-> Node 1 :    
->     Apply("yourFunc1")    
+> Sync :    
+>     Apply("func1")    
+>     Apply("func2")
 >     Modify()    
-> Node 2:    
->     Apply("yourFunc2")   
->     Callback()    
+>     Callback()
 > ```
-     
+All calls will be performed in one single execution of the function, and result will be returned to the callee
      
 ##### Build and Deploy the `test-flow`
      
-Build
+Build and deploy
 ```bash
-faas-cli build -f test-flow.yml
-```
-     
-Deploy
-```bash
-faas-cli deploy -f test-flow.yml
+faas build
+faas deploy
 ```
      
 ##### Invoke
 ```
-cat data | faas-cli invoke --async -f test-flow.yml test-flow
-Function submitted asynchronously.
+cat data | faas invoke test-flow
 ```
           
-#### Convert with Sync function
-> Edit the ` at `function/handler.go``
-```go
-    flow.Apply("yourFunc1", Header("method","post"), faasflow.Sync).
-        Modify(func(data []byte) ([]byte, error) {
-                // Check, update/customize data, replay data ...   
-                return []byte(fmt.Sprintf("{ \"data\" : \"%s\" }", string(data))), nil                
-        }).Apply("yourFunc2", Header("method", "post"), faasflow.Sync)
-```
-> This function will generate one node as:     
-> ```
-> Node 1 :    
->     Apply("yourFunc1")    
->     Modify()    
->     Apply("yourFunc2")  
-> ```
-          
-##### Invoke (Sync)
-```
-cat data | faas-cli invoke -f test-flow.yml test-flow > updated_data
-```
-
 ## Request Tracking by ID
 Request can be tracked from the log by `RequestId`. For each new Request a unique `RequestId` is generated. 
 ```bash
@@ -312,17 +242,17 @@ Below is an example of tracing for: https://github.com/s8sg/branching-in-faas-fl
     
      
     
-## Using request context
-Request context provide verious function such as:   
+## Using context
+Context provide verious function such as:   
   **DataStore** to store data,    
   **HttpQuery** to retrivbe request query,  
   **State*** to get flow state,  
   **Node** to get current node 
 etc.  
 
-### Manage Data Accross Node with `DataStore`
-The main state in faas-flow chain is the **`execution-position` (next-Node)** and the **`partially`** completed data.    
-Apart from that faas-flow allow user to define state with `DataStore` interface.   
+### Manage Data Accross Node with `DataStore`  
+Faas-flow uses the `DataStore` to store partially completed data and request context data. In faas-flow any dag that forwards data between two nodes need `DataStore`.    
+faas-flow allow user to define custom datastore with `DataStore` interface.   
 ```go
  type DataStore interface {
         // Configure the DaraStore with flow name and request ID
@@ -349,9 +279,11 @@ func DefineDataStore() (faasflow.DataStore, error) {
         return miniods, err
 }
 ```
+Once a `DataStore` is set `faas-flow` uses the same to store intermidiate result inbetween nodes   
     
-Once a DataStore is set it can be used by calling `Get()` and `Set()` from `context`:
-```
+Context uses `DataStore` to store/retrive data. User can do the same by 
+calling `Get()` and `Set()` from `context`:
+```go
      flow.Modify(func(data []byte) {
 	  // parse data and set to be used later
           // json.Unmarshal(&req, data)
@@ -365,12 +297,10 @@ Once a DataStore is set it can be used by calling `Get()` and `Set()` from `cont
 ```
 * **[MinioDataStore](https://github.com/s8sg/faas-flow-minio-datastore)** allows to store data in **amazon s3** or local **minio DB**
 
-Once `DataStore` is overridden, all call to `Set()`, `Get()` and `del()` will call the provided `DataStore` otherwise they are maintained in request context.
-
 
 ### Manage State of Pipeline in a DAG with `StateStore`
-Any DAG which has a branch needs external statestore which can be a 3rd party **Synchoronous KV store**. It can be provided by Implementing `StateStore` interface
-`StateStore` provides the below interface:
+Any DAG which has a branch needs external statestore which can be a 3rd party **Synchoronous KV store**. `Faas-flow` uses `StateStore` top maintain state of Node execution in a dag which has branches.   
+Faas-flow allows user to define custom statestore with `StateStore` interface.   
 ```go
 type StateStore interface {
         // Configure the StateStore with flow name and request ID
@@ -387,6 +317,7 @@ type StateStore interface {
         Cleanup() error
 }
 ```
+
 A `StateStore` can be implemented with any KV Store that provides `Synchronization`. The implemented `StateStore` can be set with `DefineStateStore()` at `function/handler.go`:
 ```go
 // DefineStateStore provides the override of the default StateStore
@@ -395,7 +326,7 @@ func DefineStateStore() (faasflow.StateStore, error) {
         return consulss, err
 }
 ```
-
+  
 * **[ConsulStateStore](https://github.com/s8sg/faas-flow-consul-statestore)** statestore implementation with **consul**    
 * **[EtcdStateStore](https://github.com/s8sg/faas-flow-etcd-statestore)** statewtore implementation with **etcd**      
 
@@ -404,9 +335,9 @@ func DefineStateStore() (faasflow.StateStore, error) {
 Http Query to flow can be used from context as
 ```go
     flow.Apply("myfunc", Query("auth-token", context.Query.Get("token"))). // pass as a function query
-     	  Modify(func(data []byte) {
+     	 Modify(func(data []byte) {
           	token = context.Query.Get("token") // get query inside modifier
-     	  })
+     	 })
 ```  
 
 ### Other from context:
