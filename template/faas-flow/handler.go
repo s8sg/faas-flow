@@ -5,10 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	hmac "github.com/alexellis/hmac"
-	"github.com/rs/xid"
-	faasflow "github.com/s8sg/faas-flow"
-	sdk "github.com/s8sg/faas-flow/sdk"
 	"handler/function"
 	"io/ioutil"
 	"log"
@@ -18,6 +14,13 @@ import (
 	"path"
 	"strconv"
 	"strings"
+
+	hmac "github.com/alexellis/hmac"
+	xid "github.com/rs/xid"
+	faasflow "github.com/s8sg/faas-flow"
+	sdk "github.com/s8sg/faas-flow/sdk"
+
+	gosdk "github.com/openfaas-incubator/go-function-sdk"
 )
 
 const (
@@ -310,7 +313,7 @@ func createContext(fhandler *flowHandler) *faasflow.Context {
 }
 
 // buildWorkflow builds a flow and context from raw request or partial completed request
-func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
+func buildWorkflow(data []byte, queryString string) (fhandler *flowHandler, requestData []byte) {
 
 	requestId := ""
 	var validateErr error
@@ -345,12 +348,11 @@ func buildWorkflow(data []byte) (fhandler *flowHandler, requestData []byte) {
 		log.Printf("[Request `%s`] Created", requestId)
 
 		// create flow properties
-		query := os.Getenv("Http_Query")
 		dataStore := createDataStore()
 
 		// Create fhandler
 		fhandler = newWorkflowHandler("http://"+getGateway(), flowName,
-			requestId, query, dataStore)
+			requestId, queryString, dataStore)
 
 		// set request data
 		requestData = data
@@ -1122,7 +1124,7 @@ func initializeStore(fhandler *flowHandler) (stateSDefined bool, dataSOverride b
 }
 
 // handleWorkflow handle the flow
-func handleWorkflow(data []byte) string {
+func handleWorkflow(data []byte, queryString string) (string, string, error) {
 
 	var resp []byte
 	var gerr error
@@ -1140,112 +1142,110 @@ func handleWorkflow(data []byte) string {
 	}
 
 	// Pipeline Execution Steps
-	{
-		// BUILD: build the flow based on the request data
-		fhandler, data := buildWorkflow(data)
+	// BUILD: build the flow based on the request data
+	fhandler, data := buildWorkflow(data, queryString)
 
-		// INIT STORE: Get definition of StateStore and DataStore from user
-		stateSDefined, dataSOverride, err := initializeStore(fhandler)
+	// INIT STORE: Get definition of StateStore and DataStore from user
+	stateSDefined, dataSOverride, err := initializeStore(fhandler)
+	if err != nil {
+		panic(fmt.Sprintf("[Request `%s`] Failed to init flow, %v", fhandler.id, err))
+	}
+
+	// MAKE CONTEXT: make the request context from flow
+	context := createContext(fhandler)
+
+	// DEFINE: Get Pipeline definition from user implemented Define()
+	err = function.Define(fhandler.flow, context)
+	if err != nil {
+		panic(fmt.Sprintf("[Request `%s`] Failed to define flow, %v", fhandler.id, err))
+	}
+
+	// VALIDATE: Validate Pipeline Definition
+	err = fhandler.getPipeline().Dag.Validate()
+	if err != nil {
+		panic(fmt.Sprintf("[Request `%s`] Invalid dag, %v", fhandler.id, err))
+	}
+	fhandler.hasBranch = fhandler.getPipeline().Dag.HasBranch()
+	fhandler.hasEdge = fhandler.getPipeline().Dag.HasEdge()
+	fhandler.isExecutionFlow = fhandler.getPipeline().Dag.IsExecutionFlow()
+
+	// For dag one of the branch can cause the pipeline to terminate
+	// hence we Check if the pipeline is active
+	if fhandler.hasBranch && fhandler.partial && !isActive(fhandler) {
+		panic(fmt.Sprintf("flow has been terminated"))
+	}
+
+	// For dag which has branches
+	// StateStore need to be external
+	if fhandler.hasBranch && !stateSDefined {
+		panic(fmt.Sprintf("[Request `%s`] Failed, DAG flow need external StateStore", fhandler.id))
+	}
+
+	// If dags has atleast one edge
+	// and nodes forwards data, data store need to be external
+	if fhandler.hasEdge && !fhandler.isExecutionFlow && !dataSOverride {
+		panic(fmt.Sprintf("[Request `%s`] Failed not an execution flow, DAG data flow need external DataStore", fhandler.id))
+	}
+
+	// For a new dag pipeline that has branches Create the vertex in stateStore
+	if fhandler.hasBranch && !fhandler.partial {
+		err = fhandler.InitVertexIndegreeCounter(fhandler.getPipeline().GetAllNodesUniqueId())
 		if err != nil {
-			panic(fmt.Sprintf("[Request `%s`] Failed to init flow, %v", fhandler.id, err))
+			panic(fmt.Sprintf("[Request `%s`] DAG state can not be initiated at StateStore, %v", fhandler.id, err))
+		}
+		serr := fhandler.SetRequestState(true)
+		if serr != nil {
+			panic(fmt.Sprintf("[Request `%s`] Failed to mark dag state, error %v", fhandler.id, serr))
+		}
+		log.Printf("[Request `%s`] DAG state initiated at StateStore", fhandler.id)
+	}
+
+	// If not a partial request set the execution position to initial node
+	if !fhandler.partial {
+		// On the 0th depth set the initial node as the current execution position
+		fhandler.getPipeline().UpdatePipelineExecutionPosition(sdk.DEPTH_SAME,
+			fhandler.getPipeline().GetInitialNodeId())
+	}
+
+	// GETDATA: Get intermediate data from data store
+	// For partially completed requests if IntermidiateStorage is enabled
+	// get the data from dataStoretore
+	if fhandler.partial &&
+		!fhandler.getPipeline().Dag.IsExecutionFlow() {
+
+		data, gerr = getDagIntermediateData(fhandler, context)
+		if gerr != nil {
+			gerr := fmt.Errorf("failed to retrive intermediate result, error %v", gerr)
+			handleFailure(fhandler, context, gerr)
+		}
+	}
+
+	// EXECUTE: execute the flow based on current phase
+	result, err := execute(fhandler, data)
+	if err != nil {
+		handleFailure(fhandler, context, err)
+	}
+
+	// HANDLE: Handle the execution state and perform response/asyncforward
+	resp, err = handleResponse(fhandler, context, result)
+	if err != nil {
+		handleFailure(fhandler, context, err)
+	}
+
+	if fhandler.finished {
+		log.Printf("[Request `%s`] Completed successfully", fhandler.id)
+		context.State = faasflow.StateSuccess
+		if fhandler.getPipeline().Finally != nil {
+			log.Printf("[Request `%s`] Calling Finally handler with state: %s",
+				fhandler.id, faasflow.StateSuccess)
+			fhandler.getPipeline().Finally(faasflow.StateSuccess)
 		}
 
-		// MAKE CONTEXT: make the request context from flow
-		context := createContext(fhandler)
-
-		// DEFINE: Get Pipeline definition from user implemented Define()
-		err = function.Define(fhandler.flow, context)
-		if err != nil {
-			panic(fmt.Sprintf("[Request `%s`] Failed to define flow, %v", fhandler.id, err))
+		// Cleanup data and state for failure
+		if fhandler.stateStore != nil {
+			fhandler.stateStore.Cleanup()
 		}
-
-		// VALIDATE: Validate Pipeline Definition
-		err = fhandler.getPipeline().Dag.Validate()
-		if err != nil {
-			panic(fmt.Sprintf("[Request `%s`] Invalid dag, %v", fhandler.id, err))
-		}
-		fhandler.hasBranch = fhandler.getPipeline().Dag.HasBranch()
-		fhandler.hasEdge = fhandler.getPipeline().Dag.HasEdge()
-		fhandler.isExecutionFlow = fhandler.getPipeline().Dag.IsExecutionFlow()
-
-		// For dag one of the branch can cause the pipeline to terminate
-		// hence we Check if the pipeline is active
-		if fhandler.hasBranch && fhandler.partial && !isActive(fhandler) {
-			panic(fmt.Sprintf("flow has been terminated"))
-		}
-
-		// For dag which has branches
-		// StateStore need to be external
-		if fhandler.hasBranch && !stateSDefined {
-			panic(fmt.Sprintf("[Request `%s`] Failed, DAG flow need external StateStore", fhandler.id))
-		}
-
-		// If dags has atleast one edge
-		// and nodes forwards data, data store need to be external
-		if fhandler.hasEdge && !fhandler.isExecutionFlow && !dataSOverride {
-			panic(fmt.Sprintf("[Request `%s`] Failed not an execution flow, DAG data flow need external DataStore", fhandler.id))
-		}
-
-		// For a new dag pipeline that has branches Create the vertex in stateStore
-		if fhandler.hasBranch && !fhandler.partial {
-			err = fhandler.InitVertexIndegreeCounter(fhandler.getPipeline().GetAllNodesUniqueId())
-			if err != nil {
-				panic(fmt.Sprintf("[Request `%s`] DAG state can not be initiated at StateStore, %v", fhandler.id, err))
-			}
-			serr := fhandler.SetRequestState(true)
-			if serr != nil {
-				panic(fmt.Sprintf("[Request `%s`] Failed to mark dag state, error %v", fhandler.id, serr))
-			}
-			log.Printf("[Request `%s`] DAG state initiated at StateStore", fhandler.id)
-		}
-
-		// If not a partial request set the execution position to initial node
-		if !fhandler.partial {
-			// On the 0th depth set the initial node as the current execution position
-			fhandler.getPipeline().UpdatePipelineExecutionPosition(sdk.DEPTH_SAME,
-				fhandler.getPipeline().GetInitialNodeId())
-		}
-
-		// GETDATA: Get intermediate data from data store
-		// For partially completed requests if IntermidiateStorage is enabled
-		// get the data from dataStoretore
-		if fhandler.partial &&
-			!fhandler.getPipeline().Dag.IsExecutionFlow() {
-
-			data, gerr = getDagIntermediateData(fhandler, context)
-			if gerr != nil {
-				gerr := fmt.Errorf("failed to retrive intermediate result, error %v", gerr)
-				handleFailure(fhandler, context, gerr)
-			}
-		}
-
-		// EXECUTE: execute the flow based on current phase
-		result, err := execute(fhandler, data)
-		if err != nil {
-			handleFailure(fhandler, context, err)
-		}
-
-		// HANDLE: Handle the execution state and perform response/asyncforward
-		resp, err = handleResponse(fhandler, context, result)
-		if err != nil {
-			handleFailure(fhandler, context, err)
-		}
-
-		if fhandler.finished {
-			log.Printf("[Request `%s`] Completed successfully", fhandler.id)
-			context.State = faasflow.StateSuccess
-			if fhandler.getPipeline().Finally != nil {
-				log.Printf("[Request `%s`] Calling Finally handler with state: %s",
-					fhandler.id, faasflow.StateSuccess)
-				fhandler.getPipeline().Finally(faasflow.StateSuccess)
-			}
-
-			// Cleanup data and state for failure
-			if fhandler.stateStore != nil {
-				fhandler.stateStore.Cleanup()
-			}
-			fhandler.dataStore.Cleanup()
-		}
+		fhandler.dataStore.Cleanup()
 	}
 
 	// stop req span if request has finished
@@ -1254,11 +1254,11 @@ func handleWorkflow(data []byte) string {
 	// flash any pending trace item if tracing enabled
 	flushTracer()
 
-	return string(resp)
+	return string(resp), fhandler.id, nil
 }
 
 // handleDagExport() handle the dag export request
-func handleDagExport() string {
+func handleDagExport() (string, error) {
 	flowName = getWorkflowName()
 
 	fhandler := newWorkflowHandler("", flowName, "", "", nil)
@@ -1269,12 +1269,12 @@ func handleDagExport() string {
 		panic(fmt.Sprintf("failed to export graph, error %v", err))
 	}
 
-	return fhandler.getPipeline().GetDagDefinition()
+	return fhandler.getPipeline().GetDagDefinition(), nil
 }
 
 // isDagExportRequest check if dag export request
-func isDagExportRequest() bool {
-	values, err := url.ParseQuery(os.Getenv("Http_Query"))
+func isDagExportRequest(req gosdk.Request) bool {
+	values, err := url.ParseQuery(req.QueryString)
 	if err != nil {
 		return false
 	}
@@ -1285,11 +1285,30 @@ func isDagExportRequest() bool {
 	return false
 }
 
-// handle handle the requests
-func handle(data []byte) string {
-	if isDagExportRequest() {
-		return handleDagExport()
+// handle handles the request
+func handle(req gosdk.Request) (gosdk.Response, error) {
+
+	var result string
+	var err error
+	var reqId string
+
+	response := gosdk.Response{}
+
+	status := http.StatusOK
+
+	if isDagExportRequest(req) {
+		result, err = handleDagExport()
+	} else {
+		result, reqId, err = handleWorkflow(req.Body, req.QueryString)
+		response.Header.Set("X-Faas-Flow-ReqId", reqId)
 	}
 
-	return handleWorkflow(data)
+	if err != nil {
+		status = http.StatusInternalServerError
+	}
+
+	response.Body = []byte(result)
+	response.StatusCode = status
+
+	return response, nil
 }
