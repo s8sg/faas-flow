@@ -32,13 +32,19 @@ var (
 )
 
 type flowHandler struct {
-	flow        *faasflow.Workflow // the faasflow
-	id          string             // the request id
-	query       string             // the query string by user
-	asyncUrl    string             // the async URL of the flow
-	pipelineDef []byte             // the pipeline definition
-	partial     bool               // denotes the flow is in partial execution state
-	finished    bool               // denots the flow has finished execution
+	flow *faasflow.Workflow // the faasflow
+
+	// the pipeline properties
+	hasBranch       bool // State if the pipeline dag has atleast one branch
+	hasEdge         bool // State if pipeline dag has atleast one edge
+	isExecutionFlow bool // State if pipeline has execution only branches
+
+	id          string // the unique request id
+	query       string // the query string by user
+	asyncUrl    string // the async URL of the flow
+	pipelineDef []byte // the pipeline definition
+	partial     bool   // denotes the flow is in partial execution state
+	finished    bool   // denots the flow has finished execution
 
 	stateStore faasflow.StateStore // the state store
 	dataStore  faasflow.DataStore  // the data store
@@ -141,7 +147,7 @@ func newWorkflowHandler(gateway string, name string, id string,
 
 	fhandler := &flowHandler{}
 
-	flow := faasflow.GetWorkflow(name)
+	flow := faasflow.GetWorkflow()
 
 	fhandler.flow = flow
 
@@ -296,7 +302,6 @@ func buildCallbackRequest(callbackUrl string, data []byte, params map[string][]s
 
 // createContext create a context from request handler
 func createContext(fhandler *flowHandler) *faasflow.Context {
-	// TODO: Provide Context
 	context := faasflow.CreateContext(fhandler.id, "",
 		flowName, fhandler.dataStore)
 	context.Query, _ = url.ParseQuery(fhandler.query)
@@ -755,8 +760,8 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 	// get pipeline
 	pipeline := fhandler.getPipeline()
 
-	// Check if pipeline is active
-	if pipeline.PipelineType == sdk.TYPE_DAG && !isActive(fhandler) {
+	// Check if pipeline is active in statestore when executing dag with branches
+	if fhandler.hasBranch && !isActive(fhandler) {
 		return []byte(""), fmt.Errorf("flow state not present in statestore, flow has been terminated")
 	}
 
@@ -1159,33 +1164,30 @@ func handleWorkflow(data []byte) string {
 		if err != nil {
 			panic(fmt.Sprintf("[Request `%s`] Invalid dag, %v", fhandler.id, err))
 		}
+		fhandler.hasBranch = fhandler.getPipeline().Dag.HasBranch()
+		fhandler.hasEdge = fhandler.getPipeline().Dag.HasEdge()
+		fhandler.isExecutionFlow = fhandler.getPipeline().Dag.IsExecutionFlow()
 
 		// For dag one of the branch can cause the pipeline to terminate
 		// hence we Check if the pipeline is active
-		if fhandler.getPipeline().Dag.HasBranch() &&
-			fhandler.partial && !isActive(fhandler) {
+		if fhandler.hasBranch && fhandler.partial && !isActive(fhandler) {
 			panic(fmt.Sprintf("flow has been terminated"))
 		}
 
 		// For dag which has branches
 		// StateStore need to be external
-		if fhandler.getPipeline().Dag.HasBranch() {
-			if !stateSDefined {
-				panic(fmt.Sprintf("[Request `%s`] Failed, DAG flow need external StateStore", fhandler.id))
-			}
+		if fhandler.hasBranch && !stateSDefined {
+			panic(fmt.Sprintf("[Request `%s`] Failed, DAG flow need external StateStore", fhandler.id))
 		}
 
-		// If dags has more than one nodes
+		// If dags has atleast one edge
 		// and nodes forwards data, data store need to be external
-		if fhandler.getPipeline().Dag.HasEdge() &&
-			!fhandler.getPipeline().Dag.IsExecutionFlow() {
-			if !dataSOverride {
-				panic(fmt.Sprintf("[Request `%s`] Failed not an execution flow, DAG data flow need external DataStore", fhandler.id))
-			}
+		if fhandler.hasEdge && !fhandler.isExecutionFlow && !dataSOverride {
+			panic(fmt.Sprintf("[Request `%s`] Failed not an execution flow, DAG data flow need external DataStore", fhandler.id))
 		}
 
-		// For a new dag pipeline Create the vertex in stateStore
-		if fhandler.getPipeline().PipelineType == sdk.TYPE_DAG && !fhandler.partial {
+		// For a new dag pipeline that has branches Create the vertex in stateStore
+		if fhandler.hasBranch && !fhandler.partial {
 			err = fhandler.InitVertexIndegreeCounter(fhandler.getPipeline().GetAllNodesUniqueId())
 			if err != nil {
 				panic(fmt.Sprintf("[Request `%s`] DAG state can not be initiated at StateStore, %v", fhandler.id, err))

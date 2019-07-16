@@ -128,7 +128,8 @@ func OnReponse(handler sdk.RespHandler) Option {
 }
 
 // GetWorkflow initiates a flow with a pipeline
-func GetWorkflow(name string) *Workflow {
+// Singleton - only one object instenciated by faas-flow template
+func GetWorkflow() *Workflow {
 	if atomic.LoadUint32(&initialized) == 1 {
 		return workflow
 	}
@@ -139,7 +140,7 @@ func GetWorkflow(name string) *Workflow {
 	if initialized == 0 {
 		defer atomic.StoreUint32(&initialized, 1)
 		workflow = &Workflow{}
-		workflow.pipeline = sdk.CreatePipeline(name)
+		workflow.pipeline = sdk.CreatePipeline()
 	}
 	return workflow
 }
@@ -208,7 +209,7 @@ func (this *Dag) Node(vertex string, options ...BranchOption) *Node {
 	return &Node{unode: node}
 }
 
-// AddEdge adds a directed edge between two vertex as <from>-><to>
+// Edge adds a directed edge between two vertex as <from>-><to>
 func (this *Dag) Edge(from, to string, opts ...BranchOption) {
 	err := this.udag.AddEdge(from, to)
 	if err != nil {
@@ -232,67 +233,71 @@ func (this *Dag) Edge(from, to string, opts ...BranchOption) {
 	}
 }
 
-// SubDag composites a seperate dag as a subdag.
-func (node *Node) SubDag(dag *Dag) {
-	err := node.unode.AddSubDag(dag.udag)
+// SubDag composites a seperate dag as a node.
+func (this *Dag) SubDag(vertex string, dag *Dag) {
+	node := this.udag.AddVertex(vertex, []*sdk.Operation{})
+	err := node.AddSubDag(dag.udag)
 	if err != nil {
-		panic(fmt.Sprintf("Error at AddSubDag for %s, %v", node.unode.Id, err))
+		panic(fmt.Sprintf("Error at AddSubDag for %s, %v", vertex, err))
 	}
 	return
 }
 
 // ForEachBranch composites a subdag which executes for each value
 // It returns the subdag that will be executed for each value
-func (node *Node) ForEachBranch(foreach sdk.ForEach, options ...BranchOption) (dag *Dag) {
+func (this *Dag) ForEachBranch(vertex string, foreach sdk.ForEach, options ...BranchOption) (dag *Dag) {
+	node := this.udag.AddVertex(vertex, []*sdk.Operation{})
 	if foreach == nil {
-		panic(fmt.Sprintf("Error at AddForEachBranch for %s, foreach function not specified", node.unode.Id))
+		panic(fmt.Sprintf("Error at AddForEachBranch for %s, foreach function not specified", vertex))
 	}
-	node.unode.AddForEach(foreach)
+	node.AddForEach(foreach)
 
 	for _, option := range options {
 		o := &BranchOptions{}
 		o.reset()
 		option(o)
 		if o.aggregator != nil {
-			node.unode.AddSubAggregator(o.aggregator)
+			node.AddSubAggregator(o.aggregator)
 		}
 		if o.noforwarder == true {
-			node.unode.AddForwarder("dynamic", nil)
+			node.AddForwarder("dynamic", nil)
 		}
 	}
 
 	dag = NewDag()
-	err := node.unode.AddForEachDag(dag.udag)
+	err := node.AddForEachDag(dag.udag)
 	if err != nil {
-		panic(fmt.Sprintf("Error at AddForEachBranch for %s, %v", node.unode.Id, err))
+		panic(fmt.Sprintf("Error at AddForEachBranch for %s, %v", vertex, err))
 	}
 	return
 }
 
 // ConditionalBranch composites multiple dags as a subdag which executes for a conditions matched
 // and returns the set of dags based on the condition passed
-func (node *Node) ConditionalBranch(conditions []string, condition sdk.Condition,
+func (this *Dag) ConditionalBranch(vertex string, conditions []string, condition sdk.Condition,
 	options ...BranchOption) (conditiondags map[string]*Dag) {
+
+	node := this.udag.AddVertex(vertex, []*sdk.Operation{})
 	if condition == nil {
-		panic(fmt.Sprintf("Error at AddConditionalBranch for %s, condition function not specified", node.unode.Id))
+		panic(fmt.Sprintf("Error at AddConditionalBranch for %s, condition function not specified", vertex))
 	}
-	node.unode.AddCondition(condition)
+	node.AddCondition(condition)
 
 	for _, option := range options {
 		o := &BranchOptions{}
 		o.reset()
 		option(o)
 		if o.aggregator != nil {
-			node.unode.AddSubAggregator(o.aggregator)
+			node.AddSubAggregator(o.aggregator)
 		}
 		if o.noforwarder == true {
-			node.unode.AddForwarder("dynamic", nil)
+			node.AddForwarder("dynamic", nil)
 		}
 	}
 	conditiondags = make(map[string]*Dag)
 	for _, conditionKey := range conditions {
 		dag := NewDag()
-		node.unode.AddConditionalDag(conditionKey, dag.udag)
+		node.AddConditionalDag(conditionKey, dag.udag)
 		conditiondags[conditionKey] = dag
 	}
 	return

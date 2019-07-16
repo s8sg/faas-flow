@@ -6,11 +6,6 @@ import (
 )
 
 const (
-	TYPE_CHAIN = "chain"
-	TYPE_DAG   = "dag"
-)
-
-const (
 	DEPTH_INCREMENT = 1
 	DEPTH_DECREMENT = -1
 	DEPTH_SAME      = 0
@@ -23,8 +18,6 @@ type PipelineErrorHandler func(error) ([]byte, error)
 type PipelineHandler func(string)
 
 type Pipeline struct {
-	PipelineType string `json:"type"` // Pipeline type denotes a dag or a chain
-
 	Dag *Dag `json:"-"` // Dag that will be executed
 
 	ExecutionPosition map[string]string `json:"pipeline-execution-position"` // Denotes the node that is executing now
@@ -39,12 +32,10 @@ type Pipeline struct {
 }
 
 // CreatePipeline creates a faasflow pipeline
-func CreatePipeline(name string) *Pipeline {
+func CreatePipeline() *Pipeline {
 	pipeline := &Pipeline{}
-	pipeline.PipelineType = TYPE_CHAIN
 	pipeline.Dag = NewDag()
-	// For default dag set the Id to flow-name
-	pipeline.Dag.Id = name
+
 	pipeline.ExecutionPosition = make(map[string]string, 0)
 
 	pipeline.CurrentDynamicOption = make(map[string]string, 0)
@@ -108,7 +99,6 @@ func (pipeline *Pipeline) UpdatePipelineExecutionPosition(depthAdjustment int, v
 // SetDag overrides the default dag
 func (pipeline *Pipeline) SetDag(dag *Dag) {
 	pipeline.Dag = dag
-	pipeline.PipelineType = TYPE_DAG
 }
 
 // decodePipeline decodes a json marshaled pipeline
@@ -132,7 +122,6 @@ func (pipeline *Pipeline) ApplyState(state string) {
 	temp, _ := decodePipeline([]byte(state))
 	pipeline.ExecutionDepth = temp.ExecutionDepth
 	pipeline.ExecutionPosition = temp.ExecutionPosition
-	pipeline.PipelineType = temp.PipelineType
 
 	pipeline.CurrentDynamicOption = temp.CurrentDynamicOption
 	pipeline.AllDynamicOption = temp.AllDynamicOption
