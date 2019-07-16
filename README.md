@@ -57,7 +57,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
         Modify(func(data []byte) ([]byte, error) {
 	        // Do something
                	return data
-        }).
+        })
      dag.Node("n3").callback("storage.io/bucket?id=3345612358265349126&file=result.dat")
      dag.Edge("n1", "n2")
      dag.Edge("n2", "n3")
@@ -284,11 +284,13 @@ Once a `DataStore` is set `faas-flow` uses the same to store intermidiate result
 Context uses `DataStore` to store/retrive data. User can do the same by 
 calling `Get()` and `Set()` from `context`:
 ```go
-     flow.Modify(func(data []byte) {
+     flow.SyncNode().
+     Modify(func(data []byte) {
 	  // parse data and set to be used later
           // json.Unmarshal(&req, data)
           context.Set("commitsha", req.Sha)
-     }).Apply("myfunc").
+     }).
+     Apply("myfunc").
      Modify(func(data []byte) {
           // retrived the data that was set in the context
           commitsha, _ = context.GetString("commitsha")
@@ -334,7 +336,7 @@ func DefineStateStore() (faasflow.StateStore, error) {
 ### Geting Http Query to Workflow: 
 Http Query to flow can be used from context as
 ```go
-    flow.Apply("myfunc", Query("auth-token", context.Query.Get("token"))). // pass as a function query
+    flow.SyncNode().Apply("myfunc", Query("auth-token", context.Query.Get("token"))). // pass as a function query
      	 Modify(func(data []byte) {
           	token = context.Query.Get("token") // get query inside modifier
      	 })
@@ -360,15 +362,18 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
      context.SetDataStore(myDataStore)
      
      // Define flow
-     flow.Modify(func(data []byte) {
+     flow.SyncNode().Modify(func(data []byte) {
 	  // parse data and set to be used later
           // json.Unmarshal(&req, data)
           context.Set("commitsha", req.Sha)
-     }).Apply("myfunc").
+     }).
+     Apply("myfunc").
      Modify(func(data []byte) {
           // retrived the data in different node from context
           commitsha, _ = context.GetString("commitsha")
-     }).Finally(func() {
+     })
+     
+     flow.Finally(func() {
           // delete the state resource
           context.Del("commitsha")
      })
