@@ -3,8 +3,6 @@ package faasflow
 import (
 	"fmt"
 	sdk "github.com/s8sg/faas-flow/sdk"
-	"sync"
-	"sync/atomic"
 )
 
 // Options options for operation execution
@@ -43,10 +41,6 @@ var (
 	// Execution specify a edge doesn't forwards a data
 	// but rather mention a execution direction
 	Execution = InvokeEdge()
-	// initialized and lock make sure workflow is singleton
-	initialized uint32
-	lock        sync.Mutex
-	workflow    *Workflow
 )
 
 // reset reset the Options
@@ -128,20 +122,9 @@ func OnReponse(handler sdk.RespHandler) Option {
 }
 
 // GetWorkflow initiates a flow with a pipeline
-// Singleton - only one object instenciated by faas-flow template
 func GetWorkflow() *Workflow {
-	if atomic.LoadUint32(&initialized) == 1 {
-		return workflow
-	}
-
-	lock.Lock()
-	defer lock.Unlock()
-
-	if initialized == 0 {
-		defer atomic.StoreUint32(&initialized, 1)
-		workflow = &Workflow{}
-		workflow.pipeline = sdk.CreatePipeline()
-	}
+	workflow := &Workflow{}
+	workflow.pipeline = sdk.CreatePipeline()
 	return workflow
 }
 
