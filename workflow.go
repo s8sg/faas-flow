@@ -347,7 +347,7 @@ func (node *Node) Apply(function string, opts ...Option) *Node {
 }
 
 // Callback adds a new callback to the given vertex
-func (node *Node) AddCallback(vertex string, url string, opts ...Option) *Node {
+func (node *Node) Callback(url string, opts ...Option) *Node {
 	newCallback := sdk.CreateCallback(url)
 
 	o := &Options{}
