@@ -206,19 +206,15 @@ All calls will be performed in one single execution of the function, and result 
      
 ##### Build and Deploy the `test-flow`
      
-Build
+Build and deploy
 ```bash
-faas build -f test-flow.yml
-```
-     
-Deploy
-```bash
-faas deploy -f test-flow.yml
+faas build
+faas deploy
 ```
      
 ##### Invoke
 ```
-cat data | faas invoke -f test-flow.yml test-flow
+cat data | faas invoke test-flow
 ```
           
 ## Request Tracking by ID
