@@ -8,7 +8,7 @@
 > - [x] **Pure**      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **`FaaS`** with **`openfaas`** 
 > - [x] **Fast**      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  build with **`go`**    
 > - [x] **Secured**   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; with **`HMAC`**
-> - [x] **Stateless** &nbsp;&nbsp;&nbsp;&nbsp;  by **`design`** (DAG needs external `StateStore` and `DataStore`)   
+> - [x] **Stateless** &nbsp;&nbsp;&nbsp;&nbsp;  by **`design`**   
 > - [x] **Tracing**   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; with **`open-tracing`**    
 > - [x] **Available** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; as **`faas-flow`** template 
 
@@ -25,8 +25,7 @@ faas-flow allows you to realize OpenFaaS function composition with ease. By defi
 import faasflow "github.com/s8sg/faas-flow"
 
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
-  flow.SyncNode().Apply("yourFunc1", faasflow.Sync).
-       Apply("yourFunc2", faasflow.Sync)
+  flow.SyncNode().Apply("yourFunc1").Apply("yourFunc2")
 }
 ```
 After building and deploying, it will give you a function that orchestrates calling `yourFunc2` with the output of `yourFunc1`
@@ -36,7 +35,7 @@ After building and deploying, it will give you a function that orchestrates call
 By supplying a number of pipeline operators, complex compostion can be achieved with little work:
 ![alt overview](https://github.com/s8sg/faas-flow/blob/master/doc/overview.jpg)
 
-The above pipeline can be achieved with little, but powerfull code:
+The above pipelines can be achieved with little, but powerfull code:
 > SYNC Chain
 ```go
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
@@ -124,8 +123,39 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
      dag.Edge("C", "n2")
 }
 ``` 
+## Faas-flow Design
+Faas-flow design is not fixed and like any good design its evolving. The current design consideration are made based on the below goals  
+> 1. Leverage the openfaas platform   
+> 2. Not to violate the notions of function   
+> 3. Provide flexibility, scalability and adaptibility   
+
+#### Just as function as any other
+Faas-flow is deployed and provisioned just like any other openfaas function. It allows faas-flow to take advantage of rich functionalities available on Openfaas. `faas-flow` provide a openfaas template and just like any other openfaas function it can be deployed with `faas-cli`   
+![alt its a function](https://github.com/s8sg/faas-flow/blob/master/doc/design/complete-faas.jpg)
+
+#### Adapter pattern for zero intrumenttaion in code
+Faas-flow function follow the adapter pattern. Here the adaptee is the functions and the adapter is `faas-flow` itself. For each **node** execution, `faas-flow` handle the calls to functions. Once the execution is over, it forwards the call to itself. This way the arrangement logic is seperated from functions and implemented in the adapter. As no code instrumentation is needed,  functions becomes completly independent of the composition logic
+![alt function is independent of composition](https://github.com/s8sg/faas-flow/blob/master/doc/design/adapter-pattern.jpg)
+
+#### Aggregate pattern as chaining
+Aggregatation of seperate function calls are done as chaining. Multiple functions can be called from a single node with order maintained as per the chain. This way one execution node is capable to be implemented as an aggregator function that invokes multiple functions, collects the results, optionally applies business logic, and returns a consolidated response to the client. Faas-flow fuses the adapter pattern and aggregate pattern to achive more complex usecases
+![alt aggregation](https://github.com/s8sg/faas-flow/blob/master/doc/design/aggregate-pattern.jpg)
+
+#### Event driven iteration
+Openfaas uses [Nats](https://nats.io) for event delivery and faas-flow uses openfaas platform without depending on other external system. Node execution in `faas-flow` starts by a completion event of one or more previous nodes. A completion event denotes that all the previous dependent nodes has completed. Event carries the execution state, which is used to identify the next node to execute. With events faas-flow asynchronously carry-on execution of nodes by iterating itself over and over till all nodes has been executed
+![alt aggregation](https://github.com/s8sg/faas-flow/blob/master/doc/design/event-driven-iteration.jpg)
+
+#### 3rd party KV store for coordination 
+When executing branches, one node is dependent of multiple predecessor nodes. In that scenario the event for completion is genearted by coordination of earlier nodes. Like any distributed system the coordination are achived via a centralized service. Faas-flow keeps the logic of the coordination controller inside of faas-flow function and let user use any external 3rd party solution. User can implement `StateStore` and use any synchronous KV stores 
+![alt coordination](https://github.com/s8sg/faas-flow/blob/master/doc/design/3rd-party-statestore.jpg)
+
+#### 3rd party Storage for intermediate data
+Results from function execution and intermidiate data can be handled by the user manually. Although `faas-flow` provides state-store for intermediate result storage which automatically initialize, store, retrive and remove data between nodes. This fits great for data pipelines. Faas-flow keeps the logic of storage controller inside of faas-flow function and let user use any external 3rd party object storage. User can implement `DataStore` and use any object stores 
+![alt coordination](https://github.com/s8sg/faas-flow/blob/master/doc/design/3rd-party-storage.jpg)
+
 
 ## Getting Started
+This example implements a flow to `Greet`
     
 #### Get the `faas-flow` template with `faas-cli`
 ```
@@ -134,91 +164,69 @@ faas template pull https://github.com/s8sg/faas-flow
    
 #### Create a new `func` with `faas-flow` template 
 ```bash
-faas new test-flow --lang faas-flow
+faas new greet --lang faas-flow
 ```
    
-#### Edit the `test-flow.yml`
+#### Edit `greet.yml`
+Edit function stack file `greet.yml`
 ```yaml
-  test-flow:
+  greet:
     lang: faas-flow
-    handler: ./test-flow
-    image: test-flow:latest
+    handler: ./greet
+    image: greet:latest
     environment:
-      read_timeout: 120
-      write_timeout: 120
+      read_timeout: 120 # A value larger than `max` of all execution times of Nodes
+      write_timeout: 120 # A value larger than `max` of all execution times of Nodes
       write_debug: true
       combine_output: false
     environment_file:
       - flow.yml
-```
-> `read_timeout` : A value larger than `max` node execution time.     
-> `write_timeout` : A value larger than `max` node execution time.     
-> `write_debug`: It enables the debug msg in logs.   
-> `combine_output` : It allows debug msg to be excluded from `output`.  
+``` 
      
-     
-#### Add `flow.yml` with faas-flow configuration
-To make the stack.yml look clean we can create a seperate `flow.yml` with faas-flow related configuration.
+#### Add `flow.yml`
+Add a seperate file `flow.yml` with faas-flow related configuration.
 ```yaml
 environment:
-  workflow_name: "test-flow"
-  gateway: "gateway:8080"
-  enable_tracing: false
-  trace_server: ""
-  enable_hmac: false
+  workflow_name: "greet" # The name of the flow function, faasflow use this to forward completion event
+  gateway: "gateway:8080" # The address of openfaas gateway, faasflow use this to forward completion event
+  # gateway: "gateway.openfaas:8080" # For K8 
+  enable_tracing: false # tracing allow to trace internal node execution with opentracing
+  enable_hmac: false # hmac adds extra layer of security by validating the event source
 ```
-
-> `workflow_name` : The name of the flow function. Faasflow use this to forward partial request.   
-> `gateway` : We need to tell faas-flow the address of openfaas gateway. All calls are made via gateway
-> ```
->  # swarm
->  gateway: "gateway:8080"
->  # k8
->  gateway: "gateway.openfaas:8080"
-> ```
-> `enable_tracing` : It enables the opentracing for requests and their nodes.  
-> `trace_server` : The address of opentracing backend jaeger.  
-> `enable_hmac` : Enable hmac to add extra layer of security for partial request forward.
-
       
-##### Edit the `test-flow/handler.go`  
-Update `Define()`
+#### Edit Defnition 
+Edit `greet/handler.go` and Update `Define()`
 ```go
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
-      flow.SyncNode().Apply("func1").Apply("func2").
+      flow.SyncNode().
 	  Modify(func(data []byte) ([]byte, error) {
-	  	// Do something
-		return data, nil
-	  }).
-          Callback("storage.io/bucket?id=3345612358265349126&file=result.dat")
+	  	result := "Hello " + string(data)
+		return []byte(result), nil
+	  })
       return nil
 }
 ```
-> This function will generate one node as:     
-> ```
-> Sync :    
->     Apply("func1")    
->     Apply("func2")
->     Modify()    
->     Callback()
-> ```
-All calls will be performed in one single execution of the function, and result will be returned to the callee
+
      
-##### Build and Deploy the `test-flow`
-     
+#### Build and Deploy
 Build and deploy
 ```bash
 faas build
 faas deploy
 ```
+> This function will generate one Synchronous node as:     
+> ```
+> Modify("name") -> Hello name
+> ```
+All calls will be performed in one single execution of the function, and result will be returned to the callee
      
-##### Invoke
+#### Invoke
 ```
-cat data | faas invoke test-flow
+echo "Adam" | faas invoke greet
 ```
           
 ## Request Tracking by ID
-Request can be tracked from the log by `RequestId`. For each new Request a unique `RequestId` is generated. 
+Request can be traced from the log by `RequestId`. For each new Request a unique `RequestId` is generated. 
 ```bash
 2018/08/13 07:51:59 [request `bdojh7oi7u6bl8te4r0g`] Created
 2018/08/13 07:52:03 [Request `bdojh7oi7u6bl8te4r0g`] Received
@@ -226,7 +234,8 @@ Request can be tracked from the log by `RequestId`. For each new Request a uniqu
     
 ## Request Tracing by Open-Tracing 
     
-Request tracing can be enabled by providing by specifying    
+Request tracing can be enabled by providing the `trace_server` and enabling tracing.  
+Edit `flow.yml` as:
 ```yaml
       enable_tracing: true
       trace_server: "jaegertracing:5775"
@@ -245,7 +254,7 @@ Below is an example of tracing for: https://github.com/s8sg/branching-in-faas-fl
 ## Using context
 Context provide verious function such as:   
   **DataStore** to store data,    
-  **HttpQuery** to retrivbe request query,  
+  **HttpQuery** to retrivbe original request queries,   
   **State*** to get flow state,  
   **Node** to get current node 
 etc.  
