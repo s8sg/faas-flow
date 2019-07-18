@@ -42,9 +42,9 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
      flow.SyncNode().Apply("func1").Apply("func2").
 	  Modify(func(data []byte) ([]byte, error) {
 	  	// Do something
-		return data, nil
+                return data, nil
 	  })
-     return nil
+     return
 }
 ```
 > ASYNC Chain
@@ -55,19 +55,12 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
      dag.Node("n2").Apply("func2").
         Modify(func(data []byte) ([]byte, error) {
 	        // Do something
-               	return data
+               	return data, nil
         })
-     dag.Node("n3").callback("storage.io/bucket?id=3345612358265349126&file=result.dat")
+     dag.Node("n3").Callback("storage.io/bucket?id=3345612358265349126&file=result.dat")
      dag.Edge("n1", "n2")
      dag.Edge("n2", "n3")
-     flow.OnFailure(func(err error) {
-              // failure handler
-        }).
-        Finally(func(state string) {
-              // cleanup code
-        })
-     
-     return nil
+     return
 }
 ```
 > PARALLEL Branching
@@ -75,19 +68,20 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
      dag := flow.Dag()
      dag.Node("n1").Modify(func(data []byte) ([]byte, error) {
-     		// do something
-		return data, nil
+            // do something
+            return data, nil
      })
      dag.Node("n2").Apply("func1")
      dag.Node("n3").Apply("func2").Modify(func(data []byte) ([]byte, error) {
-     		// do something
-		return data, nil
+            // do something
+            return data, nil
      })
      dag.Node("n4").Callback("storage.io/bucket?id=3345612358265349126&file=result")
      dag.Edge("n1", "n2")
      dag.Edge("n1", "n3")
      dag.Edge("n2", "n4")
      dag.Edge("n3", "n4")
+     return
 }
 ```
 > DYNAMIC Branching  
@@ -95,7 +89,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
      dag := flow.Dag()
      dag.Node("n1").Modify(func(data []byte) ([]byte, error) {
-                return data, nil
+            return data, nil
      })
      conditionalDags := dag.ConditionalBranch("C", 
                 []string{"c1", "c2"}, // possible conditions
@@ -121,6 +115,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
      dag.Node("n2").Callback("storage.io/bucket?id=3345612358265349126&file=result")
      dag.Edge("n1", "C")
      dag.Edge("C", "n2")
+     return
 }
 ``` 
 ## Faas-flow Design
@@ -345,10 +340,11 @@ func DefineStateStore() (faasflow.StateStore, error) {
 ### Geting Http Query to Workflow: 
 Http Query to flow can be used from context as
 ```go
-    flow.SyncNode().Apply("myfunc", Query("auth-token", context.Query.Get("token"))). // pass as a function query
-     	 Modify(func(data []byte) {
+    flow.SyncNode().Apply("myfunc", 
+         Query("auth-token", context.Query.Get("token"))). // pass as a function query
+         Modify(func(data []byte) {
           	token = context.Query.Get("token") // get query inside modifier
-     	 })
+    })
 ```  
 
 ### Other from context:
@@ -367,21 +363,19 @@ Finally provides a way to cleanup context and other resources and do post comple
 A Finally method can be used on flow as:
 ```go
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
-     // initialize my custom DataStore as myDataStore
-     context.SetDataStore(myDataStore)
-     
      // Define flow
      flow.SyncNode().Modify(func(data []byte) {
 	  // parse data and set to be used later
           // json.Unmarshal(&req, data)
           context.Set("commitsha", req.Sha)
      }).
-     Apply("myfunc").
-     Modify(func(data []byte) {
+     Apply("myfunc").Modify(func(data []byte) {
           // retrived the data in different node from context
           commitsha, _ = context.GetString("commitsha")
      })
-     
+     flow.OnFailure(func(err error) {
+          // failure handler
+     }) 
      flow.Finally(func() {
           // delete the state resource
           context.Del("commitsha")

@@ -129,16 +129,14 @@ func GetWorkflow() *Workflow {
 }
 
 // OnFailure set a failure handler routine for the pipeline
-func (flow *Workflow) OnFailure(handler sdk.PipelineErrorHandler) *Workflow {
+func (flow *Workflow) OnFailure(handler sdk.PipelineErrorHandler) {
 	flow.pipeline.FailureHandler = handler
-	return flow
 }
 
 // Finally sets an execution finish handler routine
 // it will be called once the execution has finished with state either Success/Failure
-func (flow *Workflow) Finally(handler sdk.PipelineHandler) *Workflow {
+func (flow *Workflow) Finally(handler sdk.PipelineHandler) {
 	flow.pipeline.Finally = handler
-	return flow
 }
 
 // GetPipeline expose the underlying pipeline object
