@@ -22,29 +22,30 @@ func makeRequestHandler() func(http.ResponseWriter, *http.Request) {
 			bodyBytes, bodyErr := ioutil.ReadAll(r.Body)
 
 			if bodyErr != nil {
-				log.Printf("Error reading body from request.")
+				fmt.Printf("Error reading body from request.")
 			}
 
 			input = bodyBytes
 		}
 
-		req := handler.Request{
+		req := &handler.Request{
 			Body:        input,
 			Header:      r.Header,
 			Method:      r.Method,
 			QueryString: r.URL.RawQuery,
 		}
 
-		result, resultErr := handle(req)
+		result := &handler.Response{}
+		result.Header = make(map[string][]string)
 
-		if result.Header != nil {
-			for k, v := range result.Header {
-				w.Header()[k] = v
-			}
+		resultErr := handle(req, result)
+
+		for k, v := range result.Header {
+			w.Header()[k] = v
 		}
 
 		if resultErr != nil {
-			log.Print(resultErr)
+			fmt.Printf("[ Failed ] %v\n", resultErr)
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
 			if result.StatusCode == 0 {
