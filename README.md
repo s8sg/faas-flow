@@ -22,7 +22,8 @@ Faas-flow allows you to realize OpenFaaS function composition with ease. By defi
 import faasflow "github.com/s8sg/faas-flow"
 
 func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
-  flow.SyncNode().Apply("yourFunc1").Apply("yourFunc2")
+    flow.SyncNode().Apply("yourFunc1").Apply("yourFunc2")
+    return
 }
 ```
 After building and deploying, it will give you a function that orchestrates calling `yourFunc2` with the output of `yourFunc1`
