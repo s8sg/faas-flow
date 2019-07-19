@@ -774,7 +774,7 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 
 	currentNode, currentDag := pipeline.GetCurrentNodeDag()
 
-	// Check if its a dynamic dag - handle condition/foreach subdag requests
+	// Check if its a dynamic dag node - handle condition/foreach subdag requests
 	if currentNode.Dynamic() {
 		return handleDynamicNode(fhandler, context, result)
 	}
@@ -882,7 +882,13 @@ func handleResponse(fhandler *flowHandler, context *faasflow.Context, result []b
 				fmt.Printf("[Request `%s`] request for Node %s is delayed, completed indegree: %d/%d\n",
 					fhandler.id, node.GetUniqueId(), inDegreeUpdatedCount, inDegree)
 				continue
+			} else {
+				fmt.Printf("[Request `%s`] performing request for Node %s, completed indegree: %d/%d\n",
+					fhandler.id, node.GetUniqueId(), inDegreeUpdatedCount, inDegree)
 			}
+		} else {
+			fmt.Printf("[Request `%s`] performing request for Node %s, indegree 1\n",
+				fhandler.id, node.GetUniqueId())
 		}
 
 		// Set the DagExecutionPosition as of next Node
@@ -1026,7 +1032,6 @@ func getDagIntermediateData(handler *flowHandler, context *faasflow.Context) ([]
 					serr := fmt.Errorf("failed to aggregate dynamic node data, error %v", serr)
 					return nil, serr
 				}
-				delete(pipeline.AllDynamicOption, node.GetUniqueId())
 
 				// Skip storage if NoDataForward is specified
 				if node.GetForwarder(currentNode.Id) == nil {

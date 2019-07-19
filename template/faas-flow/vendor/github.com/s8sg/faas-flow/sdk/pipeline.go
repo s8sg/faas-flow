@@ -23,9 +23,7 @@ type Pipeline struct {
 	ExecutionPosition map[string]string `json:"pipeline-execution-position"` // Denotes the node that is executing now
 	ExecutionDepth    int               `json:"pipeline-execution-depth"`    // Denotes the depth of subgraph its executing
 
-	CurrentDynamicOption   map[string]string   `json:"pipeline-dynamic-option"`           // Denotes the current dynamic option mapped against the dynamic Node UQ id
-	AllDynamicOption       map[string][]string `json:"pipeline-all-dynamic-options"`      // Denotes all options mapped  against the dynamic Node UQ id
-	DynamicDependencyCount map[string]int      `json:"pipeline-dynamic-dependency-count"` // Denotes the no of dependency for a nodes unique Id
+	CurrentDynamicOption map[string]string `json:"pipeline-dynamic-option"` // Denotes the current dynamic option mapped against the dynamic Node UQ id
 
 	FailureHandler PipelineErrorHandler `json:"-"`
 	Finally        PipelineHandler      `json:"-"`
@@ -37,12 +35,9 @@ func CreatePipeline() *Pipeline {
 	pipeline.Dag = NewDag()
 
 	pipeline.ExecutionPosition = make(map[string]string, 0)
-
-	pipeline.CurrentDynamicOption = make(map[string]string, 0)
-	pipeline.AllDynamicOption = make(map[string][]string, 0)
-	pipeline.DynamicDependencyCount = make(map[string]int, 0)
-
 	pipeline.ExecutionDepth = 0
+	pipeline.CurrentDynamicOption = make(map[string]string, 0)
+
 	return pipeline
 }
 
@@ -69,22 +64,22 @@ func (pipeline *Pipeline) GetInitialNodeId() string {
 
 // GetCurrentNodeDag returns the current node and current dag based on execution position
 func (pipeline *Pipeline) GetCurrentNodeDag() (*Node, *Dag) {
-	index := 0
+	depth := 0
 	dag := pipeline.Dag
-	indexStr := ""
-	for index < pipeline.ExecutionDepth {
-		indexStr = fmt.Sprintf("%d", index)
-		node := dag.GetNode(pipeline.ExecutionPosition[indexStr])
+	depthStr := ""
+	for depth < pipeline.ExecutionDepth {
+		depthStr = fmt.Sprintf("%d", depth)
+		node := dag.GetNode(pipeline.ExecutionPosition[depthStr])
 		if node.subDag != nil {
 			dag = node.subDag
 		} else {
 			option := pipeline.CurrentDynamicOption[node.GetUniqueId()]
 			dag = node.conditionalDags[option]
 		}
-		index++
+		depth++
 	}
-	indexStr = fmt.Sprintf("%d", index)
-	node := dag.GetNode(pipeline.ExecutionPosition[indexStr])
+	depthStr = fmt.Sprintf("%d", depth)
+	node := dag.GetNode(pipeline.ExecutionPosition[depthStr])
 	return node, dag
 }
 
@@ -122,8 +117,5 @@ func (pipeline *Pipeline) ApplyState(state string) {
 	temp, _ := decodePipeline([]byte(state))
 	pipeline.ExecutionDepth = temp.ExecutionDepth
 	pipeline.ExecutionPosition = temp.ExecutionPosition
-
 	pipeline.CurrentDynamicOption = temp.CurrentDynamicOption
-	pipeline.AllDynamicOption = temp.AllDynamicOption
-	pipeline.DynamicDependencyCount = temp.DynamicDependencyCount
 }
