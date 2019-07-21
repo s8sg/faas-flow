@@ -772,9 +772,7 @@ func findNextNodeToExecute(fhandler *flowHandler) bool {
 	// Check if the pipeline has completed excution return
 	// else change depth and continue executing
 	for true {
-		// currentNodeUniqueId := currentNode.GetUniqueId()
-		// This is not being started for handle dynamic end
-		//XXX:		defer fhandler.tracer.stopNodeSpan(currentNodeUniqueId)
+		defer fhandler.tracer.stopNodeSpan(currentNode.GetUniqueId())
 
 		// If nodes left in current dag return
 		if currentNode.Children() != nil {
@@ -791,6 +789,9 @@ func findNextNodeToExecute(fhandler *flowHandler) bool {
 			currentDag = currentNode.ParentDag()
 			pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_DECREMENT, currentNode.Id)
 			fmt.Printf("[Request `%s`] Executing Node %s", fhandler.id, currentNode.GetUniqueId())
+
+			// mark execution of the node for new depth
+			fhandler.tracer.startNodeSpan(currentNode.GetUniqueId(), fhandler.id)
 
 			// If current node is a dynamic node, forward the request for its end
 			if currentNode.Dynamic() {
@@ -1290,7 +1291,6 @@ func handleWorkflow(req *gosdk.Request) (string, string) {
 				currentNode, _ := fhandler.getPipeline().GetCurrentNodeDag()
 				switch {
 				// Execute a end of dynamic node
-				// XXX : How to execute child node when dynamic already executed
 				case currentNode.Dynamic():
 					result, err = handleDynamicEnd(fhandler, context, result)
 					if err != nil {
@@ -1298,6 +1298,7 @@ func handleWorkflow(req *gosdk.Request) (string, string) {
 					}
 					// in case dynamic end can not be executed
 					if result == nil {
+						fhandler.tracer.stopNodeSpan(currentNode.GetUniqueId())
 						break NodeCompletionLoop
 					}
 					// in case dynamic nodes end has finished execution,
