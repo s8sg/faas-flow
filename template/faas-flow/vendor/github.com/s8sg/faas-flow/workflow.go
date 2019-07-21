@@ -3,8 +3,6 @@ package faasflow
 import (
 	"fmt"
 	sdk "github.com/s8sg/faas-flow/sdk"
-	"sync"
-	"sync/atomic"
 )
 
 // Options options for operation execution
@@ -43,10 +41,6 @@ var (
 	// Execution specify a edge doesn't forwards a data
 	// but rather mention a execution direction
 	Execution = InvokeEdge()
-	// initialized and lock make sure workflow is singleton
-	initialized uint32
-	lock        sync.Mutex
-	workflow    *Workflow
 )
 
 // reset reset the Options
@@ -128,34 +122,21 @@ func OnReponse(handler sdk.RespHandler) Option {
 }
 
 // GetWorkflow initiates a flow with a pipeline
-// Singleton - only one object instenciated by faas-flow template
 func GetWorkflow() *Workflow {
-	if atomic.LoadUint32(&initialized) == 1 {
-		return workflow
-	}
-
-	lock.Lock()
-	defer lock.Unlock()
-
-	if initialized == 0 {
-		defer atomic.StoreUint32(&initialized, 1)
-		workflow = &Workflow{}
-		workflow.pipeline = sdk.CreatePipeline()
-	}
+	workflow := &Workflow{}
+	workflow.pipeline = sdk.CreatePipeline()
 	return workflow
 }
 
 // OnFailure set a failure handler routine for the pipeline
-func (flow *Workflow) OnFailure(handler sdk.PipelineErrorHandler) *Workflow {
+func (flow *Workflow) OnFailure(handler sdk.PipelineErrorHandler) {
 	flow.pipeline.FailureHandler = handler
-	return flow
 }
 
 // Finally sets an execution finish handler routine
 // it will be called once the execution has finished with state either Success/Failure
-func (flow *Workflow) Finally(handler sdk.PipelineHandler) *Workflow {
+func (flow *Workflow) Finally(handler sdk.PipelineHandler) {
 	flow.pipeline.Finally = handler
-	return flow
 }
 
 // GetPipeline expose the underlying pipeline object

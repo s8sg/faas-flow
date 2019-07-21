@@ -1,11 +1,10 @@
-FROM golang:1.10.5-alpine3.7 as builder
+FROM openfaas/of-watchdog:0.5.3 as watchdog
+FROM golang:1.10.4-alpine3.8 as build
 
-RUN apk --no-cache add curl \
-    && echo "Pulling watchdog binary from Github." \
-    && curl -sSL https://github.com/openfaas/faas/releases/download/0.8.0/fwatchdog > /usr/bin/fwatchdog \
-    && chmod +x /usr/bin/fwatchdog \
-    && apk del curl --no-cache
+COPY --from=watchdog /fwatchdog /usr/bin/fwatchdog
+RUN chmod +x /usr/bin/fwatchdog
 
+RUN mkdir -p /go/src/handler
 WORKDIR /go/src/handler
 COPY . .
 
@@ -16,26 +15,25 @@ RUN CGO_ENABLED=0 GOOS=linux \
     go build --ldflags "-s -w" -a -installsuffix cgo -o handler . && \
     go test $(go list ./... | grep -v /vendor/) -cover
 
-FROM alpine:3.7
-RUN apk --no-cache add ca-certificates
-
-# Add non root user
-RUN addgroup -S app && adduser -S -g app app
-RUN mkdir -p /home/app
+FROM alpine:3.8
+# Add non root user and certs
+RUN apk --no-cache add ca-certificates \
+    && addgroup -S app && adduser -S -g app app \
+    && mkdir -p /home/app \
+    && chown app /home/app
 
 WORKDIR /home/app
 
-COPY --from=builder /usr/bin/fwatchdog         .
+COPY --from=build /go/src/handler/handler    .
+COPY --from=build /usr/bin/fwatchdog         .
+COPY --from=build /go/src/handler/function/  .
 
-COPY --from=builder /go/src/handler/function/  .
-COPY --from=builder /go/src/handler/handler    .
-
-RUN chown app /home/app
+RUN chown -R app /home/app
 
 USER app
 
 ENV fprocess="./handler"
-
-HEALTHCHECK --interval=2s CMD [ -e /tmp/.lock ] || exit 1
+ENV mode="http"
+ENV upstream_url="http://127.0.0.1:8082"
 
 CMD ["./fwatchdog"]

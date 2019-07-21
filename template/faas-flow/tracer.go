@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	"log"
 	//"github.com/opentracing/opentracing-go/log"
 	"github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
@@ -15,31 +14,31 @@ import (
 	"time"
 )
 
-var (
-	closer            io.Closer
-	reqSpan           opentracing.Span
-	reqSpanCtx        opentracing.SpanContext
-	tracerInitialized bool
-	nodeSpans         map[string]opentracing.Span
-)
+type traceHandler struct {
+	tracer opentracing.Tracer
+	closer io.Closer
 
-// EnvHeadersCarrier satisfies both TextMapWriter and TextMapReader
-type EnvHeadersCarrier struct {
+	reqSpan    opentracing.Span
+	reqSpanCtx opentracing.SpanContext
+
+	nodeSpans map[string]opentracing.Span
+}
+
+// CustomHeadersCarrier satisfies both TextMapWriter and TextMapReader
+type CustomHeadersCarrier struct {
 	envMap map[string]string
 }
 
-// buildEnvHeadersCarrier builds a EnvHeadersCarrier from env
-func buildEnvHeadersCarrier() *EnvHeadersCarrier {
-	carrier := &EnvHeadersCarrier{}
+// buildCustomHeadersCarrier builds a CustomHeadersCarrier from env
+func buildCustomHeadersCarrier(header http.Header) *CustomHeadersCarrier {
+	carrier := &CustomHeadersCarrier{}
 	carrier.envMap = make(map[string]string)
 
-	for _, e := range os.Environ() {
-		if i := strings.Index(e, "="); i >= 0 {
-			if e[:i] == "Http_Uber_Trace_Id" {
-				key := "uber-trace-id"
-				carrier.envMap[key] = e[i+1:]
-				break
-			}
+	for k, v := range header {
+		if k == "Uber-Trace-Id" && len(v) > 0 {
+			key := "uber-trace-id"
+			carrier.envMap[key] = v[0]
+			break
 		}
 	}
 
@@ -47,7 +46,7 @@ func buildEnvHeadersCarrier() *EnvHeadersCarrier {
 }
 
 // ForeachKey conforms to the TextMapReader interface
-func (c *EnvHeadersCarrier) ForeachKey(handler func(key, val string) error) error {
+func (c *CustomHeadersCarrier) ForeachKey(handler func(key, val string) error) error {
 	for key, value := range c.envMap {
 		err := handler(key, value)
 		if err != nil {
@@ -60,7 +59,7 @@ func (c *EnvHeadersCarrier) ForeachKey(handler func(key, val string) error) erro
 }
 
 // Set conforms to the TextMapWriter interface
-func (c *EnvHeadersCarrier) Set(key, val string) {
+func (c *CustomHeadersCarrier) Set(key, val string) {
 	c.envMap[key] = val
 }
 
@@ -82,17 +81,15 @@ func getTraceServer() string {
 	return traceServer
 }
 
-// initGlobalTracer init global trace with configuration
-func initGlobalTracer(flowName string) error {
+// initRequestTracer init global trace with configuration
+func initRequestTracer(flowName string) (*traceHandler, error) {
+	tracerObj := &traceHandler{}
 
 	if !isTracingEnabled() {
-		log.Printf("tracing is disabled")
-		return nil
+		return tracerObj, nil
 	}
 
 	agentPort := getTraceServer()
-
-	log.Printf("tracing is enabled, agent %s", agentPort)
 
 	cfg := config.Configuration{
 		ServiceName: flowName,
@@ -107,55 +104,49 @@ func initGlobalTracer(flowName string) error {
 		},
 	}
 
-	tracer, traceCloser, err := cfg.NewTracer(
+	opentracer, traceCloser, err := cfg.NewTracer(
 		config.Logger(jaeger.StdLogger),
 	)
 	if err != nil {
-		return fmt.Errorf("Failed to init tracer, error %v", err.Error())
+		return nil, fmt.Errorf("Failed to init tracer, error %v", err.Error())
 	}
 
-	closer = traceCloser
+	tracerObj.closer = traceCloser
+	tracerObj.tracer = opentracer
+	tracerObj.nodeSpans = make(map[string]opentracing.Span)
 
-	opentracing.SetGlobalTracer(tracer)
-
-	tracerInitialized = true
-
-	nodeSpans = make(map[string]opentracing.Span)
-
-	return nil
+	return tracerObj, nil
 }
 
 // startReqSpan starts a request span
-func startReqSpan(reqId string) {
-	if !isTracingEnabled() || !tracerInitialized {
+func (tracerObj *traceHandler) startReqSpan(reqId string) {
+	if !isTracingEnabled() {
 		return
 	}
 
-	reqSpan = opentracing.GlobalTracer().StartSpan(reqId)
-	reqSpan.SetTag("request", reqId)
-
-	reqSpanCtx = reqSpan.Context()
+	tracerObj.reqSpan = tracerObj.tracer.StartSpan(reqId)
+	tracerObj.reqSpan.SetTag("request", reqId)
+	tracerObj.reqSpanCtx = tracerObj.reqSpan.Context()
 }
 
 // continueReqSpan continue request span
-func continueReqSpan(reqId string) {
+func (tracerObj *traceHandler) continueReqSpan(reqId string, header http.Header) {
 	var err error
 
-	if !isTracingEnabled() || !tracerInitialized {
+	if !isTracingEnabled() {
 		return
 	}
 
-	carrier := buildEnvHeadersCarrier()
-	reqSpanCtx, err = opentracing.GlobalTracer().Extract(
+	tracerObj.reqSpanCtx, err = tracerObj.tracer.Extract(
 		opentracing.HTTPHeaders,
-		carrier,
+		opentracing.HTTPHeadersCarrier(header),
 	)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to continue req span tracing, error %v\n", err)
+		fmt.Printf("[Request %s] failed to continue req span for tracing, error %v\n", reqId, err)
 		return
 	}
 
-	reqSpan = nil
+	tracerObj.reqSpan = nil
 	// TODO: Its not Supported to get span from spanContext as of now
 	//       https://github.com/opentracing/specification/issues/81
 	//       it will support us to extend the request span for nodes
@@ -164,76 +155,79 @@ func continueReqSpan(reqId string) {
 
 // extendReqSpan extend req span over a request
 // func extendReqSpan(url string, req *http.Request) {
-func extendReqSpan(lastPhaseRef string, url string, req *http.Request) {
-	if !isTracingEnabled() || !tracerInitialized {
+func (tracerObj *traceHandler) extendReqSpan(reqId string, lastNode string, url string, req *http.Request) {
+	if !isTracingEnabled() {
 		return
 	}
 
 	// TODO: as requestSpan can't be regenerated with the span context we
 	//       forward the nodeSpan's SpanContext
 	// span := reqSpan
-	span := nodeSpans[lastPhaseRef]
+	span := tracerObj.nodeSpans[lastNode]
 
 	ext.SpanKindRPCClient.Set(span)
 	ext.HTTPUrl.Set(span, url)
 	ext.HTTPMethod.Set(span, "POST")
-	span.Tracer().Inject(
+	err := span.Tracer().Inject(
 		span.Context(),
 		opentracing.HTTPHeaders,
 		opentracing.HTTPHeadersCarrier(req.Header),
 	)
+	if err != nil {
+		fmt.Printf("[Request %s] failed to extend req span for tracing, error %v\n", reqId, err)
+	}
+	if req.Header.Get("Uber-Trace-Id") == "" {
+		fmt.Printf("[Request %s] failed to extend req span for tracing, error Uber-Trace-Id not set\n",
+			reqId)
+	}
 }
 
 // stopReqSpan terminate a request span
-func stopReqSpan() {
-	if !isTracingEnabled() || !tracerInitialized {
+func (tracerObj *traceHandler) stopReqSpan() {
+	if !isTracingEnabled() {
 		return
 	}
 
-	if reqSpan == nil {
+	if tracerObj.reqSpan == nil {
 		return
 	}
 
-	reqSpan.Finish()
+	tracerObj.reqSpan.Finish()
 }
 
 // startNodeSpan starts a node span
-func startNodeSpan(node string, reqId string) {
-	var nodeSpan opentracing.Span
-	if !isTracingEnabled() || !tracerInitialized {
+func (tracerObj *traceHandler) startNodeSpan(node string, reqId string) {
+	if !isTracingEnabled() {
 		return
 	}
 
-	nodeSpan = opentracing.GlobalTracer().StartSpan(
-		node, ext.RPCServerOption(reqSpanCtx))
-	nodeSpan.SetTag("async", "true")
-	nodeSpan.SetTag("request", reqId)
-	/*
-		if reqSpan == nil {
+	tracerObj.nodeSpans[node] = tracerObj.tracer.StartSpan(
+		node, ext.RPCServerOption(tracerObj.reqSpanCtx))
 
-		} else {
-			nodeSpan = opentracing.GlobalTracer().StartSpan(
-				node, opentracing.ChildOf(reqSpan.Context()))
-		}
+	/*
+		 tracerObj.nodeSpans[node] = tracerObj.tracer.StartSpan(
+			node, opentracing.ChildOf(reqSpan.Context()))
 	*/
-	nodeSpan.SetTag("node", node)
-	nodeSpans[node] = nodeSpan
+
+	tracerObj.nodeSpans[node].SetTag("async", "true")
+	tracerObj.nodeSpans[node].SetTag("request", reqId)
+	tracerObj.nodeSpans[node].SetTag("node", node)
 }
 
 // stopNodeSpan terminates a node span
-func stopNodeSpan(node string) {
-	if !isTracingEnabled() || !tracerInitialized {
+func (tracerObj *traceHandler) stopNodeSpan(node string) {
+	if !isTracingEnabled() {
 		return
 	}
 
-	nodeSpans[node].Finish()
+	tracerObj.nodeSpans[node].Finish()
 }
 
 // flushTracer flush all pending traces
-func flushTracer() {
-	if !isTracingEnabled() || !tracerInitialized {
+func (tracerObj *traceHandler) flushTracer() {
+	if !isTracingEnabled() {
 		return
 	}
 
-	closer.Close()
+	tracerObj.closer.Close()
 }
