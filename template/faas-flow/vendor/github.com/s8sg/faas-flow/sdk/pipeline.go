@@ -62,6 +62,35 @@ func (pipeline *Pipeline) GetInitialNodeId() string {
 	return "0"
 }
 
+// GetNodeExecutionUniqueId provide a ID that is unique in an execution
+func (pipeline *Pipeline) GetNodeExecutionUniqueId(node *Node) string {
+	depth := 0
+	dag := pipeline.Dag
+	depthStr := ""
+	optionStr := ""
+	for depth < pipeline.ExecutionDepth {
+		depthStr = fmt.Sprintf("%d", depth)
+		node := dag.GetNode(pipeline.ExecutionPosition[depthStr])
+		option := pipeline.CurrentDynamicOption[node.GetUniqueId()]
+		if node.subDag != nil {
+			dag = node.subDag
+		} else {
+			dag = node.conditionalDags[option]
+		}
+		if optionStr == "" {
+			optionStr = option
+		} else {
+			optionStr = option + "--" + optionStr
+		}
+
+		depth++
+	}
+	if optionStr == "" {
+		return node.GetUniqueId()
+	}
+	return optionStr + "--" + node.GetUniqueId()
+}
+
 // GetCurrentNodeDag returns the current node and current dag based on execution position
 func (pipeline *Pipeline) GetCurrentNodeDag() (*Node, *Dag) {
 	depth := 0
@@ -70,10 +99,10 @@ func (pipeline *Pipeline) GetCurrentNodeDag() (*Node, *Dag) {
 	for depth < pipeline.ExecutionDepth {
 		depthStr = fmt.Sprintf("%d", depth)
 		node := dag.GetNode(pipeline.ExecutionPosition[depthStr])
+		option := pipeline.CurrentDynamicOption[node.GetUniqueId()]
 		if node.subDag != nil {
 			dag = node.subDag
 		} else {
-			option := pipeline.CurrentDynamicOption[node.GetUniqueId()]
 			dag = node.conditionalDags[option]
 		}
 		depth++
