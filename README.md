@@ -26,6 +26,22 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 ```
 After building and deploying, it will give you a openfaas function that orchestrates calling `Func2` with the output of `Func1`
 
+## Use Cases
+
+Faas-flow as a function composure provides the back-bone for building  complex solutions and promote automation
+   
+#### Data Processing Pipeline
+
+Faas-flow can orchestrate a pipeline with long and short running function performing ETL jobs without having to orchestrate them manually or maintaining a separate application. Faas-flow ensures the execution order of several functions running in parallel or dynamically and provides rich construct to aggregate results while maintaining the intermediate data.
+   
+#### Application Orchestration Workflow
+
+Functions are great for isolating certain functionalities of an application. Although one still need to call the functions, write workflow logic, handle parallel processing and retries on failures. Using Faas-flow you can combine multiple openfaas functions with little codes while your workflow will scale up/down automatically to handle the load
+    
+#### Function Reusability
+
+Fass-flow allows you to write function only focused on solving one problem without having to worry about the next. It makes function loosely coupled from the business logic promoting reusability. You can write the stateless function and use it across multiple applications, where faas-flow maintains the execution state for individual workflow per requests
+     
      
 ## Pipeline Definition
 By supplying a number of pipeline operators, complex compostion can be achieved with little work:
