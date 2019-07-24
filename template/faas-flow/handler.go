@@ -608,6 +608,8 @@ func forwardAsync(fhandler *flowHandler, currentNodeId string, result []byte) ([
 	if resErr != nil {
 		return nil, resErr
 	}
+
+	defer res.Body.Close()
 	resdata, _ := ioutil.ReadAll(res.Body)
 
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {
