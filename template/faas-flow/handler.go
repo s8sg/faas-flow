@@ -873,6 +873,7 @@ func handleDynamicEnd(fhandler *flowHandler, context *faasflow.Context, result [
 
 		// skip retriving data for current option
 		if option == currentOption {
+			context.Del(key)
 			continue
 		}
 
