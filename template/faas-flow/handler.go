@@ -870,6 +870,8 @@ func handleDynamicEnd(fhandler *flowHandler, context *faasflow.Context, result [
 
 	// Recive data from a dynamic graph for each options
 	for _, option := range options {
+		key := fmt.Sprintf("%s--%s--%s",
+			option, pipeline.GetNodeExecutionUniqueId(currentNode), currentNode.GetUniqueId())
 
 		// skip retriving data for current option
 		if option == currentOption {
@@ -877,8 +879,6 @@ func handleDynamicEnd(fhandler *flowHandler, context *faasflow.Context, result [
 			continue
 		}
 
-		key := fmt.Sprintf("%s--%s--%s",
-			option, pipeline.GetNodeExecutionUniqueId(currentNode), currentNode.GetUniqueId())
 		idata := context.GetBytes(key)
 		fmt.Printf("[Request `%s`] Intermidiate result from Branch to Dynamic Node %s for option %s retrived from %s\n",
 			fhandler.id, currentNode.GetUniqueId(), option, key)
