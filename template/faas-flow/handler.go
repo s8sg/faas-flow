@@ -817,6 +817,8 @@ func handleDynamicEnd(fhandler *flowHandler, context *faasflow.Context, result [
 		return nil, fmt.Errorf("failed to retrive dynamic options for %v, error %v",
 			currentNode.GetUniqueId(), err)
 	}
+	// Get unique execution id of the node
+	branchkey := pipeline.GetNodeExecutionUniqueId(currentNode) + "-branch-completion"
 
 	// if indegree is > 1 then use statestore to get indegree completion state
 	if len(options) > 1 {
@@ -824,36 +826,32 @@ func handleDynamicEnd(fhandler *flowHandler, context *faasflow.Context, result [
 		// Get unique execution id of the node
 		key = pipeline.GetNodeExecutionUniqueId(currentNode) + "-branch-completion"
 		// Update the state of indegree completion and get the updated state
-		inDegreeUpdatedCount, err := fhandler.IncrementCounter(key, 1)
+
+		// Skip if dynamic node data forwarding is not disabled
+		if currentNode.GetForwarder("dynamic") != nil {
+			option := pipeline.CurrentDynamicOption[currentNode.GetUniqueId()]
+			key = fmt.Sprintf("%s--%s--%s", option, pipeline.GetNodeExecutionUniqueId(currentNode), currentNode.GetUniqueId())
+
+			err = context.Set(key, result)
+			if err != nil {
+				return nil, fmt.Errorf("failed to store branch result of dynamic node %s for option %s, error %v",
+					currentNode.GetUniqueId(), option, err)
+			}
+			fmt.Printf("[Request `%s`] Intermidiate result from Branch to Dynamic Node %s for option %s stored as %s\n",
+				fhandler.id, currentNode.GetUniqueId(), option, key)
+		}
+		realIndegree, err := fhandler.IncrementCounter(branchkey, 1)
 		if err != nil {
 			return []byte(""), fmt.Errorf("failed to update inDegree counter for node %s", currentNode.GetUniqueId())
 		}
 
-		// not all the branches finished executing
-		if inDegreeUpdatedCount < len(options) {
+		fmt.Printf("[Request `%s`] Executing end of dynamic node %s, completed indegree: %d/%d\n",
+			fhandler.id, currentNode.GetUniqueId(), realIndegree, len(options))
 
-			// Skip if dynamic node data forwarding is not disabled
-			if currentNode.GetForwarder("dynamic") != nil {
-				option := pipeline.CurrentDynamicOption[currentNode.GetUniqueId()]
-				key = fmt.Sprintf("%s--%s--%s", option, pipeline.GetNodeExecutionUniqueId(currentNode), currentNode.GetUniqueId())
-
-				err = context.Set(key, result)
-				if err != nil {
-					return nil, fmt.Errorf("failed to store branch result of dynamic node %s for option %s, error %v",
-						currentNode.GetUniqueId(), option, err)
-				}
-				fmt.Printf("[Request `%s`] Intermidiate result from Branch to Dynamic Node %s for option %s stored as %s\n",
-					fhandler.id, currentNode.GetUniqueId(), option, key)
-			}
-
-			fmt.Printf("[Request `%s`] Executing end of dynamic node %s, delayed as "+
-				"completed indegree: %d/%d\n",
-				fhandler.id, currentNode.GetUniqueId(), inDegreeUpdatedCount, len(options))
-			// Return nil response making current iteration to stop
+		//not last branch return
+		if realIndegree < len(options) {
 			return nil, nil
 		}
-		fmt.Printf("[Request `%s`] Executing end of dynamic node %s, completed indegree: %d/%d\n",
-			fhandler.id, currentNode.GetUniqueId(), inDegreeUpdatedCount, len(options))
 	} else {
 		fmt.Printf("[Request `%s`] Executing end of dynamic node %s, branch count 1\n",
 			fhandler.id, currentNode.GetUniqueId())
@@ -872,14 +870,15 @@ func handleDynamicEnd(fhandler *flowHandler, context *faasflow.Context, result [
 
 	// Recive data from a dynamic graph for each options
 	for _, option := range options {
+		key := fmt.Sprintf("%s--%s--%s",
+			option, pipeline.GetNodeExecutionUniqueId(currentNode), currentNode.GetUniqueId())
 
 		// skip retriving data for current option
 		if option == currentOption {
+			context.Del(key)
 			continue
 		}
 
-		key := fmt.Sprintf("%s--%s--%s",
-			option, pipeline.GetNodeExecutionUniqueId(currentNode), currentNode.GetUniqueId())
 		idata := context.GetBytes(key)
 		fmt.Printf("[Request `%s`] Intermidiate result from Branch to Dynamic Node %s for option %s retrived from %s\n",
 			fhandler.id, currentNode.GetUniqueId(), option, key)
