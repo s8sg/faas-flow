@@ -129,9 +129,9 @@ func (fhandler *flowHandler) RetriveCounter(counter string) (int, error) {
 }
 
 // buildURL builds openfaas function execution url for the flow
-func buildURL(gateway, rpath, flow string) string {
+func buildURL(gateway, rpath, function string) string {
 	u, _ := url.Parse(gateway)
-	u.Path = path.Join(u.Path, rpath+"/"+flow)
+	u.Path = path.Join(u.Path, rpath+"/"+function)
 	return u.String()
 }
 
@@ -243,7 +243,9 @@ func makeQueryStringFromParam(params map[string][]string) string {
 
 // buildFunctionRequest build upstream request for function
 func buildFunctionRequest(function string, data []byte, params map[string][]string, headers map[string]string) *http.Request {
-	url := "http://" + function + ":8080"
+	gateway := getGateway()
+	url := buildURL("http://"+gateway, "function", function)
+
 	queryString := makeQueryStringFromParam(params)
 	if queryString != "" {
 		url = url + queryString
