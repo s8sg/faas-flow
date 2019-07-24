@@ -397,10 +397,10 @@ func executeFunction(pipeline *sdk.Pipeline, operation *sdk.Operation, data []by
 		return []byte{}, err
 	}
 
+	defer resp.Body.Close()
 	if operation.OnResphandler != nil {
 		result, err = operation.OnResphandler(resp)
 	} else {
-		defer resp.Body.Close()
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
 			err = fmt.Errorf("invalid return status %d while connecting %s", resp.StatusCode, url)
 			result, _ = ioutil.ReadAll(resp.Body)
@@ -443,10 +443,10 @@ func executeCallback(pipeline *sdk.Pipeline, operation *sdk.Operation, data []by
 		return err
 	}
 
+	defer resp.Body.Close()
 	if operation.OnResphandler != nil {
 		_, err = operation.OnResphandler(resp)
 	} else {
-		defer resp.Body.Close()
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
 			cbresult, _ := ioutil.ReadAll(resp.Body)
 			err := fmt.Errorf("%v:%s", err, string(cbresult))
