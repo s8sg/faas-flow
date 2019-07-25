@@ -241,58 +241,25 @@ func makeQueryStringFromParam(params map[string][]string) string {
 	return result
 }
 
-// buildFunctionRequest build upstream request for function
-func buildFunctionRequest(function string, data []byte, params map[string][]string, headers map[string]string) *http.Request {
-	gateway := getGateway()
-	url := buildURL("http://"+gateway, "function", function)
+// buildHttpRequest build upstream request for function
+func buildHttpRequest(url string, method string, data []byte, params map[string][]string,
+	headers map[string]string) (*http.Request, error) {
 
 	queryString := makeQueryStringFromParam(params)
 	if queryString != "" {
 		url = url + queryString
 	}
 
-	var method string
-
-	if method, ok := headers["method"]; !ok {
-		method = os.Getenv("default-method")
-		if method == "" {
-			method = "POST"
-		}
+	httpreq, err := http.NewRequest(method, url, bytes.NewReader(data))
+	if err != nil {
+		return nil, err
 	}
-
-	httpreq, _ := http.NewRequest(method, url, bytes.NewBuffer(data))
 
 	for key, value := range headers {
-		httpreq.Header.Set(key, value)
+		httpreq.Header.Add(key, value)
 	}
 
-	return httpreq
-}
-
-// buildCallbackRequest build upstream request for callback
-func buildCallbackRequest(callbackUrl string, data []byte, params map[string][]string, headers map[string]string) *http.Request {
-	url := callbackUrl
-	queryString := makeQueryStringFromParam(params)
-	if queryString != "" {
-		url = url + queryString
-	}
-
-	var method string
-
-	if method, ok := headers["method"]; !ok {
-		method = os.Getenv("default-method")
-		if method == "" {
-			method = "POST"
-		}
-	}
-
-	httpreq, _ := http.NewRequest(method, url, bytes.NewBuffer(data))
-
-	for key, value := range headers {
-		httpreq.Header.Set(key, value)
-	}
-
-	return httpreq
+	return httpreq, nil
 }
 
 // createContext create a context from request handler
@@ -404,7 +371,21 @@ func executeFunction(pipeline *sdk.Pipeline, operation *sdk.Operation, data []by
 	params := operation.GetParams()
 	headers := operation.GetHeaders()
 
-	httpreq := buildFunctionRequest(name, data, params, headers)
+	gateway := getGateway()
+	url := buildURL("http://"+gateway, "function", name)
+
+	var method string
+	if method, ok := headers["method"]; !ok {
+		method = os.Getenv("default-method")
+		if method == "" {
+			method = "POST"
+		}
+	}
+
+	httpreq, err := buildHttpRequest(url, method, data, params, headers)
+	if err != nil {
+		return []byte{}, fmt.Errorf("cannot connect to Function on URL: %s", url)
+	}
 
 	if operation.Requesthandler != nil {
 		operation.Requesthandler(httpreq)
@@ -416,14 +397,16 @@ func executeFunction(pipeline *sdk.Pipeline, operation *sdk.Operation, data []by
 		return []byte{}, err
 	}
 
+	defer resp.Body.Close()
 	if operation.OnResphandler != nil {
 		result, err = operation.OnResphandler(resp)
 	} else {
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			err = fmt.Errorf("invalid return status %d while connecting %s", resp.StatusCode, url)
 			result, _ = ioutil.ReadAll(resp.Body)
-			err = fmt.Errorf("invalid return status %d", resp.StatusCode)
+		} else {
+			result, err = ioutil.ReadAll(resp.Body)
 		}
-		result, err = ioutil.ReadAll(resp.Body)
 	}
 
 	return result, err
@@ -437,7 +420,18 @@ func executeCallback(pipeline *sdk.Pipeline, operation *sdk.Operation, data []by
 	params := operation.GetParams()
 	headers := operation.GetHeaders()
 
-	httpreq := buildCallbackRequest(cburl, data, params, headers)
+	var method string
+	if method, ok := headers["method"]; !ok {
+		method = os.Getenv("default-method")
+		if method == "" {
+			method = "POST"
+		}
+	}
+
+	httpreq, err := buildHttpRequest(cburl, method, data, params, headers)
+	if err != nil {
+		return fmt.Errorf("cannot connect to Function on URL: %s", cburl)
+	}
 
 	if operation.Requesthandler != nil {
 		operation.Requesthandler(httpreq)
@@ -449,6 +443,7 @@ func executeCallback(pipeline *sdk.Pipeline, operation *sdk.Operation, data []by
 		return err
 	}
 
+	defer resp.Body.Close()
 	if operation.OnResphandler != nil {
 		_, err = operation.OnResphandler(resp)
 	} else {
@@ -613,6 +608,8 @@ func forwardAsync(fhandler *flowHandler, currentNodeId string, result []byte) ([
 	if resErr != nil {
 		return nil, resErr
 	}
+
+	defer res.Body.Close()
 	resdata, _ := ioutil.ReadAll(res.Body)
 
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {
