@@ -1,11 +1,11 @@
-# Faas-flow - Function Composition for [Openfaas](https://github.com/openfaas/faas)
+# Faas-flow - Function Composition for [OpenFaaS](https://github.com/openfaas/faas)
 [![Build Status](https://travis-ci.org/s8sg/faas-flow.svg?branch=master)](https://travis-ci.org/s8sg/faas-flow)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GoDoc](https://godoc.org/github.com/s8sg/faas-flow?status.svg)](https://godoc.org/github.com/s8sg/faas-flow)
 [![OpenTracing Badge](https://img.shields.io/badge/OpenTracing-enabled-blue.svg)](http://opentracing.io)
 [![OpenFaaS](https://img.shields.io/badge/openfaas-serverless-blue.svg)](https://www.openfaas.com)
      
-> - [x] **Pure**      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; FaaS with [Openfaas](https://github.com/openfaas/faas) 
+> - [x] **Pure**      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; FaaS with [OpenFaaS](https://github.com/openfaas/faas) 
 > - [x] **Fast**      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  Built with `Go`    
 > - [x] **Secured**   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; With `HMAC`
 > - [x] **Stateless** &nbsp;&nbsp;&nbsp;&nbsp; By design   
@@ -24,7 +24,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
     return
 }
 ```
-After building and deploying, it will give you a openfaas function that orchestrates calling `Func2` with the output of `Func1`
+After building and deploying, it will give you an OpenFaaS function that orchestrates calling `Func2` with the output of `Func1`
 
 ## Use Cases
 
@@ -36,7 +36,7 @@ Faas-flow can orchestrate a pipeline with long and short running function perfor
    
 #### Application Orchestration Workflow
 
-Functions are great for isolating certain functionalities of an application. Although one still need to call the functions, write workflow logic, handle parallel processing and retries on failures. Using Faas-flow you can combine multiple openfaas functions with little codes while your workflow will scale up/down automatically to handle the load
+Functions are great for isolating certain functionalities of an application. Although one still need to call the functions, write workflow logic, handle parallel processing and retries on failures. Using Faas-flow you can combine multiple OpenFaaS functions with little codes while your workflow will scale up/down automatically to handle the load
     
 #### Function Reusability
 
@@ -148,16 +148,16 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 Full implementation of the above examples are available [here](https://github.com/s8sg/faasflow-example)
 ## Faas-flow Design
 The current design consideration is made based on the below goals  
-> 1. Leverage the openfaas platform   
+> 1. Leverage the OpenFaaS platform   
 > 2. Not to violate the notions of function   
 > 3. Provide flexibility, scalability, and adaptability    
 
 #### Just as function as any other
-Faas-flow is deployed and provisioned just like any other openfaas function. It allows faas-flow to take advantage of rich functionalities available on Openfaas. `faas-flow` provide an openfaas template and just like any other openfaas function it can be deployed with `faas-cli`   
+Faas-flow is deployed and provisioned just like any other OpenFaaS function. It allows Faas-flow to take advantage of rich functionalities available on OpenFaaS. Faas-flow provide an OpenFaaS template (`faas-flow`) and just like any other OpenFaaS function it can be deployed with `faas-cli`   
 ![alt its a function](https://github.com/s8sg/faas-flow/blob/master/doc/design/complete-faas.jpg)
 
 #### Adapter pattern for zero intrumenttaion in code
-Faas-flow function follows the adapter pattern. Here the adaptee is the functions and the adapter is `faas-flow`. For each node execution, `faas-flow` handle the calls to the functions. Once the execution is over, it forwards an event to itself. This way the arrangement logic is separated from the functions and is implemented in the adapter. Compositions need no code instrumentations, making functions completely independent of the details of the compositions  
+Faas-flow function follows the adapter pattern. Here the adaptee is the functions and the adapter is the flow. For each node execution, Faas-flow handle the calls to the functions. Once the execution is over, it forwards an event to itself. This way the arrangement logic is separated from the functions and is implemented in the adapter. Compositions need no code instrumentations, making functions completely independent of the details of the compositions  
 ![alt function is independent of composition](https://github.com/s8sg/faas-flow/blob/master/doc/design/adapter-pattern.jpg)
 
 #### Aggregate pattern as chaining
@@ -165,11 +165,11 @@ Aggregation of separate function calls is done as chaining. Multiple functions c
 ![alt aggregation](https://github.com/s8sg/faas-flow/blob/master/doc/design/aggregate-pattern.jpg)
 
 #### Event driven iteration
-Openfaas uses [Nats](https://nats.io) for event delivery and faas-flow leverages openfaas platform. Node execution in `faas-flow` starts by a completion event of one or more previous nodes. A completion event denotes that all the previous dependent nodes have completed. The event carries the execution state and identifies the next node to execute. With events faas-flow asynchronously carry-on execution of nodes by iterating itself over and over till all nodes are executed
+OpenFaaS uses [Nats](https://nats.io) for event delivery and Faas-flow leverages OpenFaaS platform. Node execution in Faas-flow starts by a completion event of one or more previous nodes. A completion event denotes that all the previous dependent nodes have completed. The event carries the execution state and identifies the next node to execute. With events Faas-flow asynchronously carry-on execution of nodes by iterating itself over and over till all nodes are executed
 ![alt iteration](https://github.com/s8sg/faas-flow/blob/master/doc/design/event-driven-iteration.jpg)
 
 #### 3rd party KV store for coordination 
-When executing branches, one node is dependent on more than one predecessor nodes. In that scenario, the event for completion is generated by coordination of earlier nodes. Like any distributed system the coordination is achieved via a centralized service. Faas-flow keeps the logic of the coordination controller inside of faas-flow implementation and lets the user use any external synchronous KV store by implementing [`StateStore`](https://godoc.org/github.com/s8sg/faas-flow#StateStore) 
+When executing branches, one node is dependent on more than one predecessor nodes. In that scenario, the event for completion is generated by coordination of earlier nodes. Like any distributed system the coordination is achieved via a centralized service. Faas-flow keeps the logic of the coordination controller inside of Faas-flow implementation and lets the user use any external synchronous KV store by implementing [`StateStore`](https://godoc.org/github.com/s8sg/faas-flow#StateStore) 
 ![alt coordination](https://github.com/s8sg/faas-flow/blob/master/doc/design/3rd-party-statestore.jpg)
 
 #### 3rd party Storage for intermediate data
@@ -206,7 +206,7 @@ Edit function stack file `greet.yml`
       write_timeout: 120 # A value larger than `max` of all execution times of Nodes
       write_debug: true
       combine_output: false
-      workflow_name: "greet" # The name of the flow function, faasflow use this to forward completion event
+      workflow_name: "greet" # The name of the flow function, Faas-flow use this to forward completion event
     environment_file:
       - flow.yml
 ``` 
@@ -215,7 +215,7 @@ Edit function stack file `greet.yml`
 Add a separate file `flow.yml` with faas-flow related configuration.
 ```yaml
 environment:
-  gateway: "gateway:8080" # The address of openfaas gateway, faasflow use this to forward completion event
+  gateway: "gateway:8080" # The address of OpenFaaS gateway, Faas-flow use this to forward completion event
   # gateway: "gateway.openfaas:8080" # For K8s 
   enable_tracing: false # tracing allow to trace internal node execution with opentracing
   enable_hmac: true # hmac adds an extra layer of security by validating the event source
@@ -245,7 +245,7 @@ faas deploy
 > Modify("name") -> Hello name
 > ```
 All calls will be performed in one single execution of the flow function and result will be returned to the callee    
-> Note: For flow that has more than one nodes, faas-flow doesn't return any response. External storage or `callback` can be used to retrieve an async result
+> Note: For flow that has more than one nodes, Faas-flow doesn't return any response. External storage or callback can be used to retrieve an async result
      
 #### Invoke
 ```
@@ -279,7 +279,7 @@ Quick start with jaegertracing: https://www.jaegertracing.io/docs/1.8/getting-st
 #### Use [faas-flow-tower](https://github.com/s8sg/faas-flow-tower)
 Retrive the requestID from `X-Faas-Flow-Reqid` header of response     
 
-Below is an example of tracing information for [example-branching-in-faas-flow](https://github.com/s8sg/branching-in-faas-flow) in [faas-flow-tower](https://github.com/s8sg/faas-flow-tower)  
+Below is an example of tracing information for [example-branching-in-Faas-flow](https://github.com/s8sg/branching-in-faas-flow) in [Faas-flow-tower](https://github.com/s8sg/faas-flow-tower)  
 ![alt monitoring](https://github.com/s8sg/faas-flow-tower/blob/master/doc/monitoring.png)
     
      
@@ -326,7 +326,7 @@ Node, requestId, State is provided by the `context`
    requestId := context.GetRequestId()
    state := context.State
 ```
-for more details check `faas-flow` [GoDoc](https://godoc.org/github.com/s8sg/faas-flow)
+for more details check Faas-flow [GoDoc](https://godoc.org/github.com/s8sg/faas-flow)
 
 
 ## External `StateStore` for coordination controller
@@ -418,5 +418,5 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 ```
  
 ## Contribute:
-> **Issue/Suggestion** Create an issue at [faas-flow-issue](https://github.com/s8sg/faas-flow/issues).  
-> **ReviewPR/Implement** Create Pull Request at [faas-flow-pr](https://github.com/s8sg/faas-flow/issues).  
+> **Issue/Suggestion** Create an issue at [Faas-flow-issue](https://github.com/s8sg/faas-flow/issues).  
+> **ReviewPR/Implement** Create Pull Request at [Faas-flow-pr](https://github.com/s8sg/faas-flow/issues).  
