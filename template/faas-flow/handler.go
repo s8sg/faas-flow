@@ -175,7 +175,7 @@ func readSecret(key string) (string, error) {
 func getGateway() string {
 	gateway := os.Getenv("gateway")
 	if gateway == "" {
-		gateway = "gateway:8080"
+		gateway = "gateway.openfaas:8080"
 	}
 	return gateway
 }
