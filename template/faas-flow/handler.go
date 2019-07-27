@@ -374,12 +374,13 @@ func executeFunction(pipeline *sdk.Pipeline, operation *sdk.Operation, data []by
 	gateway := getGateway()
 	url := buildURL("http://"+gateway, "function", name)
 
-	var method string
-	if method, ok := headers["method"]; !ok {
-		method = os.Getenv("default-method")
-		if method == "" {
-			method = "POST"
-		}
+	method := os.Getenv("default-method")
+	if method == "" {
+		method = "POST"
+	}
+
+	if m, ok := headers["method"]; ok {
+		method = m
 	}
 
 	httpreq, err := buildHttpRequest(url, method, data, params, headers)
@@ -420,12 +421,13 @@ func executeCallback(pipeline *sdk.Pipeline, operation *sdk.Operation, data []by
 	params := operation.GetParams()
 	headers := operation.GetHeaders()
 
-	var method string
-	if method, ok := headers["method"]; !ok {
-		method = os.Getenv("default-method")
-		if method == "" {
-			method = "POST"
-		}
+	method := os.Getenv("default-method")
+	if method == "" {
+		method = "POST"
+	}
+
+	if m, ok := headers["method"]; ok {
+		method = m
 	}
 
 	httpreq, err := buildHttpRequest(cburl, method, data, params, headers)
