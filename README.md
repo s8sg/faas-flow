@@ -206,7 +206,6 @@ Edit function stack file `greet.yml`
       write_timeout: 120 # A value larger than `max` of all execution times of Nodes
       write_debug: true
       combine_output: false
-      workflow_name: "greet" # The name of the flow function, Faas-flow use this to forward completion event
     environment_file:
       - flow.yml
 ``` 

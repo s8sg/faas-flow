@@ -8,9 +8,34 @@ import (
 	"os"
 	"strconv"
 	"time"
-
-	handler "github.com/openfaas-incubator/go-function-sdk"
 )
+
+// HttpResponse of function call
+type HttpResponse struct {
+
+	// Body the body will be written back
+	Body []byte
+
+	// StatusCode needs to be populated with value such as http.StatusOK
+	StatusCode int
+
+	// Header is optional and contains any additional headers the function response should set
+	Header http.Header
+}
+
+// HttpRequest of function call
+type HttpRequest struct {
+	Body        []byte
+	Header      http.Header
+	QueryString string
+	Method      string
+	Host        string
+}
+
+// FunctionHandler used for a serverless Go method invocation
+type FunctionHandler interface {
+	Handle(req *HttpRequest, response *HttpResponse) (err error)
+}
 
 func makeRequestHandler() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -28,17 +53,19 @@ func makeRequestHandler() func(http.ResponseWriter, *http.Request) {
 			input = bodyBytes
 		}
 
-		req := &handler.Request{
+		req := &HttpRequest{
 			Body:        input,
 			Header:      r.Header,
 			Method:      r.Method,
 			QueryString: r.URL.RawQuery,
+			Host:        r.Host,
 		}
 
-		result := &handler.Response{}
+		result := &HttpResponse{}
 		result.Header = make(map[string][]string)
 
-		resultErr := handle(req, result)
+		faasflow := &Faasflow{}
+		resultErr := faasflow.Handle(req, result)
 
 		for k, v := range result.Header {
 			w.Header()[k] = v
