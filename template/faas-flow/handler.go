@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -18,8 +19,6 @@ import (
 	xid "github.com/rs/xid"
 	faasflow "github.com/s8sg/faas-flow"
 	sdk "github.com/s8sg/faas-flow/sdk"
-
-	gosdk "github.com/openfaas-incubator/go-function-sdk"
 )
 
 const (
@@ -31,6 +30,7 @@ const (
 var (
 	// flowName the name of the flow
 	flowName = ""
+	re       = regexp.MustCompile(`(?m)^[^:.]+\s*`)
 )
 
 type flowHandler struct {
@@ -212,9 +212,13 @@ func getHmacKey() string {
 	return key
 }
 
-// getWorkflowName returns the flow name from env
-func getWorkflowName() string {
-	return os.Getenv("workflow_name")
+// getWorkflowNameFromHostFromHost returns the flow name from env
+func getWorkflowNameFromHost(host string) string {
+	matches := re.FindAllString(host, -1)
+	if matches[0] != "" {
+		return matches[0]
+	}
+	return ""
 }
 
 // getPipeline returns the underline flow.pipeline object
@@ -1162,7 +1166,7 @@ func initializeStore(fhandler *flowHandler) (stateSDefined bool, dataSOverride b
 }
 
 // handleWorkflow handle the flow
-func handleWorkflow(req *gosdk.Request) (string, string) {
+func handleWorkflow(req *HttpRequest) (string, string) {
 
 	var resp []byte
 	var gerr error
@@ -1171,12 +1175,6 @@ func handleWorkflow(req *gosdk.Request) (string, string) {
 	data := req.Body
 	queryString := req.QueryString
 	header := req.Header
-
-	// Get flow name
-	flowName = getWorkflowName()
-	if flowName == "" {
-		panic(fmt.Sprintf("Error: workflow_name must be provided, specify workflow_name: <fucntion_name> using environment"))
-	}
 
 	// initialize traceserve if tracing enabled
 	tracer, err := initRequestTracer(flowName)
@@ -1349,9 +1347,7 @@ func handleWorkflow(req *gosdk.Request) (string, string) {
 }
 
 // handleDagExport() handle the dag export request
-func handleDagExport() string {
-	flowName = getWorkflowName()
-
+func handleDagExport(req *HttpRequest) string {
 	fhandler := newWorkflowHandler("", flowName, "", "", nil)
 	context := createContext(fhandler)
 
@@ -1364,7 +1360,7 @@ func handleDagExport() string {
 }
 
 // isDagExportRequest check if dag export request
-func isDagExportRequest(req *gosdk.Request) bool {
+func isDagExportRequest(req *HttpRequest) bool {
 	values, err := url.ParseQuery(req.QueryString)
 	if err != nil {
 		return false
@@ -1376,26 +1372,27 @@ func isDagExportRequest(req *gosdk.Request) bool {
 	return false
 }
 
-// handle handles the request
-func handle(req *gosdk.Request, response *gosdk.Response) (err error) {
+// Faas-flow request handler
+type Faasflow struct{}
+
+// Handle handles the request
+func (faasflow *Faasflow) Handle(req *HttpRequest, response *HttpResponse) (err error) {
 
 	var result string
 	var reqId string
 
 	status := http.StatusOK
 
-	// set error inside the handler
-	/*
-		defer func() {
-			if recoverLog := recover(); recoverLog != nil {
-				err = fmt.Errorf("%v", recoverLog)
-				response.Header.Set("X-Faas-Flow-ReqID", reqId)
-			}
-		}()
-	*/
+	// Get flow name
+	if flowName == "" {
+		flowName = getWorkflowNameFromHost(req.Host)
+		if flowName == "" {
+			panic(fmt.Sprintf("Error: workflow_name must be provided, specify workflow_name: <fucntion_name> using environment"))
+		}
+	}
 
 	if isDagExportRequest(req) {
-		result = handleDagExport()
+		result = handleDagExport(req)
 	} else {
 		result, reqId = handleWorkflow(req)
 		response.Header.Set("X-Faas-Flow-Reqid", reqId)
