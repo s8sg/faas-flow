@@ -1,4 +1,4 @@
-package main
+package executor
 
 import (
 	"encoding/json"
@@ -29,10 +29,11 @@ func buildRequest(id string,
 	state string,
 	query string,
 	data []byte,
-	contextstate map[string]string) *Request {
+	contextstate map[string]string,
+	sign string) *Request {
 
 	request := &Request{
-		Sign:           SIGN,
+		Sign:           sign,
 		ID:             id,
 		ExecutionState: state,
 		Query:          query,

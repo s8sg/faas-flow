@@ -42,32 +42,13 @@ type NodeExporter struct {
 }
 
 type OperationExporter struct {
-	IsMod              bool   `json:"is-mod"`
-	IsFunction         bool   `json:"is-function"`
-	IsCallback         bool   `json:"is-callback"`
-	Name               string `json:"name"`
-	HasResponseHandler bool   `json:"has-response-handler"`
-	HasFailureHandler  bool   `json:"has-failure-handler"`
+	Name       string            `json:"name"`
+	Properties map[string]string `json:"properties"`
 }
 
-func exportOperation(exportOperation *OperationExporter, operation *Operation) {
-	if operation.Mod != nil {
-		exportOperation.IsMod = true
-	}
-	if operation.Function != "" {
-		exportOperation.IsFunction = true
-		exportOperation.Name = operation.Function
-	}
-	if operation.CallbackUrl != "" {
-		exportOperation.IsCallback = true
-		exportOperation.Name = operation.CallbackUrl[len(operation.CallbackUrl)-8:]
-	}
-	if operation.FailureHandler != nil {
-		exportOperation.HasFailureHandler = true
-	}
-	if operation.OnResphandler != nil {
-		exportOperation.HasResponseHandler = true
-	}
+func exportOperation(exportOperation *OperationExporter, operation Operation) {
+	exportOperation.Name = operation.GetId()
+	exportOperation.Properties = operation.GetProperties()
 }
 
 func exportNode(exportNode *NodeExporter, node *Node) {

@@ -61,7 +61,7 @@ type Node struct {
 	// Execution modes ([]operation / Dag)
 	subDag          *Dag            // Subdag
 	conditionalDags map[string]*Dag // Conditional subdags
-	operations      []*Operation    // The list of operations
+	operations      []Operation     // The list of operations
 
 	dynamic       bool                 // Denotes if the node is dynamic
 	aggregator    Aggregator           // The aggregator aggregates multiple inputs to a node into one
@@ -106,7 +106,7 @@ func (this *Dag) Append(dag *Dag) error {
 }
 
 // AddVertex create a vertex with id and operations
-func (this *Dag) AddVertex(id string, operations []*Operation) *Node {
+func (this *Dag) AddVertex(id string, operations []Operation) *Node {
 
 	node := &Node{Id: id, operations: operations, index: this.nodeIndex + 1}
 	node.forwarder = make(map[string]Forwarder, 0)
@@ -121,11 +121,11 @@ func (this *Dag) AddVertex(id string, operations []*Operation) *Node {
 func (this *Dag) AddEdge(from, to string) error {
 	fromNode := this.nodes[from]
 	if fromNode == nil {
-		fromNode = this.AddVertex(from, []*Operation{})
+		fromNode = this.AddVertex(from, []Operation{})
 	}
 	toNode := this.nodes[to]
 	if toNode == nil {
-		toNode = this.AddVertex(to, []*Operation{})
+		toNode = this.AddVertex(to, []Operation{})
 	}
 
 	// CHeck if duplicate (TODO: Check if one way check is enough)
@@ -295,8 +295,8 @@ func (this *Dag) Validate() error {
 	// If there is multiple ends add a virtual end node to combine them
 	if len(endNodes) > 1 {
 		endNodeId := fmt.Sprintf("end_%s", this.Id)
-		modifier := CreateModifier(BLANK_MODIFIER)
-		endNode := this.AddVertex(endNodeId, []*Operation{modifier})
+		blank := &BlankOperation{}
+		endNode := this.AddVertex(endNodeId, []Operation{blank})
 		for _, b := range endNodes {
 			// Create a edge
 			this.AddEdge(b.Id, endNodeId)
@@ -362,7 +362,7 @@ func (this *Node) Dependency() []*Node {
 }
 
 // Value provides the ordered list of functions for a node
-func (this *Node) Operations() []*Operation {
+func (this *Node) Operations() []Operation {
 	return this.operations
 }
 
@@ -397,7 +397,7 @@ func (this *Node) ParentDag() *Dag {
 }
 
 // AddOperation adds an operation
-func (this *Node) AddOperation(operation *Operation) {
+func (this *Node) AddOperation(operation Operation) {
 	this.operations = append(this.operations, operation)
 }
 
