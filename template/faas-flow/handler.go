@@ -31,6 +31,7 @@ type openFaasEventHandler struct {
 	currentNodeId string        // used to inject current node id in tracer
 	tracer        *traceHandler // handle traces with opentracing
 	flowName      string
+	header        http.Header
 }
 
 // implements faasflow.Logger
@@ -38,11 +39,12 @@ type openFaasLogger struct{}
 
 // implements faasflow.Executor + RequestHandler
 type openFaasExecutor struct {
-	gateway  string
-	asyncUrl string // the async URL of the flow
-	flowName string // the name of the function
-	reqId    string // the request id
-	httpreq  *http.Request
+	gateway      string
+	asyncUrl     string // the async URL of the flow
+	flowName     string // the name of the function
+	reqId        string // the request id
+	partialState []byte
+	rawRequest   *executor.RawRequest
 
 	openFaasEventHandler
 	openFaasLogger
@@ -71,11 +73,12 @@ func (eh *openFaasEventHandler) Init() error {
 }
 
 func (eh *openFaasEventHandler) ReportRequestStart(requestId string) {
-
+	eh.tracer.startReqSpan(requestId)
 }
 
 func (eh *openFaasEventHandler) ReportRequestFailure(requestId string, err error) {
-
+	// TODO: add log
+	eh.tracer.stopReqSpan()
 }
 
 func (eh *openFaasEventHandler) ReportExecutionForward(currentNodeId string, requestId string) {
@@ -83,6 +86,7 @@ func (eh *openFaasEventHandler) ReportExecutionForward(currentNodeId string, req
 }
 
 func (eh *openFaasEventHandler) ReportExecutionContinuation(requestId string) {
+	eh.tracer.continueReqSpan(requestId, eh.header)
 }
 
 func (eh *openFaasEventHandler) ReportRequestEnd(requestId string) {
@@ -93,18 +97,20 @@ func (eh *openFaasEventHandler) ReportNodeStart(nodeId string, requestId string)
 }
 
 func (eh *openFaasEventHandler) ReportNodeEnd(nodeId string, requestId string) {
-
+	eh.tracer.stopNodeSpan(nodeId)
 }
 
 func (eh *openFaasEventHandler) ReportNodeFailure(nodeId string, requestId string, err error) {
-
+	// TODO: add log
+	eh.tracer.stopNodeSpan(nodeId)
 }
 
 func (eh *openFaasEventHandler) ReportOperationStart(operationId string, nodeId string, requestId string) {
+	// TODO: add
 }
 
 func (eh *openFaasEventHandler) ReportOperationEnd(operationId string, nodeId string, requestId string) {
-
+	// TODO: add
 }
 
 func (eh *openFaasEventHandler) ReportOperationFailure(operationId string, nodeId string, requestId string, err error) {
@@ -177,15 +183,11 @@ func (of *openFaasExecutor) ExecuteOperation(operation sdk.Operation, data []byt
 // ExecutionRuntime
 
 func (of *openFaasExecutor) RetriveExecutionState() []byte {
-	// TODO:
-	// get the execution state
-	return nil
+	return of.partialState
 }
 
 func (of *openFaasExecutor) RetriveNewRequest() (request *executor.RawRequest, err error) {
-	// TODO:
-	// get the raw request object
-	return nil, nil
+	return of.rawRequest, nil
 }
 
 func (of *openFaasExecutor) ForwardExecutionState(state []byte) error {
@@ -227,7 +229,8 @@ func (of *openFaasExecutor) GetFlowName() string {
 
 func (of *openFaasExecutor) GetFlowDefinition(pipeline *sdk.Pipeline, context *sdk.Context) error {
 	workflow := faasflow.GetWorkflow(pipeline)
-	err := function.Define(workflow, context)
+	faasflowContext := (*faasflow.Context)(context)
+	err := function.Define(workflow, faasflowContext)
 	return err
 }
 
@@ -325,21 +328,38 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 	}
 
 	if isDagExportRequest(req) {
+		pipeline := &sdk.Pipeline{}
+		context := &sdk.Context{}
+		err := of.GetFlowDefinition(pipeline, context)
+		if err != nil {
+			panic(err)
+		}
+		err = pipeline.Dag.Validate()
+		if err != nil {
+			panic(err)
+		}
+		response.Body = []byte(pipeline.GetDagDefinition())
+
 		// TODO:
-		//result := of.handleDagExport(req)
-		//response.Body = []byte(result)
+		// flowExporter := exporter.CreateFlowExporter(of)
+		// response.Body, err := flowExporter.Export()
+		// if err != nil {
+		//	panic(err)
+		// }
+
 	} else {
 
 		var partial bool
 		reqId := req.Header.Get("X-Faas-Flow-Reqid")
 		if reqId == "" {
 			partial = false
-			// TODO
-			// Create a executor.RawRequest object
-			// set it on of
+			of.rawRequest = &executor.RawRequest{}
+			of.rawRequest.Data = req.Body
+			of.rawRequest.Query = req.QueryString
+			of.rawRequest.AuthSignature = req.Header.Get("X-Hub-Signature")
+			of.openFaasEventHandler.header = req.Header
 		} else {
-			// TODO
-			// set the partial data in the of
+			of.partialState = req.Body
 		}
 
 		// Create a flow executor, openFaasExecutor implements executor

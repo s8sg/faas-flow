@@ -5,6 +5,10 @@ import (
 	sdk "github.com/s8sg/faas-flow/sdk"
 )
 
+type Context sdk.Context
+type StateStore sdk.StateStore
+type DataStore sdk.DataStore
+
 // Options options for operation execution
 type Options struct {
 	// Operation options

@@ -80,7 +80,7 @@ type FlowExecutor struct {
 	isExecutionFlow bool // State if pipeline has execution only branches
 
 	id          string // the unique request id
-	query       string // the query string by user
+	query       string // the query to the flow
 	pipelineDef []byte // the pipeline definition
 	partial     bool   // denotes the flow is in partial execution state
 	finished    bool   // denots the flow has finished execution
