@@ -4,5 +4,5 @@ WORKDIR /go/src/github.com/s8sg/faas-flow
 COPY . .
 
 RUN (cd sdk && go build)
+RUN (cd sdk/executor && go build)
 RUN go build
-RUN (cd executor && go build)

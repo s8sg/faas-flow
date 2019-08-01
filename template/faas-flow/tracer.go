@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -63,15 +62,6 @@ func (c *CustomHeadersCarrier) Set(key, val string) {
 	c.envMap[key] = val
 }
 
-// isTracingEnabled check if tracing enabled for the function
-func isTracingEnabled() bool {
-	tracing := os.Getenv("enable_tracing")
-	if strings.ToUpper(tracing) == "TRUE" {
-		return true
-	}
-	return false
-}
-
 // getTraceServer get the traceserver address
 func getTraceServer() string {
 	traceServer := os.Getenv("trace_server")
@@ -84,10 +74,6 @@ func getTraceServer() string {
 // initRequestTracer init global trace with configuration
 func initRequestTracer(flowName string) (*traceHandler, error) {
 	tracerObj := &traceHandler{}
-
-	if !isTracingEnabled() {
-		return tracerObj, nil
-	}
 
 	agentPort := getTraceServer()
 
@@ -120,10 +106,6 @@ func initRequestTracer(flowName string) (*traceHandler, error) {
 
 // startReqSpan starts a request span
 func (tracerObj *traceHandler) startReqSpan(reqId string) {
-	if !isTracingEnabled() {
-		return
-	}
-
 	tracerObj.reqSpan = tracerObj.tracer.StartSpan(reqId)
 	tracerObj.reqSpan.SetTag("request", reqId)
 	tracerObj.reqSpanCtx = tracerObj.reqSpan.Context()
@@ -132,10 +114,6 @@ func (tracerObj *traceHandler) startReqSpan(reqId string) {
 // continueReqSpan continue request span
 func (tracerObj *traceHandler) continueReqSpan(reqId string, header http.Header) {
 	var err error
-
-	if !isTracingEnabled() {
-		return
-	}
 
 	tracerObj.reqSpanCtx, err = tracerObj.tracer.Extract(
 		opentracing.HTTPHeaders,
@@ -156,10 +134,6 @@ func (tracerObj *traceHandler) continueReqSpan(reqId string, header http.Header)
 // extendReqSpan extend req span over a request
 // func extendReqSpan(url string, req *http.Request) {
 func (tracerObj *traceHandler) extendReqSpan(reqId string, lastNode string, url string, req *http.Request) {
-	if !isTracingEnabled() {
-		return
-	}
-
 	// TODO: as requestSpan can't be regenerated with the span context we
 	//       forward the nodeSpan's SpanContext
 	// span := reqSpan
@@ -184,10 +158,6 @@ func (tracerObj *traceHandler) extendReqSpan(reqId string, lastNode string, url 
 
 // stopReqSpan terminate a request span
 func (tracerObj *traceHandler) stopReqSpan() {
-	if !isTracingEnabled() {
-		return
-	}
-
 	if tracerObj.reqSpan == nil {
 		return
 	}
@@ -197,10 +167,6 @@ func (tracerObj *traceHandler) stopReqSpan() {
 
 // startNodeSpan starts a node span
 func (tracerObj *traceHandler) startNodeSpan(node string, reqId string) {
-	if !isTracingEnabled() {
-		return
-	}
-
 	tracerObj.nodeSpans[node] = tracerObj.tracer.StartSpan(
 		node, ext.RPCServerOption(tracerObj.reqSpanCtx))
 
@@ -216,18 +182,10 @@ func (tracerObj *traceHandler) startNodeSpan(node string, reqId string) {
 
 // stopNodeSpan terminates a node span
 func (tracerObj *traceHandler) stopNodeSpan(node string) {
-	if !isTracingEnabled() {
-		return
-	}
-
 	tracerObj.nodeSpans[node].Finish()
 }
 
 // flushTracer flush all pending traces
 func (tracerObj *traceHandler) flushTracer() {
-	if !isTracingEnabled() {
-		return
-	}
-
 	tracerObj.closer.Close()
 }

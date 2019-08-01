@@ -21,8 +21,8 @@ type RespHandler func(*http.Response) ([]byte, error)
 // Reqhandler definition for RequestHdlr() option on operation
 type ReqHandler func(*http.Request)
 
-type faasOperation struct {
-	// faasOperations
+type FaasOperation struct {
+	// FaasOperations
 	Function    string   // The name of the function
 	CallbackUrl string   // Callback Url
 	Mod         Modifier // Modifier
@@ -37,8 +37,8 @@ type faasOperation struct {
 }
 
 // createFunction Create a function with execution name
-func createFunction(name string) *faasOperation {
-	operation := &faasOperation{}
+func createFunction(name string) *FaasOperation {
+	operation := &FaasOperation{}
 	operation.Function = name
 	operation.Header = make(map[string]string)
 	operation.Param = make(map[string][]string)
@@ -46,27 +46,27 @@ func createFunction(name string) *faasOperation {
 }
 
 // createModifier Create a modifier
-func createModifier(mod Modifier) *faasOperation {
-	operation := &faasOperation{}
+func createModifier(mod Modifier) *FaasOperation {
+	operation := &FaasOperation{}
 	operation.Mod = mod
 	return operation
 }
 
 // createCallback Create a callback
-func createCallback(url string) *faasOperation {
-	operation := &faasOperation{}
+func createCallback(url string) *FaasOperation {
+	operation := &FaasOperation{}
 	operation.CallbackUrl = url
 	operation.Header = make(map[string]string)
 	operation.Param = make(map[string][]string)
 	return operation
 }
 
-func (operation *faasOperation) addheader(key string, value string) {
+func (operation *FaasOperation) addheader(key string, value string) {
 	lKey := strings.ToLower(key)
 	operation.Header[lKey] = value
 }
 
-func (operation *faasOperation) addparam(key string, value string) {
+func (operation *FaasOperation) addparam(key string, value string) {
 	array, ok := operation.Param[key]
 	if !ok {
 		operation.Param[key] = make([]string, 1)
@@ -76,27 +76,27 @@ func (operation *faasOperation) addparam(key string, value string) {
 	}
 }
 
-func (operation *faasOperation) addFailureHandler(handler FuncErrorHandler) {
+func (operation *FaasOperation) addFailureHandler(handler FuncErrorHandler) {
 	operation.FailureHandler = handler
 }
 
-func (operation *faasOperation) addResponseHandler(handler RespHandler) {
+func (operation *FaasOperation) addResponseHandler(handler RespHandler) {
 	operation.OnResphandler = handler
 }
 
-func (operation *faasOperation) addRequestHandler(handler ReqHandler) {
+func (operation *FaasOperation) addRequestHandler(handler ReqHandler) {
 	operation.Requesthandler = handler
 }
 
-func (operation *faasOperation) getParams() map[string][]string {
+func (operation *FaasOperation) GetParams() map[string][]string {
 	return operation.Param
 }
 
-func (operation *faasOperation) getHeaders() map[string]string {
+func (operation *FaasOperation) GetHeaders() map[string]string {
 	return operation.Header
 }
 
-func (operation *faasOperation) GetId() string {
+func (operation *FaasOperation) GetId() string {
 	id := "modifier"
 	switch {
 	case operation.Function != "":
@@ -107,7 +107,7 @@ func (operation *faasOperation) GetId() string {
 	return id
 }
 
-func (operation *faasOperation) GetProperties() map[string]string {
+func (operation *FaasOperation) GetProperties() map[string]string {
 
 	result := make(map[string]string)
 

@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/url"
 	"strconv"
 
@@ -22,31 +21,48 @@ type RawRequest struct {
 
 // ExecutionHandler implements how an operation gets executed
 type ExecutionHandler interface {
-	Execute(sdk.Operation, []byte) ([]byte, error)
+	// ExecuteOperation implements execution of an operation
+	ExecuteOperation(sdk.Operation, []byte) ([]byte, error)
 }
 
 // ExecutionRuntime implements how new request is consumed
 // and intermidiate state is forwarded/consumed
 type ExecutionRuntime interface {
+	// RetriveNewRequest retrive a new request data if not a partial request
 	RetriveNewRequest() (request *RawRequest, err error)
+	// RetriveExecutionState retrive execution state for a partial request
 	RetriveExecutionState() (state []byte)
+	// ForwardExecutionState forwards an execution state for partial request
 	ForwardExecutionState(state []byte) (err error)
 }
 
 // Executor implements a faas-flow executor
 type Executor interface {
+	// Configure configure an executor withr equest id
+	Configure(requestId string)
+	// GetFlowName get nbame of the flow
 	GetFlowName() string
+	// GetFlowDefinition get definition of the faas-flow
 	GetFlowDefinition(*sdk.Pipeline, *sdk.Context) error
-
+	// ReqValidationEnabled check if request validation enabled
 	ReqValidationEnabled() bool
+	// GetValidationKey get request validation key
 	GetValidationKey() (string, error)
+	// ReqAuthEnabled check if request auth enabled
 	ReqAuthEnabled() bool
+	// GetReqAuthKey get the request auth key
 	GetReqAuthKey() (string, error)
-
+	// MonitoringEnabled check if request monitoring enabled
 	MonitoringEnabled() bool
+	// GetEventHandler get the event handler for request monitoring
 	GetEventHandler() (sdk.EventHandler, error)
-
+	// LoggingEnabled check if logging is enabled
+	LoggingEnabled() bool
+	// GetLogger get the logger
+	GetLogger() (sdk.Logger, error)
+	// GetStateStore get the state store
 	GetStateStore() (sdk.StateStore, error)
+	// GetDataStore get the datta store
 	GetDataStore() (sdk.DataStore, error)
 
 	ExecutionRuntime
@@ -70,6 +86,7 @@ type FlowExecutor struct {
 	finished    bool   // denots the flow has finished execution
 
 	eventHandler sdk.EventHandler // Handler flow events
+	logger       sdk.Logger       // Handle flow logs
 	stateStore   sdk.StateStore   // the state store
 	dataStore    sdk.DataStore    // the data store
 
@@ -82,6 +99,14 @@ const (
 	// max retry count to update counter
 	counterUpdateRetryCount = 10
 )
+
+// log logs using logger if logging enabled
+func (fexec *FlowExecutor) log(str string, a ...interface{}) {
+	if fexec.executor.LoggingEnabled() {
+		str := fmt.Sprintf(str, a...)
+		fexec.logger.Log(str)
+	}
+}
 
 // setRequestState set the request state
 func (fexec *FlowExecutor) setRequestState(state bool) error {
@@ -166,7 +191,7 @@ func (fexec *FlowExecutor) retriveCounter(counter string) (int, error) {
 func (fexec *FlowExecutor) isActive() bool {
 	state, err := fexec.getRequestState()
 	if err != nil {
-		log.Printf("[Request `%s`] Failed to obtain pipeline state\n", fexec.id)
+		fexec.log("[Request `%s`] Failed to obtain pipeline state\n", fexec.id)
 		return false
 	}
 
@@ -197,9 +222,9 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 			fexec.eventHandler.ReportOperationStart(operation.GetId(), currentNode.GetUniqueId(), fexec.id)
 		}
 		if result == nil {
-			result, err = fexec.executor.Execute(operation, request)
+			result, err = fexec.executor.ExecuteOperation(operation, request)
 		} else {
-			result, err = fexec.executor.Execute(operation, result)
+			result, err = fexec.executor.ExecuteOperation(operation, result)
 		}
 		if err != nil {
 			if fexec.executor.MonitoringEnabled() {
@@ -214,7 +239,7 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 		}
 	}
 
-	log.Printf("[Request `%s`] Completed execution of Node %s\n", fexec.id, currentNode.GetUniqueId())
+	fexec.log("[Request `%s`] Completed execution of Node %s\n", fexec.id, currentNode.GetUniqueId())
 
 	return result, nil
 }
@@ -223,7 +248,7 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 func (fexec *FlowExecutor) findCurrentNodeToExecute() {
 	currentNode, currentDag := fexec.getPipeline().GetCurrentNodeDag()
 
-	log.Printf("[Request `%s`] Executing node %s\n", fexec.id, currentNode.GetUniqueId())
+	fexec.log("[Request `%s`] Executing node %s\n", fexec.id, currentNode.GetUniqueId())
 
 	// recurse to the subdag - if a node is dynamic stop to evaluate it
 	for true {
@@ -239,7 +264,7 @@ func (fexec *FlowExecutor) findCurrentNodeToExecute() {
 		if fexec.executor.MonitoringEnabled() {
 			fexec.eventHandler.ReportNodeStart(currentNode.GetUniqueId(), fexec.id)
 		}
-		log.Printf("[Request `%s`] Executing node %s\n", fexec.id, currentNode.GetUniqueId())
+		fexec.log("[Request `%s`] Executing node %s\n", fexec.id, currentNode.GetUniqueId())
 		currentDag = subdag
 		currentNode = currentDag.GetInitialNode()
 		fexec.getPipeline().UpdatePipelineExecutionPosition(sdk.DEPTH_INCREMENT, currentNode.Id)
@@ -308,7 +333,7 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 		defer fexec.eventHandler.ReportNodeEnd(currentNodeUniqueId, fexec.id)
 	}
 
-	log.Printf("[Request `%s`] Processing dynamic node %s\n", fexec.id, currentNodeUniqueId)
+	fexec.log("[Request `%s`] Processing dynamic node %s\n", fexec.id, currentNodeUniqueId)
 
 	// subresults and subdags
 	subresults := make(map[string][]byte)
@@ -320,7 +345,7 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 
 	switch {
 	case condition != nil:
-		log.Printf("[Request `%s`] Executing condition\n", fexec.id)
+		fexec.log("[Request `%s`] Executing condition\n", fexec.id)
 		conditions := condition(result)
 		if conditions == nil {
 			panic(fmt.Sprintf("Condition function at %s returned nil, failed to proceed",
@@ -340,7 +365,7 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 			options = append(options, conditionKey)
 		}
 	case foreach != nil:
-		log.Printf("[Request `%s`] Executing foreach\n", fexec.id)
+		fexec.log("[Request `%s`] Executing foreach\n", fexec.id)
 		foreachResults := foreach(result)
 		if foreachResults == nil {
 			panic(fmt.Sprintf("Foreach function at %s returned nil, failed to proceed",
@@ -371,7 +396,7 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 			fexec.id, key, err)
 	}
 
-	log.Printf("[Request `%s`] Dynamic indegree count initiated as %s\n",
+	fexec.log("[Request `%s`] Dynamic indegree count initiated as %s\n",
 		fexec.id, key)
 
 	// Set all the dynamic options for the current dynamic node
@@ -382,7 +407,7 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 			fexec.id, currentNodeUniqueId)
 	}
 
-	log.Printf("[Request `%s`] Dynamic options initiated as %s\n",
+	fexec.log("[Request `%s`] Dynamic options initiated as %s\n",
 		fexec.id, key)
 
 	for option, subdag := range subdags {
@@ -399,7 +424,7 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 			if serr != nil {
 				return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
 			}
-			log.Printf("[Request `%s`] Intermidiate result for option %s from Node %s to %s stored as %s\n",
+			fexec.log("[Request `%s`] Intermidiate result for option %s from Node %s to %s stored as %s\n",
 				fexec.id, option, currentNodeUniqueId, subNode.GetUniqueId(), key)
 
 			// intermediateData is set to blank once its stored in storage
@@ -420,7 +445,7 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 				currentNode.GetUniqueId(), forwardErr)
 		}
 
-		log.Printf("[Request `%s`] Async request submitted for Node %s option %s\n",
+		fexec.log("[Request `%s`] Async request submitted for Node %s option %s\n",
 			fexec.id, subNode.GetUniqueId(), option)
 
 		// reset pipeline
@@ -438,7 +463,7 @@ func (fexec *FlowExecutor) findNextNodeToExecute() bool {
 
 	// Check if pipeline is active in statestore when executing dag with branches
 	if fexec.hasBranch && !fexec.isActive() {
-		log.Printf("[Request `%s`] Pipeline has been terminated\n", fexec.id)
+		fexec.log("[Request `%s`] Pipeline has been terminated\n", fexec.id)
 		panic(fmt.Sprintf("[Request `%s`] Pipeline has been terminated", fexec.id))
 	}
 
@@ -464,7 +489,7 @@ func (fexec *FlowExecutor) findNextNodeToExecute() bool {
 			currentNode = currentDag.GetParentNode()
 			currentDag = currentNode.ParentDag()
 			pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_DECREMENT, currentNode.Id)
-			log.Printf("[Request `%s`] Executing Node %s", fexec.id, currentNode.GetUniqueId())
+			fexec.log("[Request `%s`] Executing Node %s", fexec.id, currentNode.GetUniqueId())
 
 			// mark execution of the node for new depth
 			if fexec.executor.MonitoringEnabled() {
@@ -513,7 +538,7 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 				return nil, fmt.Errorf("failed to store branch result of dynamic node %s for option %s, error %v",
 					currentNode.GetUniqueId(), option, err)
 			}
-			log.Printf("[Request `%s`] Intermidiate result from Branch to Dynamic Node %s for option %s stored as %s\n",
+			fexec.log("[Request `%s`] Intermidiate result from Branch to Dynamic Node %s for option %s stored as %s\n",
 				fexec.id, currentNode.GetUniqueId(), option, key)
 		}
 		realIndegree, err := fexec.incrementCounter(branchkey, 1)
@@ -521,7 +546,7 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 			return []byte(""), fmt.Errorf("failed to update inDegree counter for node %s", currentNode.GetUniqueId())
 		}
 
-		log.Printf("[Request `%s`] Executing end of dynamic node %s, completed indegree: %d/%d\n",
+		fexec.log("[Request `%s`] Executing end of dynamic node %s, completed indegree: %d/%d\n",
 			fexec.id, currentNode.GetUniqueId(), realIndegree, len(options))
 
 		//not last branch return
@@ -529,7 +554,7 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 			return nil, nil
 		}
 	} else {
-		log.Printf("[Request `%s`] Executing end of dynamic node %s, branch count 1\n",
+		fexec.log("[Request `%s`] Executing end of dynamic node %s, branch count 1\n",
 			fexec.id, currentNode.GetUniqueId())
 	}
 	// get current execution option
@@ -556,7 +581,7 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 		}
 
 		idata := context.GetBytes(key)
-		log.Printf("[Request `%s`] Intermidiate result from Branch to Dynamic Node %s for option %s retrived from %s\n",
+		fexec.log("[Request `%s`] Intermidiate result from Branch to Dynamic Node %s for option %s retrived from %s\n",
 			fexec.id, currentNode.GetUniqueId(), option, key)
 		// delete intermidiate data after retrival
 		context.Del(key)
@@ -565,7 +590,7 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 	}
 
 	// Get SubAggregator and call
-	log.Printf("[Request `%s`] Executing aggregator of Dynamic Node %s\n",
+	fexec.log("[Request `%s`] Executing aggregator of Dynamic Node %s\n",
 		fexec.id, currentNode.GetUniqueId())
 	aggregator := currentNode.GetSubAggregator()
 	data, serr := aggregator(subDataMap)
@@ -608,7 +633,7 @@ func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) 
 			if serr != nil {
 				return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
 			}
-			log.Printf("[Request `%s`] Intermidiate result from Node %s to %s stored as %s\n",
+			fexec.log("[Request `%s`] Intermidiate result from Node %s to %s stored as %s\n",
 				fexec.id, currentNode.GetUniqueId(), node.GetUniqueId(), key)
 
 			// intermediateData is set to blank once its stored in storage
@@ -629,15 +654,15 @@ func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) 
 
 			// If all indegree has finished call that node
 			if inDegree > inDegreeUpdatedCount {
-				log.Printf("[Request `%s`] request for Node %s is delayed, completed indegree: %d/%d\n",
+				fexec.log("[Request `%s`] request for Node %s is delayed, completed indegree: %d/%d\n",
 					fexec.id, node.GetUniqueId(), inDegreeUpdatedCount, inDegree)
 				continue
 			} else {
-				log.Printf("[Request `%s`] performing request for Node %s, completed indegree: %d/%d\n",
+				fexec.log("[Request `%s`] performing request for Node %s, completed indegree: %d/%d\n",
 					fexec.id, node.GetUniqueId(), inDegreeUpdatedCount, inDegree)
 			}
 		} else {
-			log.Printf("[Request `%s`] performing request for Node %s, indegree count is 1\n",
+			fexec.log("[Request `%s`] performing request for Node %s, indegree count is 1\n",
 				fexec.id, node.GetUniqueId())
 		}
 		// Set the DagExecutionPosition as of next Node
@@ -653,7 +678,7 @@ func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) 
 				node.GetUniqueId(), forwardErr)
 		}
 
-		log.Printf("[Request `%s`] Async request submitted for Node %s\n",
+		fexec.log("[Request `%s`] Async request submitted for Node %s\n",
 			fexec.id, node.GetUniqueId())
 
 	}
@@ -671,7 +696,7 @@ func (fexec *FlowExecutor) handleFailure(context *sdk.Context, err error) {
 	context.State = sdk.StateFailure
 	// call failure handler if available
 	if fexec.getPipeline().FailureHandler != nil {
-		log.Printf("[Request `%s`] Calling failure handler for error, %v\n",
+		fexec.log("[Request `%s`] Calling failure handler for error, %v\n",
 			fexec.id, err)
 		data, err = fexec.getPipeline().FailureHandler(err)
 	}
@@ -680,12 +705,12 @@ func (fexec *FlowExecutor) handleFailure(context *sdk.Context, err error) {
 
 	// call finally handler if available
 	if fexec.getPipeline().Finally != nil {
-		log.Printf("[Request `%s`] Calling Finally handler with state: %s\n",
+		fexec.log("[Request `%s`] Calling Finally handler with state: %s\n",
 			fexec.id, sdk.StateFailure)
 		fexec.getPipeline().Finally(sdk.StateFailure)
 	}
 	if data != nil {
-		log.Printf("%s", string(data))
+		fexec.log("%s", string(data))
 	}
 
 	// Cleanup data and state for failure
@@ -728,7 +753,7 @@ func (fexec *FlowExecutor) getDagIntermediateData(context *sdk.Context) ([]byte,
 			// Option not get appended in key as its already in state
 			key := fmt.Sprintf("%s--%s", pipeline.GetNodeExecutionUniqueId(dagNode), currentNode.GetUniqueId())
 			data = context.GetBytes(key)
-			fmt.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s for option %s retrived from %s\n",
+			fexec.log("[Request `%s`] Intermidiate result from Node %s to Node %s for option %s retrived from %s\n",
 				fexec.id, dagNode.GetUniqueId(), currentNode.GetUniqueId(),
 				option, key)
 			// delete intermidiate data after retrival
@@ -748,7 +773,7 @@ func (fexec *FlowExecutor) getDagIntermediateData(context *sdk.Context) ([]byte,
 
 			key := fmt.Sprintf("%s--%s", pipeline.GetNodeExecutionUniqueId(node), currentNode.GetUniqueId())
 			idata := context.GetBytes(key)
-			fmt.Printf("[Request `%s`] Intermidiate result from Node %s to Node %s retrived from %s\n",
+			fexec.log("[Request `%s`] Intermidiate result from Node %s to Node %s retrived from %s\n",
 				fexec.id, node.GetUniqueId(), currentNode.GetUniqueId(), key)
 			// delete intermidiate data after retrival
 			context.Del(key)
@@ -836,21 +861,10 @@ func (fexec *FlowExecutor) createContext() *sdk.Context {
 // init initialize the executor object and context
 func (fexec *FlowExecutor) init() ([]byte, error) {
 	requestId := ""
-	var err error
 	var requestData []byte
 
-	var request *Request
-
-	encodedState := fexec.executor.RetriveExecutionState()
-	if encodedState != nil && len(encodedState) > 0 {
-		request, err = decodeRequest(encodedState)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to parse ExecutionState, error %v", err)
-		}
-	}
-
-	switch {
-	case request == nil: // new request
+	switch fexec.partial {
+	case false: // new request
 		rawRequest, err := fexec.executor.RetriveNewRequest()
 		if err != nil {
 			return nil, fmt.Errorf("Failed to retrive raw request, error %v", err)
@@ -866,14 +880,15 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 				return nil, fmt.Errorf("failed to authenticate request, error %v", err)
 			}
 		}
-		requestId = xid.New().String()
-		fmt.Printf("[Request `%s`] Created\n", requestId)
 
+		requestId = xid.New().String()
+		fexec.executor.Configure(requestId)
+
+		fexec.flowName = fexec.executor.GetFlowName()
 		fexec.flow = sdk.CreatePipeline()
 		fexec.id = requestId
 		fexec.query = rawRequest.Query
 		fexec.dataStore = createDataStore()
-		fexec.partial = false
 
 		requestData = rawRequest.Data
 
@@ -886,9 +901,23 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 			fexec.eventHandler.ReportRequestStart(fexec.id)
 		}
 
-	default: // partial request
-		requestId = request.getID()
-		fmt.Printf("[Request `%s`] Received\n", requestId)
+		if fexec.executor.LoggingEnabled() {
+			fexec.logger, err = fexec.executor.GetLogger()
+			fexec.logger.Configure(requestId, fexec.flowName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to initiate logger, error %v", err)
+			}
+		}
+
+		fexec.log("[Request `%s`] Created\n", requestId)
+
+	case true: // partial request
+
+		encodedState := fexec.executor.RetriveExecutionState()
+		request, err := decodeRequest(encodedState)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to parse ExecutionState, error %v", err)
+		}
 
 		if fexec.executor.ReqValidationEnabled() {
 			key, err := fexec.executor.GetValidationKey()
@@ -901,12 +930,15 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 			}
 		}
 
+		requestId = request.getID()
+		fexec.executor.Configure(requestId)
+
+		fexec.flowName = fexec.executor.GetFlowName()
 		fexec.flow = sdk.CreatePipeline()
 		fexec.getPipeline().ApplyState(request.getExecutionState())
 		fexec.id = requestId
 		fexec.query = request.Query
 		fexec.dataStore = retriveDataStore(request.getContextStore())
-		fexec.partial = true
 
 		requestData = request.getData()
 
@@ -923,6 +955,16 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 			fexec.eventHandler.ReportRequestStart(fexec.id)
 		}
 
+		if fexec.executor.LoggingEnabled() {
+			fexec.logger, err = fexec.executor.GetLogger()
+			fexec.logger.Configure(requestId, fexec.flowName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to initiate logger, error %v", err)
+			}
+		}
+
+		fexec.log("[Request `%s`] Received\n", requestId)
+
 	}
 
 	fexec.flowName = fexec.executor.GetFlowName()
@@ -936,9 +978,11 @@ func (fexec *FlowExecutor) GetReqId() string {
 }
 
 // Execute start faasflow execution
-func (fexec *FlowExecutor) Execute() ([]byte, error) {
+func (fexec *FlowExecutor) Execute(partial bool) ([]byte, error) {
 	var resp []byte
 	var gerr error
+
+	fexec.partial = partial
 
 	data, err := fexec.init()
 	if err != nil {
@@ -996,7 +1040,7 @@ func (fexec *FlowExecutor) Execute() ([]byte, error) {
 			if serr != nil {
 				return nil, fmt.Errorf("[Request `%s`] Failed to mark dag state, error %v", fexec.id, serr)
 			}
-			fmt.Printf("[Request `%s`] DAG state initiated at StateStore\n", fexec.id)
+			fexec.log("[Request `%s`] DAG state initiated at StateStore\n", fexec.id)
 		}
 
 		// set the execution position to initial node
@@ -1079,10 +1123,10 @@ func (fexec *FlowExecutor) Execute() ([]byte, error) {
 	}
 
 	if fexec.finished {
-		fmt.Printf("[Request `%s`] Completed successfully\n", fexec.id)
+		fexec.log("[Request `%s`] Completed successfully\n", fexec.id)
 		context.State = sdk.StateSuccess
 		if fexec.getPipeline().Finally != nil {
-			fmt.Printf("[Request `%s`] Calling Finally handler with state: %s\n",
+			fexec.log("[Request `%s`] Calling Finally handler with state: %s\n",
 				fexec.id, sdk.StateSuccess)
 			fexec.getPipeline().Finally(sdk.StateSuccess)
 		}

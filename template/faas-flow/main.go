@@ -61,28 +61,28 @@ func makeRequestHandler() func(http.ResponseWriter, *http.Request) {
 			Host:        r.Host,
 		}
 
-		result := &HttpResponse{}
-		result.Header = make(map[string][]string)
+		response := &HttpResponse{}
+		response.Header = make(map[string][]string)
 
-		faasflow := &Faasflow{}
-		resultErr := faasflow.Handle(req, result)
+		openfaasExecutor := &openFaasExecutor{}
+		responseErr := openfaasExecutor.Handle(req, response)
 
-		for k, v := range result.Header {
+		for k, v := range response.Header {
 			w.Header()[k] = v
 		}
 
-		if resultErr != nil {
-			fmt.Printf("[ Failed ] %v\n", resultErr)
+		if responseErr != nil {
+			fmt.Printf("[ Failed ] %v\n", responseErr)
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
-			if result.StatusCode == 0 {
+			if response.StatusCode == 0 {
 				w.WriteHeader(http.StatusOK)
 			} else {
-				w.WriteHeader(result.StatusCode)
+				w.WriteHeader(response.StatusCode)
 			}
 		}
 
-		w.Write(result.Body)
+		w.Write(response.Body)
 	}
 }
 
