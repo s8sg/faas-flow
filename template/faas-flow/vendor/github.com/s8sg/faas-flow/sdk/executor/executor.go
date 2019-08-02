@@ -38,7 +38,7 @@ type ExecutionRuntime interface {
 
 // Executor implements a faas-flow executor
 type Executor interface {
-	// Configure configure an executor withr equest id
+	// Configure configure an executor with request id
 	Configure(requestId string)
 	// GetFlowName get nbame of the flow
 	GetFlowName() string
@@ -198,17 +198,12 @@ func (fexec *FlowExecutor) isActive() bool {
 	return state
 }
 
-// getPipeline returns the underline flow.pipeline object
-func (fexec *FlowExecutor) getPipeline() *sdk.Pipeline {
-	return fexec.flow
-}
-
 // executeNode  executes a node on a faas-flow dag
 func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 	var result []byte
 	var err error
 
-	pipeline := fexec.getPipeline()
+	pipeline := fexec.flow
 
 	currentNode, _ := pipeline.GetCurrentNodeDag()
 
@@ -246,7 +241,7 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 
 // findCurrentNodeToExecute find right node to execute based on state
 func (fexec *FlowExecutor) findCurrentNodeToExecute() {
-	currentNode, currentDag := fexec.getPipeline().GetCurrentNodeDag()
+	currentNode, currentDag := fexec.flow.GetCurrentNodeDag()
 
 	fexec.log("[Request `%s`] Executing node %s\n", fexec.id, currentNode.GetUniqueId())
 
@@ -267,7 +262,7 @@ func (fexec *FlowExecutor) findCurrentNodeToExecute() {
 		fexec.log("[Request `%s`] Executing node %s\n", fexec.id, currentNode.GetUniqueId())
 		currentDag = subdag
 		currentNode = currentDag.GetInitialNode()
-		fexec.getPipeline().UpdatePipelineExecutionPosition(sdk.DEPTH_INCREMENT, currentNode.Id)
+		fexec.flow.UpdatePipelineExecutionPosition(sdk.DEPTH_INCREMENT, currentNode.Id)
 	}
 }
 
@@ -277,7 +272,7 @@ func (fexec *FlowExecutor) forwardState(currentNodeId string, result []byte) err
 	store := make(map[string]string)
 
 	// get pipeline
-	pipeline := fexec.getPipeline()
+	pipeline := fexec.flow
 
 	// Get pipeline state
 	pipelineState := pipeline.GetState()
@@ -294,7 +289,7 @@ func (fexec *FlowExecutor) forwardState(currentNodeId string, result []byte) err
 			return fmt.Errorf("failed to get key, error %v", err)
 		}
 		hash := hmac.Sign([]byte(pipelineState), []byte(key))
-		sign = hex.EncodeToString(hash)
+		sign = "sha1=" + hex.EncodeToString(hash)
 	}
 
 	// Build request
@@ -318,7 +313,7 @@ func (fexec *FlowExecutor) forwardState(currentNodeId string, result []byte) err
 // executeDynamic executes a dynamic node
 func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) ([]byte, error) {
 	// get pipeline
-	pipeline := fexec.getPipeline()
+	pipeline := fexec.flow
 
 	currentNode, _ := pipeline.GetCurrentNodeDag()
 
@@ -459,7 +454,7 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 // findNextNodeToExecute find the next node(s) to execute after the current node
 func (fexec *FlowExecutor) findNextNodeToExecute() bool {
 	// get pipeline
-	pipeline := fexec.getPipeline()
+	pipeline := fexec.flow
 
 	// Check if pipeline is active in statestore when executing dag with branches
 	if fexec.hasBranch && !fexec.isActive() {
@@ -508,7 +503,7 @@ func (fexec *FlowExecutor) findNextNodeToExecute() bool {
 // handleDynamicEnd handles the end of a dynamic node
 func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte) ([]byte, error) {
 
-	pipeline := fexec.getPipeline()
+	pipeline := fexec.flow
 	currentNode, _ := pipeline.GetCurrentNodeDag()
 
 	// Get dynamic options computed for the current dynamic node
@@ -608,7 +603,7 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 // handleNextNodes Handle request Response for a faasflow perform response/asyncforward
 func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) ([]byte, error) {
 	// get pipeline
-	pipeline := fexec.getPipeline()
+	pipeline := fexec.flow
 
 	currentNode, _ := pipeline.GetCurrentNodeDag()
 	nextNodes := currentNode.Children()
@@ -695,19 +690,19 @@ func (fexec *FlowExecutor) handleFailure(context *sdk.Context, err error) {
 
 	context.State = sdk.StateFailure
 	// call failure handler if available
-	if fexec.getPipeline().FailureHandler != nil {
+	if fexec.flow.FailureHandler != nil {
 		fexec.log("[Request `%s`] Calling failure handler for error, %v\n",
 			fexec.id, err)
-		data, err = fexec.getPipeline().FailureHandler(err)
+		data, err = fexec.flow.FailureHandler(err)
 	}
 
 	fexec.finished = true
 
 	// call finally handler if available
-	if fexec.getPipeline().Finally != nil {
+	if fexec.flow.Finally != nil {
 		fexec.log("[Request `%s`] Calling Finally handler with state: %s\n",
 			fexec.id, sdk.StateFailure)
-		fexec.getPipeline().Finally(sdk.StateFailure)
+		fexec.flow.Finally(sdk.StateFailure)
 	}
 	if data != nil {
 		fexec.log("%s", string(data))
@@ -731,7 +726,7 @@ func (fexec *FlowExecutor) handleFailure(context *sdk.Context, err error) {
 func (fexec *FlowExecutor) getDagIntermediateData(context *sdk.Context) ([]byte, error) {
 	var data []byte
 
-	pipeline := fexec.getPipeline()
+	pipeline := fexec.flow
 	currentNode, dag := pipeline.GetCurrentNodeDag()
 	dataMap := make(map[string][]byte)
 
@@ -898,12 +893,20 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 				return nil, fmt.Errorf("failed to initialize EventHandler, error %v", err)
 			}
 			fexec.eventHandler.Configure(fexec.flowName, fexec.id)
+			err := fexec.eventHandler.Init()
+			if err != nil {
+				return nil, fmt.Errorf("failed to initialize EventHandler, error %v", err)
+			}
 			fexec.eventHandler.ReportRequestStart(fexec.id)
 		}
 
 		if fexec.executor.LoggingEnabled() {
 			fexec.logger, err = fexec.executor.GetLogger()
+			if err != nil {
+				return nil, fmt.Errorf("failed to initiate logger, error %v", err)
+			}
 			fexec.logger.Configure(requestId, fexec.flowName)
+			err = fexec.logger.Init()
 			if err != nil {
 				return nil, fmt.Errorf("failed to initiate logger, error %v", err)
 			}
@@ -935,7 +938,7 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 
 		fexec.flowName = fexec.executor.GetFlowName()
 		fexec.flow = sdk.CreatePipeline()
-		fexec.getPipeline().ApplyState(request.getExecutionState())
+		fexec.flow.ApplyState(request.getExecutionState())
 		fexec.id = requestId
 		fexec.query = request.Query
 		fexec.dataStore = retriveDataStore(request.getContextStore())
@@ -957,7 +960,11 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 
 		if fexec.executor.LoggingEnabled() {
 			fexec.logger, err = fexec.executor.GetLogger()
+			if err != nil {
+				return nil, fmt.Errorf("failed to initiate logger, error %v", err)
+			}
 			fexec.logger.Configure(requestId, fexec.flowName)
+			err = fexec.logger.Init()
 			if err != nil {
 				return nil, fmt.Errorf("failed to initiate logger, error %v", err)
 			}
@@ -982,36 +989,39 @@ func (fexec *FlowExecutor) Execute(partial bool) ([]byte, error) {
 	var resp []byte
 	var gerr error
 
+	// Init Flow: Create flow object
 	fexec.partial = partial
-
 	data, err := fexec.init()
 	if err != nil {
 		return nil, err
 	}
 
-	// INIT STORE: Get definition of StateStore and DataStore from user
+	// Init Stores: Get definition of StateStore and DataStore from user
 	stateSDefined, dataSOverride, err := fexec.initializeStore()
 	if err != nil {
 		return nil, fmt.Errorf("[Request `%s`] Failed to init flow, %v", fexec.id, err)
 	}
 
-	// MAKE CONTEXT: make the request context from flow
+	// Make Context: make the request context from flow
 	context := fexec.createContext()
 
-	// DEFINE: Get Pipeline definition from user implemented Define()
+	// Get Definition: Get Pipeline definition from user implemented Define()
 	err = fexec.executor.GetFlowDefinition(fexec.flow, context)
 	if err != nil {
 		return nil, fmt.Errorf("[Request `%s`] Failed to define flow, %v", fexec.id, err)
 	}
 
-	// VALIDATE: Validate Pipeline Definition
-	err = fexec.getPipeline().Dag.Validate()
+	// Validate Definition: Validate Pipeline Definition
+	err = fexec.flow.Dag.Validate()
 	if err != nil {
 		return nil, fmt.Errorf("[Request `%s`] Invalid dag, %v", fexec.id, err)
 	}
-	fexec.hasBranch = fexec.getPipeline().Dag.HasBranch()
-	fexec.hasEdge = fexec.getPipeline().Dag.HasEdge()
-	fexec.isExecutionFlow = fexec.getPipeline().Dag.IsExecutionFlow()
+
+	// Check Configuration: Check if executor is properly configured to execute flow
+
+	fexec.hasBranch = fexec.flow.Dag.HasBranch()
+	fexec.hasEdge = fexec.flow.Dag.HasEdge()
+	fexec.isExecutionFlow = fexec.flow.Dag.IsExecutionFlow()
 
 	// For dag one of the branch can cause the pipeline to terminate
 	// hence we Check if the pipeline is active
@@ -1031,6 +1041,8 @@ func (fexec *FlowExecutor) Execute(partial bool) ([]byte, error) {
 		return nil, fmt.Errorf("[Request `%s`] Failed not an execution flow, DAG data flow need external DataStore", fexec.id)
 	}
 
+	// Execute: Start execution
+
 	// If not a partial request
 	if !fexec.partial {
 
@@ -1045,17 +1057,18 @@ func (fexec *FlowExecutor) Execute(partial bool) ([]byte, error) {
 
 		// set the execution position to initial node
 		// On the 0th depth set the initial node as the current execution position
-		fexec.getPipeline().UpdatePipelineExecutionPosition(sdk.DEPTH_SAME,
-			fexec.getPipeline().GetInitialNodeId())
+		fexec.flow.UpdatePipelineExecutionPosition(sdk.DEPTH_SAME,
+			fexec.flow.GetInitialNodeId())
 	}
 
 	// if not an execution only dag, for partial request get intermediate data
-	if fexec.partial && !fexec.getPipeline().Dag.IsExecutionFlow() {
+	if fexec.partial && !fexec.flow.Dag.IsExecutionFlow() {
 
 		// Get intermediate data from data store
 		data, gerr = fexec.getDagIntermediateData(context)
 		if gerr != nil {
 			gerr := fmt.Errorf("failed to retrive intermediate result, error %v", gerr)
+			fexec.log("[Request `%s`] Failed: %v\n", fexec.id, gerr)
 			fexec.handleFailure(context, gerr)
 			return nil, gerr
 		}
@@ -1063,7 +1076,7 @@ func (fexec *FlowExecutor) Execute(partial bool) ([]byte, error) {
 
 	// Find the right node to execute now
 	fexec.findCurrentNodeToExecute()
-	currentNode, _ := fexec.getPipeline().GetCurrentNodeDag()
+	currentNode, _ := fexec.flow.GetCurrentNodeDag()
 	result := []byte{}
 
 	switch {
@@ -1071,6 +1084,7 @@ func (fexec *FlowExecutor) Execute(partial bool) ([]byte, error) {
 	case currentNode.Dynamic():
 		result, err = fexec.executeDynamic(context, data)
 		if err != nil {
+			fexec.log("[Request `%s`] Failed: %v\n", fexec.id, err)
 			fexec.handleFailure(context, err)
 			return nil, err
 		}
@@ -1078,6 +1092,7 @@ func (fexec *FlowExecutor) Execute(partial bool) ([]byte, error) {
 	default:
 		result, err = fexec.executeNode(data)
 		if err != nil {
+			fexec.log("[Request `%s`] Failed: %v\n", fexec.id, err)
 			fexec.handleFailure(context, err)
 			return nil, err
 		}
@@ -1087,13 +1102,15 @@ func (fexec *FlowExecutor) Execute(partial bool) ([]byte, error) {
 
 	NodeCompletionLoop:
 		for !fexec.finished {
-			currentNode, _ := fexec.getPipeline().GetCurrentNodeDag()
+			currentNode, _ := fexec.flow.GetCurrentNodeDag()
 			switch {
 			// Execute a end of dynamic node
 			case currentNode.Dynamic():
 				result, err = fexec.handleDynamicEnd(context, result)
 				if err != nil {
+					fexec.log("[Request `%s`] Failed: %v\n", fexec.id, err)
 					fexec.handleFailure(context, err)
+					return nil, err
 				}
 				// in case dynamic end can not be executed
 				if result == nil {
@@ -1115,20 +1132,23 @@ func (fexec *FlowExecutor) Execute(partial bool) ([]byte, error) {
 				// handle the execution iteration and update state
 				result, err = fexec.handleNextNodes(context, result)
 				if err != nil {
+					fexec.log("[Request `%s`] Failed: %v\n", fexec.id, err)
 					fexec.handleFailure(context, err)
+					return nil, err
 				}
 				break NodeCompletionLoop
 			}
 		}
 	}
 
+	// Check if execution finished
 	if fexec.finished {
 		fexec.log("[Request `%s`] Completed successfully\n", fexec.id)
 		context.State = sdk.StateSuccess
-		if fexec.getPipeline().Finally != nil {
+		if fexec.flow.Finally != nil {
 			fexec.log("[Request `%s`] Calling Finally handler with state: %s\n",
 				fexec.id, sdk.StateSuccess)
-			fexec.getPipeline().Finally(sdk.StateSuccess)
+			fexec.flow.Finally(sdk.StateSuccess)
 		}
 
 		// Cleanup data and state for failure
@@ -1146,6 +1166,34 @@ func (fexec *FlowExecutor) Execute(partial bool) ([]byte, error) {
 	}
 
 	return resp, nil
+}
+
+// Export retrive faasflow definition
+func (fexec *FlowExecutor) Export() ([]byte, error) {
+
+	// Init flow
+	fexec.flow = sdk.CreatePipeline()
+
+	fexec.id = "export"
+	fexec.flowName = fexec.executor.GetFlowName()
+	fexec.dataStore = createDataStore()
+	fexec.query = ""
+
+	context := fexec.createContext()
+
+	// Get definition: Get Pipeline definition from user implemented Define()
+	err := fexec.executor.GetFlowDefinition(fexec.flow, context)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to define flow, %v", err)
+	}
+
+	// Validate definition: Validate Pipeline Definition
+	err = fexec.flow.Dag.Validate()
+	if err != nil {
+		return nil, fmt.Errorf("Invalid dag, %v", err)
+	}
+
+	return []byte(fexec.flow.GetDagDefinition()), nil
 }
 
 // CreateFlowExecutor initiate a FlowExecutor with a provided Executor

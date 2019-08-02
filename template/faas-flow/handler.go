@@ -52,6 +52,9 @@ type openFaasExecutor struct {
 
 // Logger
 func (logger *openFaasLogger) Configure(flowName string, requestId string) {}
+func (logger *openFaasLogger) Init() error {
+	return nil
+}
 func (logger *openFaasLogger) Log(str string) {
 	fmt.Print(str)
 }
@@ -106,11 +109,11 @@ func (eh *openFaasEventHandler) ReportNodeFailure(nodeId string, requestId strin
 }
 
 func (eh *openFaasEventHandler) ReportOperationStart(operationId string, nodeId string, requestId string) {
-	// TODO: add
+	// TODO: add feature
 }
 
 func (eh *openFaasEventHandler) ReportOperationEnd(operationId string, nodeId string, requestId string) {
-	// TODO: add
+	// TODO: add feature
 }
 
 func (eh *openFaasEventHandler) ReportOperationFailure(operationId string, nodeId string, requestId string, err error) {
@@ -302,21 +305,10 @@ func (of *openFaasExecutor) init(req *HttpRequest) error {
 	if of.flowName == "" {
 		return fmt.Errorf("failed to parse workflow name from host")
 	}
-	of.asyncUrl = buildURL(of.gateway, "async-function", of.flowName)
+	of.asyncUrl = buildURL("http://"+of.gateway, "async-function", of.flowName)
 
 	return nil
 }
-
-/*
-func (of *openFaasExecutor) handleDagExport(req *HttpRequest) string {
-
-	err := function.Define(fhandler.flow, context)
-	if err != nil {
-		panic(fmt.Sprintf("[Request `dag-export`] failed to export graph, error %v", err))
-	}
-
-	return fhandler.getPipeline().GetDagDefinition()
-}*/
 
 // RequestHandler
 
@@ -328,25 +320,12 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 	}
 
 	if isDagExportRequest(req) {
-		pipeline := &sdk.Pipeline{}
-		context := &sdk.Context{}
-		err := of.GetFlowDefinition(pipeline, context)
+		flowExporter := executor.CreateFlowExecutor(of)
+		resp, err := flowExporter.Export()
 		if err != nil {
 			panic(err)
 		}
-		err = pipeline.Dag.Validate()
-		if err != nil {
-			panic(err)
-		}
-		response.Body = []byte(pipeline.GetDagDefinition())
-
-		// TODO:
-		// flowExporter := exporter.CreateFlowExporter(of)
-		// response.Body, err := flowExporter.Export()
-		// if err != nil {
-		//	panic(err)
-		// }
-
+		response.Body = resp
 	} else {
 
 		var partial bool
@@ -359,6 +338,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 			of.rawRequest.AuthSignature = req.Header.Get("X-Hub-Signature")
 			of.openFaasEventHandler.header = req.Header
 		} else {
+			partial = true
 			of.partialState = req.Body
 		}
 
