@@ -5,4 +5,5 @@ COPY . .
 
 RUN (cd sdk && go build)
 RUN (cd sdk/executor && go build)
+RUN (cd sdk/exporter && go build)
 RUN go build

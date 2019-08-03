@@ -42,8 +42,8 @@ type NodeExporter struct {
 }
 
 type OperationExporter struct {
-	Name       string            `json:"name"`
-	Properties map[string]string `json:"properties"`
+	Name       string              `json:"name"`
+	Properties map[string][]string `json:"properties"`
 }
 
 func exportOperation(exportOperation *OperationExporter, operation Operation) {
@@ -129,8 +129,8 @@ func exportDag(exportDag *DagExporter, dag *Dag) {
 	}
 }
 
-// GetDagDefinition generate pipeline DAG defintion as a json
-func (pipeline *Pipeline) GetDagDefinition() string {
+// GetPipelineDefinition generate pipeline DAG defintion as a json
+func GetPipelineDefinition(pipeline *Pipeline) string {
 	root := &DagExporter{}
 
 	// Validate the dag

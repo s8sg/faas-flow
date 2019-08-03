@@ -19,21 +19,12 @@ type RawRequest struct {
 	Query         string
 }
 
-// ExecutionHandler implements how an operation gets executed
-type ExecutionHandler interface {
+// ExecutionRuntime implements how operation executed and handle next nodes in async
+type ExecutionRuntime interface {
+	// HandleNextNode handles execution of next nodes based on partial state
+	HandleNextNode(state []byte) (err error)
 	// ExecuteOperation implements execution of an operation
 	ExecuteOperation(sdk.Operation, []byte) ([]byte, error)
-}
-
-// ExecutionRuntime implements how new request is consumed
-// and intermidiate state is forwarded/consumed
-type ExecutionRuntime interface {
-	// RetriveNewRequest retrive a new request data if not a partial request
-	RetriveNewRequest() (request *RawRequest, err error)
-	// RetriveExecutionState retrive execution state for a partial request
-	RetriveExecutionState() (state []byte)
-	// ForwardExecutionState forwards an execution state for partial request
-	ForwardExecutionState(state []byte) (err error)
 }
 
 // Executor implements a faas-flow executor
@@ -66,31 +57,57 @@ type Executor interface {
 	GetDataStore() (sdk.DataStore, error)
 
 	ExecutionRuntime
-	ExecutionHandler
 }
 
 // FlowExecutor faasflow executor
 type FlowExecutor struct {
-	flow     *sdk.Pipeline // the faasflow
-	flowName string
+	flow *sdk.Pipeline // the faasflow
 
 	// the pipeline properties
 	hasBranch       bool // State if the pipeline dag has atleast one branch
 	hasEdge         bool // State if pipeline dag has atleast one edge
 	isExecutionFlow bool // State if pipeline has execution only branches
 
-	id          string // the unique request id
-	query       string // the query to the flow
-	pipelineDef []byte // the pipeline definition
-	partial     bool   // denotes the flow is in partial execution state
-	finished    bool   // denots the flow has finished execution
+	flowName string // the name of the flow
+	id       string // the unique request id
+	query    string // the query to the flow
 
 	eventHandler sdk.EventHandler // Handler flow events
 	logger       sdk.Logger       // Handle flow logs
 	stateStore   sdk.StateStore   // the state store
 	dataStore    sdk.DataStore    // the data store
 
+	partial      bool        // denotes the flow is in partial execution state
+	newRequest   *RawRequest // holds the new request
+	partialState []byte      // holds the partially complted state
+	finished     bool        // denots the flow has finished execution
+
 	executor Executor // executor
+}
+
+/*
+type ExecutionOption struct {
+}
+type ExecutionOption func(*ExecutionOptions)
+*/
+
+type ExecutionStateOptions struct {
+	newRequest   *RawRequest
+	partialState []byte
+}
+
+type ExecutionStateOption func(*ExecutionStateOptions)
+
+func NewRequest(request *RawRequest) ExecutionStateOption {
+	return func(o *ExecutionStateOptions) {
+		o.newRequest = request
+	}
+}
+
+func PartialRequestState(partialState []byte) ExecutionStateOption {
+	return func(o *ExecutionStateOptions) {
+		o.partialState = partialState
+	}
 }
 
 const (
@@ -302,7 +319,7 @@ func (fexec *FlowExecutor) forwardState(currentNodeId string, result []byte) err
 		fexec.eventHandler.ReportExecutionForward(currentNodeId, fexec.id)
 	}
 
-	err := fexec.executor.ForwardExecutionState(state)
+	err := fexec.executor.HandleNextNode(state)
 	if err != nil {
 		return err
 	}
@@ -857,13 +874,11 @@ func (fexec *FlowExecutor) createContext() *sdk.Context {
 func (fexec *FlowExecutor) init() ([]byte, error) {
 	requestId := ""
 	var requestData []byte
+	var err error
 
 	switch fexec.partial {
 	case false: // new request
-		rawRequest, err := fexec.executor.RetriveNewRequest()
-		if err != nil {
-			return nil, fmt.Errorf("Failed to retrive raw request, error %v", err)
-		}
+		rawRequest := fexec.newRequest
 		if fexec.executor.ReqAuthEnabled() {
 			signature := rawRequest.AuthSignature
 			key, err := fexec.executor.GetReqAuthKey()
@@ -916,7 +931,7 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 
 	case true: // partial request
 
-		encodedState := fexec.executor.RetriveExecutionState()
+		encodedState := fexec.partialState
 		request, err := decodeRequest(encodedState)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to parse ExecutionState, error %v", err)
@@ -979,18 +994,42 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 	return requestData, nil
 }
 
+// applyExecutionState apply an execution state
+func (fexec *FlowExecutor) applyExecutionState(state *ExecutionStateOptions) error {
+
+	switch {
+	case state.newRequest != nil:
+		fexec.partial = false
+		fexec.newRequest = state.newRequest
+
+	case state.partialState != nil:
+		fexec.partial = true
+		fexec.partialState = state.partialState
+	default:
+		return fmt.Errorf("invalid execution state")
+	}
+	return nil
+}
+
 // GetReqId get request id
 func (fexec *FlowExecutor) GetReqId() string {
 	return fexec.id
 }
 
 // Execute start faasflow execution
-func (fexec *FlowExecutor) Execute(partial bool) ([]byte, error) {
+func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 	var resp []byte
 	var gerr error
 
+	// Get State
+	executionState := &ExecutionStateOptions{}
+	state(executionState)
+	err := fexec.applyExecutionState(executionState)
+	if err != nil {
+		return nil, err
+	}
+
 	// Init Flow: Create flow object
-	fexec.partial = partial
 	data, err := fexec.init()
 	if err != nil {
 		return nil, err
@@ -1166,34 +1205,6 @@ func (fexec *FlowExecutor) Execute(partial bool) ([]byte, error) {
 	}
 
 	return resp, nil
-}
-
-// Export retrive faasflow definition
-func (fexec *FlowExecutor) Export() ([]byte, error) {
-
-	// Init flow
-	fexec.flow = sdk.CreatePipeline()
-
-	fexec.id = "export"
-	fexec.flowName = fexec.executor.GetFlowName()
-	fexec.dataStore = createDataStore()
-	fexec.query = ""
-
-	context := fexec.createContext()
-
-	// Get definition: Get Pipeline definition from user implemented Define()
-	err := fexec.executor.GetFlowDefinition(fexec.flow, context)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to define flow, %v", err)
-	}
-
-	// Validate definition: Validate Pipeline Definition
-	err = fexec.flow.Dag.Validate()
-	if err != nil {
-		return nil, fmt.Errorf("Invalid dag, %v", err)
-	}
-
-	return []byte(fexec.flow.GetDagDefinition()), nil
 }
 
 // CreateFlowExecutor initiate a FlowExecutor with a provided Executor

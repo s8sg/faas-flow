@@ -14,6 +14,7 @@ import (
 
 	sdk "github.com/s8sg/faas-flow/sdk"
 	executor "github.com/s8sg/faas-flow/sdk/executor"
+	exporter "github.com/s8sg/faas-flow/sdk/exporter"
 )
 
 const (
@@ -124,7 +125,7 @@ func (eh *openFaasEventHandler) Flush() {
 	eh.tracer.flushTracer()
 }
 
-// ExecutionHandler
+// ExecutionRuntime
 
 func (of *openFaasExecutor) ExecuteOperation(operation sdk.Operation, data []byte) ([]byte, error) {
 	var result []byte
@@ -183,17 +184,7 @@ func (of *openFaasExecutor) ExecuteOperation(operation sdk.Operation, data []byt
 	return result, nil
 }
 
-// ExecutionRuntime
-
-func (of *openFaasExecutor) RetriveExecutionState() []byte {
-	return of.partialState
-}
-
-func (of *openFaasExecutor) RetriveNewRequest() (request *executor.RawRequest, err error) {
-	return of.rawRequest, nil
-}
-
-func (of *openFaasExecutor) ForwardExecutionState(state []byte) error {
+func (of *openFaasExecutor) HandleNextNode(state []byte) error {
 
 	// build url for calling the flow in async
 	httpreq, _ := http.NewRequest(http.MethodPost, of.asyncUrl, bytes.NewReader(state))
@@ -320,7 +311,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 	}
 
 	if isDagExportRequest(req) {
-		flowExporter := executor.CreateFlowExecutor(of)
+		flowExporter := exporter.CreateFlowExporter(of)
 		resp, err := flowExporter.Export()
 		if err != nil {
 			panic(err)
@@ -328,23 +319,24 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 		response.Body = resp
 	} else {
 
-		var partial bool
+		var stateOption executor.ExecutionStateOption
+
 		reqId := req.Header.Get("X-Faas-Flow-Reqid")
 		if reqId == "" {
-			partial = false
-			of.rawRequest = &executor.RawRequest{}
-			of.rawRequest.Data = req.Body
-			of.rawRequest.Query = req.QueryString
-			of.rawRequest.AuthSignature = req.Header.Get("X-Hub-Signature")
+			rawRequest := &executor.RawRequest{}
+			rawRequest.Data = req.Body
+			rawRequest.Query = req.QueryString
+			rawRequest.AuthSignature = req.Header.Get("X-Hub-Signature")
 			of.openFaasEventHandler.header = req.Header
+
+			stateOption = executor.NewRequest(rawRequest)
 		} else {
-			partial = true
-			of.partialState = req.Body
+			stateOption = executor.PartialRequestState(req.Body)
 		}
 
 		// Create a flow executor, openFaasExecutor implements executor
 		flowExecutor := executor.CreateFlowExecutor(of)
-		resp, err := flowExecutor.Execute(partial)
+		resp, err := flowExecutor.Execute(stateOption)
 		if err != nil {
 			panic(err.Error())
 		}

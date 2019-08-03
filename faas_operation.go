@@ -107,31 +107,37 @@ func (operation *FaasOperation) GetId() string {
 	return id
 }
 
-func (operation *FaasOperation) GetProperties() map[string]string {
+func (operation *FaasOperation) GetProperties() map[string][]string {
 
-	result := make(map[string]string)
+	result := make(map[string][]string)
 
-	result["isMod"] = "false"
-	result["isFunction"] = "false"
-	result["isCallback"] = "false"
-	result["hasFailureHandler"] = "false"
-	result["hasResponseHandler"] = "false"
+	isMod := "false"
+	isFunction := "false"
+	isCallback := "false"
+	hasFailureHandler := "false"
+	hasResponseHandler := "false"
 
 	if operation.Mod != nil {
-		result["isMod"] = "true"
+		isMod = "true"
 	}
 	if operation.Function != "" {
-		result["isFunction"] = "true"
+		isFunction = "true"
 	}
 	if operation.CallbackUrl != "" {
-		result["isCallback"] = "true"
+		isCallback = "true"
 	}
 	if operation.FailureHandler != nil {
-		result["hasFailureHandler"] = "true"
+		hasFailureHandler = "true"
 	}
 	if operation.OnResphandler != nil {
-		result["hasResponseHandler"] = "true"
+		hasResponseHandler = "true"
 	}
+
+	result["isMod"] = []string{isMod}
+	result["isFunction"] = []string{isFunction}
+	result["isCallback"] = []string{isCallback}
+	result["hasFailureHandler"] = []string{hasFailureHandler}
+	result["hasResponseHandler"] = []string{hasResponseHandler}
 
 	return result
 }
