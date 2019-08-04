@@ -19,10 +19,28 @@ type RawRequest struct {
 	Query         string
 }
 
+// PartialState a partial request for the flow
+type PartialState struct {
+	uprequest *Request
+}
+
+func DecodePartialReq(encodedState []byte) (*PartialState, error) {
+	request, err := decodeRequest(encodedState)
+	if err != nil {
+		return nil, err
+	}
+	req := &PartialState{uprequest: request}
+	return req, err
+}
+
+func (req *PartialState) Encode() ([]byte, error) {
+	return req.uprequest.encode()
+}
+
 // ExecutionRuntime implements how operation executed and handle next nodes in async
 type ExecutionRuntime interface {
 	// HandleNextNode handles execution of next nodes based on partial state
-	HandleNextNode(state []byte) (err error)
+	HandleNextNode(*PartialState) (err error)
 	// ExecuteOperation implements execution of an operation
 	ExecuteOperation(sdk.Operation, []byte) ([]byte, error)
 }
@@ -77,10 +95,10 @@ type FlowExecutor struct {
 	stateStore   sdk.StateStore   // the state store
 	dataStore    sdk.DataStore    // the data store
 
-	partial      bool        // denotes the flow is in partial execution state
-	newRequest   *RawRequest // holds the new request
-	partialState []byte      // holds the partially complted state
-	finished     bool        // denots the flow has finished execution
+	partial      bool          // denotes the flow is in partial execution state
+	newRequest   *RawRequest   // holds the new request
+	partialState *PartialState // holds the partially complted state
+	finished     bool          // denots the flow has finished execution
 
 	executor Executor // executor
 }
@@ -93,7 +111,7 @@ type ExecutionOption func(*ExecutionOptions)
 
 type ExecutionStateOptions struct {
 	newRequest   *RawRequest
-	partialState []byte
+	partialState *PartialState
 }
 
 type ExecutionStateOption func(*ExecutionStateOptions)
@@ -104,7 +122,7 @@ func NewRequest(request *RawRequest) ExecutionStateOption {
 	}
 }
 
-func PartialRequest(partialState []byte) ExecutionStateOption {
+func PartialRequest(partialState *PartialState) ExecutionStateOption {
 	return func(o *ExecutionStateOptions) {
 		o.partialState = partialState
 	}
@@ -312,14 +330,13 @@ func (fexec *FlowExecutor) forwardState(currentNodeId string, result []byte) err
 	// Build request
 	uprequest := buildRequest(fexec.id, string(pipelineState), fexec.query, result, store, sign)
 
-	// Make request data
-	state, _ := uprequest.encode()
-
 	if fexec.executor.MonitoringEnabled() {
 		fexec.eventHandler.ReportExecutionForward(currentNodeId, fexec.id)
 	}
 
-	err := fexec.executor.HandleNextNode(state)
+	partialState := &PartialState{uprequest: uprequest}
+
+	err := fexec.executor.HandleNextNode(partialState)
 	if err != nil {
 		return err
 	}
@@ -931,11 +948,7 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 
 	case true: // partial request
 
-		encodedState := fexec.partialState
-		request, err := decodeRequest(encodedState)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to parse ExecutionState, error %v", err)
-		}
+		request := fexec.partialState.uprequest
 
 		if fexec.executor.ReqValidationEnabled() {
 			key, err := fexec.executor.GetValidationKey()
