@@ -1,8 +1,7 @@
-package main
+package executor
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
 // Request defines the body of async forward request to faasflow
@@ -20,19 +19,15 @@ type Request struct {
 	// (empty if external Store is used
 }
 
-const (
-	// A signature of SHA265 equivalent of "github.com/s8sg/faasflow"
-	SIGN = "D9D98C7EBAA7267BCC4F0280FC5BA4273F361B00D422074985A41AE1338F1B61"
-)
-
 func buildRequest(id string,
 	state string,
 	query string,
 	data []byte,
-	contextstate map[string]string) *Request {
+	contextstate map[string]string,
+	sign string) *Request {
 
 	request := &Request{
-		Sign:           SIGN,
+		Sign:           sign,
 		ID:             id,
 		ExecutionState: state,
 		Query:          query,
@@ -47,9 +42,6 @@ func decodeRequest(data []byte) (*Request, error) {
 	err := json.Unmarshal(data, request)
 	if err != nil {
 		return nil, err
-	}
-	if request.Sign != SIGN {
-		return nil, fmt.Errorf("the request signature doesn't match")
 	}
 	return request, nil
 }

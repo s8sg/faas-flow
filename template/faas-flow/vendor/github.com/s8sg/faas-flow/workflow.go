@@ -5,14 +5,18 @@ import (
 	sdk "github.com/s8sg/faas-flow/sdk"
 )
 
+type Context sdk.Context
+type StateStore sdk.StateStore
+type DataStore sdk.DataStore
+
 // Options options for operation execution
 type Options struct {
 	// Operation options
 	header          map[string]string
 	query           map[string][]string
-	failureHandler  sdk.FuncErrorHandler
-	requestHandler  sdk.ReqHandler
-	responseHandler sdk.RespHandler
+	failureHandler  FuncErrorHandler
+	requestHandler  ReqHandler
+	responseHandler RespHandler
 }
 
 // BranchOptions options for branching in DAG
@@ -101,30 +105,30 @@ func Query(key string, value ...string) Option {
 }
 
 // OnFailure Specify a function failure handler
-func OnFailure(handler sdk.FuncErrorHandler) Option {
+func OnFailure(handler FuncErrorHandler) Option {
 	return func(o *Options) {
 		o.failureHandler = handler
 	}
 }
 
 // RequestHandler Specify a request handler for function and callback request
-func RequestHandler(handler sdk.ReqHandler) Option {
+func RequestHandler(handler ReqHandler) Option {
 	return func(o *Options) {
 		o.requestHandler = handler
 	}
 }
 
 // OnResponse Specify a response handler for function and callback
-func OnReponse(handler sdk.RespHandler) Option {
+func OnReponse(handler RespHandler) Option {
 	return func(o *Options) {
 		o.responseHandler = handler
 	}
 }
 
 // GetWorkflow initiates a flow with a pipeline
-func GetWorkflow() *Workflow {
+func GetWorkflow(pipeline *sdk.Pipeline) *Workflow {
 	workflow := &Workflow{}
-	workflow.pipeline = sdk.CreatePipeline()
+	workflow.pipeline = pipeline
 	return workflow
 }
 
@@ -177,7 +181,7 @@ func (this *Dag) Append(dag *Dag) {
 func (this *Dag) Node(vertex string, options ...BranchOption) *Node {
 	node := this.udag.GetNode(vertex)
 	if node == nil {
-		node = this.udag.AddVertex(vertex, []*sdk.Operation{})
+		node = this.udag.AddVertex(vertex, []sdk.Operation{})
 	}
 	o := &BranchOptions{}
 	for _, opt := range options {
@@ -216,7 +220,7 @@ func (this *Dag) Edge(from, to string, opts ...BranchOption) {
 
 // SubDag composites a seperate dag as a node.
 func (this *Dag) SubDag(vertex string, dag *Dag) {
-	node := this.udag.AddVertex(vertex, []*sdk.Operation{})
+	node := this.udag.AddVertex(vertex, []sdk.Operation{})
 	err := node.AddSubDag(dag.udag)
 	if err != nil {
 		panic(fmt.Sprintf("Error at AddSubDag for %s, %v", vertex, err))
@@ -227,7 +231,7 @@ func (this *Dag) SubDag(vertex string, dag *Dag) {
 // ForEachBranch composites a subdag which executes for each value
 // It returns the subdag that will be executed for each value
 func (this *Dag) ForEachBranch(vertex string, foreach sdk.ForEach, options ...BranchOption) (dag *Dag) {
-	node := this.udag.AddVertex(vertex, []*sdk.Operation{})
+	node := this.udag.AddVertex(vertex, []sdk.Operation{})
 	if foreach == nil {
 		panic(fmt.Sprintf("Error at AddForEachBranch for %s, foreach function not specified", vertex))
 	}
@@ -258,7 +262,7 @@ func (this *Dag) ForEachBranch(vertex string, foreach sdk.ForEach, options ...Br
 func (this *Dag) ConditionalBranch(vertex string, conditions []string, condition sdk.Condition,
 	options ...BranchOption) (conditiondags map[string]*Dag) {
 
-	node := this.udag.AddVertex(vertex, []*sdk.Operation{})
+	node := this.udag.AddVertex(vertex, []sdk.Operation{})
 	if condition == nil {
 		panic(fmt.Sprintf("Error at AddConditionalBranch for %s, condition function not specified", vertex))
 	}
@@ -285,8 +289,8 @@ func (this *Dag) ConditionalBranch(vertex string, conditions []string, condition
 }
 
 // Modify adds a new modifier to the given vertex
-func (node *Node) Modify(mod sdk.Modifier) *Node {
-	newMod := sdk.CreateModifier(mod)
+func (node *Node) Modify(mod Modifier) *Node {
+	newMod := createModifier(mod)
 	node.unode.AddOperation(newMod)
 	return node
 }
@@ -294,7 +298,7 @@ func (node *Node) Modify(mod sdk.Modifier) *Node {
 // Apply adds a new function to the given vertex
 func (node *Node) Apply(function string, opts ...Option) *Node {
 
-	newfunc := sdk.CreateFunction(function)
+	newfunc := createFunction(function)
 
 	o := &Options{}
 	for _, opt := range opts {
@@ -302,24 +306,24 @@ func (node *Node) Apply(function string, opts ...Option) *Node {
 		opt(o)
 		if len(o.header) != 0 {
 			for key, value := range o.header {
-				newfunc.Addheader(key, value)
+				newfunc.addheader(key, value)
 			}
 		}
 		if len(o.query) != 0 {
 			for key, array := range o.query {
 				for _, value := range array {
-					newfunc.Addparam(key, value)
+					newfunc.addparam(key, value)
 				}
 			}
 		}
 		if o.failureHandler != nil {
-			newfunc.AddFailureHandler(o.failureHandler)
+			newfunc.addFailureHandler(o.failureHandler)
 		}
 		if o.responseHandler != nil {
-			newfunc.AddResponseHandler(o.responseHandler)
+			newfunc.addResponseHandler(o.responseHandler)
 		}
 		if o.requestHandler != nil {
-			newfunc.AddRequestHandler(o.requestHandler)
+			newfunc.addRequestHandler(o.requestHandler)
 		}
 	}
 
@@ -329,7 +333,7 @@ func (node *Node) Apply(function string, opts ...Option) *Node {
 
 // Callback adds a new callback to the given vertex
 func (node *Node) Callback(url string, opts ...Option) *Node {
-	newCallback := sdk.CreateCallback(url)
+	newCallback := createCallback(url)
 
 	o := &Options{}
 	for _, opt := range opts {
@@ -337,24 +341,24 @@ func (node *Node) Callback(url string, opts ...Option) *Node {
 		opt(o)
 		if len(o.header) != 0 {
 			for key, value := range o.header {
-				newCallback.Addheader(key, value)
+				newCallback.addheader(key, value)
 			}
 		}
 		if len(o.query) != 0 {
 			for key, array := range o.query {
 				for _, value := range array {
-					newCallback.Addparam(key, value)
+					newCallback.addparam(key, value)
 				}
 			}
 		}
 		if o.failureHandler != nil {
-			newCallback.AddFailureHandler(o.failureHandler)
+			newCallback.addFailureHandler(o.failureHandler)
 		}
 		if o.responseHandler != nil {
-			newCallback.AddResponseHandler(o.responseHandler)
+			newCallback.addResponseHandler(o.responseHandler)
 		}
 		if o.requestHandler != nil {
-			newCallback.AddRequestHandler(o.requestHandler)
+			newCallback.addRequestHandler(o.requestHandler)
 		}
 	}
 
@@ -369,7 +373,7 @@ func (flow *Workflow) SyncNode(options ...BranchOption) *Node {
 
 	node := dag.GetNode("sync")
 	if node == nil {
-		node = dag.AddVertex("sync", []*sdk.Operation{})
+		node = dag.AddVertex("sync", []sdk.Operation{})
 	}
 	o := &BranchOptions{}
 	for _, opt := range options {
