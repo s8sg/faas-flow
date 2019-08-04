@@ -94,6 +94,7 @@ func (eh *openFaasEventHandler) ReportExecutionContinuation(requestId string) {
 }
 
 func (eh *openFaasEventHandler) ReportRequestEnd(requestId string) {
+	eh.tracer.stopReqSpan()
 }
 
 func (eh *openFaasEventHandler) ReportNodeStart(nodeId string, requestId string) {
@@ -118,7 +119,7 @@ func (eh *openFaasEventHandler) ReportOperationEnd(operationId string, nodeId st
 }
 
 func (eh *openFaasEventHandler) ReportOperationFailure(operationId string, nodeId string, requestId string, err error) {
-
+	// TODO: add feature
 }
 
 func (eh *openFaasEventHandler) Flush() {
@@ -327,11 +328,10 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 			rawRequest.Data = req.Body
 			rawRequest.Query = req.QueryString
 			rawRequest.AuthSignature = req.Header.Get("X-Hub-Signature")
-			of.openFaasEventHandler.header = req.Header
-
 			stateOption = executor.NewRequest(rawRequest)
 		} else {
-			stateOption = executor.PartialRequestState(req.Body)
+			of.openFaasEventHandler.header = req.Header
+			stateOption = executor.PartialRequest(req.Body)
 		}
 
 		// Create a flow executor, openFaasExecutor implements executor

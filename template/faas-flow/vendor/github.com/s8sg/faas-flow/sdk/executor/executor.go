@@ -104,7 +104,7 @@ func NewRequest(request *RawRequest) ExecutionStateOption {
 	}
 }
 
-func PartialRequestState(partialState []byte) ExecutionStateOption {
+func PartialRequest(partialState []byte) ExecutionStateOption {
 	return func(o *ExecutionStateOptions) {
 		o.partialState = partialState
 	}
@@ -970,7 +970,7 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to initialize EventHandler, error %v", err)
 			}
-			fexec.eventHandler.ReportRequestStart(fexec.id)
+			fexec.eventHandler.ReportExecutionContinuation(fexec.id)
 		}
 
 		if fexec.executor.LoggingEnabled() {
