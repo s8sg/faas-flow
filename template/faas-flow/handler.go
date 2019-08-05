@@ -185,7 +185,12 @@ func (of *openFaasExecutor) ExecuteOperation(operation sdk.Operation, data []byt
 	return result, nil
 }
 
-func (of *openFaasExecutor) HandleNextNode(state []byte) error {
+func (of *openFaasExecutor) HandleNextNode(partial *executor.PartialState) error {
+
+	state, err := partial.Encode()
+	if err != nil {
+		return fmt.Errorf("failed to encode partial state, error %v", err)
+	}
 
 	// build url for calling the flow in async
 	httpreq, _ := http.NewRequest(http.MethodPost, of.asyncUrl, bytes.NewReader(state))
@@ -331,7 +336,11 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 			stateOption = executor.NewRequest(rawRequest)
 		} else {
 			of.openFaasEventHandler.header = req.Header
-			stateOption = executor.PartialRequest(req.Body)
+			partialState, err := executor.DecodePartialReq(req.Body)
+			if err != nil {
+				return fmt.Errorf("failed to decode partial state, err %v", err)
+			}
+			stateOption = executor.PartialRequest(partialState)
 		}
 
 		// Create a flow executor, openFaasExecutor implements executor
