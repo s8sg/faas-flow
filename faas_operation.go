@@ -102,7 +102,7 @@ func (operation *FaasOperation) GetId() string {
 	case operation.Function != "":
 		id = operation.Function
 	case operation.CallbackUrl != "":
-		id = "calback-" + operation.CallbackUrl[len(operation.CallbackUrl)-8:]
+		id = "callback-" + operation.CallbackUrl[len(operation.CallbackUrl)-12:]
 	}
 	return id
 }
