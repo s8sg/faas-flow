@@ -141,3 +141,83 @@ func (operation *FaasOperation) GetProperties() map[string][]string {
 
 	return result
 }
+
+// Faasflow faas operations
+
+// Modify adds a new modifier to the given vertex
+func (node *Node) Modify(mod Modifier) *Node {
+	newMod := createModifier(mod)
+	node.unode.AddOperation(newMod)
+	return node
+}
+
+// Apply adds a new function to the given vertex
+func (node *Node) Apply(function string, opts ...Option) *Node {
+
+	newfunc := createFunction(function)
+
+	o := &Options{}
+	for _, opt := range opts {
+		o.reset()
+		opt(o)
+		if len(o.header) != 0 {
+			for key, value := range o.header {
+				newfunc.addheader(key, value)
+			}
+		}
+		if len(o.query) != 0 {
+			for key, array := range o.query {
+				for _, value := range array {
+					newfunc.addparam(key, value)
+				}
+			}
+		}
+		if o.failureHandler != nil {
+			newfunc.addFailureHandler(o.failureHandler)
+		}
+		if o.responseHandler != nil {
+			newfunc.addResponseHandler(o.responseHandler)
+		}
+		if o.requestHandler != nil {
+			newfunc.addRequestHandler(o.requestHandler)
+		}
+	}
+
+	node.unode.AddOperation(newfunc)
+	return node
+}
+
+// Callback adds a new callback to the given vertex
+func (node *Node) Callback(url string, opts ...Option) *Node {
+	newCallback := createCallback(url)
+
+	o := &Options{}
+	for _, opt := range opts {
+		o.reset()
+		opt(o)
+		if len(o.header) != 0 {
+			for key, value := range o.header {
+				newCallback.addheader(key, value)
+			}
+		}
+		if len(o.query) != 0 {
+			for key, array := range o.query {
+				for _, value := range array {
+					newCallback.addparam(key, value)
+				}
+			}
+		}
+		if o.failureHandler != nil {
+			newCallback.addFailureHandler(o.failureHandler)
+		}
+		if o.responseHandler != nil {
+			newCallback.addResponseHandler(o.responseHandler)
+		}
+		if o.requestHandler != nil {
+			newCallback.addRequestHandler(o.requestHandler)
+		}
+	}
+
+	node.unode.AddOperation(newCallback)
+	return node
+}
