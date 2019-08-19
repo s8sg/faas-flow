@@ -252,6 +252,7 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 	}
 
 	for _, operation := range currentNode.Operations() {
+		// Check if request is terminated
 		if fexec.executor.MonitoringEnabled() {
 			fexec.eventHandler.ReportOperationStart(operation.GetId(), currentNode.GetUniqueId(), fexec.id)
 		}
@@ -494,8 +495,8 @@ func (fexec *FlowExecutor) findNextNodeToExecute() bool {
 	// get pipeline
 	pipeline := fexec.flow
 
-	// Check if pipeline is active in statestore when executing dag with branches
-	if fexec.hasBranch && !fexec.isActive() {
+	// Check if pipeline is active in statestore
+	if !fexec.isActive() {
 		fexec.log("[Request `%s`] Pipeline has been terminated\n", fexec.id)
 		panic(fmt.Sprintf("[Request `%s`] Pipeline has been terminated", fexec.id))
 	}
@@ -1081,14 +1082,13 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 
 	// For dag one of the branch can cause the pipeline to terminate
 	// hence we Check if the pipeline is active
-	if fexec.hasBranch && fexec.partial && !fexec.isActive() {
+	if fexec.partial && !fexec.isActive() {
 		return nil, fmt.Errorf("[Request `%s`] flow has been terminated", fexec.id)
 	}
 
-	// For dag which has branches
-	// StateStore need to be external
-	if fexec.hasBranch && !stateSDefined {
-		return nil, fmt.Errorf("[Request `%s`] Failed, DAG flow need external StateStore", fexec.id)
+	// StateStore need to be defined
+	if !stateSDefined {
+		return nil, fmt.Errorf("[Request `%s`] Failed, StateStore need to be defined", fexec.id)
 	}
 
 	// If dags has atleast one edge
@@ -1102,8 +1102,8 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 	// If not a partial request
 	if !fexec.partial {
 
-		// For a new dag pipeline that has branches Create the vertex in stateStore
-		if fexec.hasBranch {
+		// For a new dag pipeline that has edges Create the vertex in stateStore
+		if fexec.hasEdge {
 			serr := fexec.setRequestState(true)
 			if serr != nil {
 				return nil, fmt.Errorf("[Request `%s`] Failed to mark dag state, error %v", fexec.id, serr)
@@ -1227,26 +1227,22 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 // Stop marks end of an active dag execution
 func (fexec *FlowExecutor) Stop(reqId string) error {
 
-	if !fexec.hasEdge {
-		fexec.executor.Configure(reqId)
-		fexec.flowName = fexec.executor.GetFlowName()
-		fexec.id = reqId
+	fexec.executor.Configure(reqId)
+	fexec.flowName = fexec.executor.GetFlowName()
+	fexec.id = reqId
 
-		// Init Stores: Get definition of StateStore and DataStore from user
-		_, _, err := fexec.initializeStore()
-		if err != nil {
-			return fmt.Errorf("[Request `%s`] Failed to init stores, %v", fexec.id, err)
-		}
+	// Init Stores: Get definition of StateStore and DataStore from user
+	_, _, err := fexec.initializeStore()
+	if err != nil {
+		return fmt.Errorf("[Request `%s`] Failed to init stores, %v", fexec.id, err)
 	}
 
-	// Cleanup data and state for failure
-	if fexec.stateStore != nil {
-		err := fexec.setRequestState(false)
-		if err != nil {
-			return fmt.Errorf("[Request `%s`] Failed to mark dag state, error %v", fexec.id, err)
-		}
-		fexec.stateStore.Cleanup()
+	err = fexec.setRequestState(false)
+	if err != nil {
+		return fmt.Errorf("[Request `%s`] Failed to mark dag state, error %v", fexec.id, err)
 	}
+	fexec.stateStore.Cleanup()
+
 	if fexec.dataStore != nil {
 		fexec.dataStore.Cleanup()
 	}
