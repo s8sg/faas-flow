@@ -145,7 +145,11 @@ func (fexec *FlowExecutor) log(str string, a ...interface{}) {
 
 // setRequestState set the request state
 func (fexec *FlowExecutor) setRequestState(state bool) error {
-	return fexec.stateStore.Set("request-state", "true")
+	stateStr := "false"
+	if state {
+		stateStr = "true"
+	}
+	return fexec.stateStore.Set("request-state", stateStr)
 }
 
 // getRequestState get state of the request
@@ -1218,6 +1222,36 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 	}
 
 	return resp, nil
+}
+
+// Stop marks end of an active dag execution
+func (fexec *FlowExecutor) Stop(reqId string) error {
+
+	if !fexec.hasEdge {
+		fexec.executor.Configure(reqId)
+		fexec.flowName = fexec.executor.GetFlowName()
+		fexec.id = reqId
+
+		// Init Stores: Get definition of StateStore and DataStore from user
+		_, _, err := fexec.initializeStore()
+		if err != nil {
+			return fmt.Errorf("[Request `%s`] Failed to init stores, %v", fexec.id, err)
+		}
+	}
+
+	// Cleanup data and state for failure
+	if fexec.stateStore != nil {
+		err := fexec.setRequestState(false)
+		if err != nil {
+			return fmt.Errorf("[Request `%s`] Failed to mark dag state, error %v", fexec.id, err)
+		}
+		fexec.stateStore.Cleanup()
+	}
+	if fexec.dataStore != nil {
+		fexec.dataStore.Cleanup()
+	}
+
+	return nil
 }
 
 // CreateFlowExecutor initiate a FlowExecutor with a provided Executor
