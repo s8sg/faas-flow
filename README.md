@@ -419,3 +419,5 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 ## Contribute:
 > **Issue/Suggestion** Create an issue at [Faas-flow-issue](https://github.com/s8sg/faas-flow/issues).  
 > **ReviewPR/Implement** Create Pull Request at [Faas-flow-pr](https://github.com/s8sg/faas-flow/issues).  
+
+Join Faasflow [Slack](https://join.slack.com/t/faas-flow/shared_invite/enQtNzMxMTMyMzI4NDM2LTUzZmJjYjFiNmZlZmFmYWI4NjUwNmZhODdlZWQxMTA0NmIyZDVhMGNlZGFkOWFiOWViMDVkM2Y4ZjkzYmZlODQ) for more
