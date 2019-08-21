@@ -21,10 +21,10 @@ var (
 	DefaultForwarder = func(data []byte) []byte { return data }
 )
 
-// Aggregator defintion for the data agregator of nodes
+// Aggregator definition for the data aggregator of nodes
 type Aggregator func(map[string][]byte) ([]byte, error)
 
-// Forwarder defintion for the data forwarder of nodes
+// Forwarder definition for the data forwarder of nodes
 type Forwarder func([]byte) []byte
 
 // ForEach definition for the foreach function

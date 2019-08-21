@@ -16,8 +16,8 @@ func createDataStore() *requestEmbedDataStore {
 	return rstore
 }
 
-// RetriveDataStore creates a store manager from a map
-func retriveDataStore(store map[string]string) *requestEmbedDataStore {
+// retrieveDataStore creates a store manager from a map
+func retrieveDataStore(store map[string]string) *requestEmbedDataStore {
 	rstore := &requestEmbedDataStore{}
 	rstore.store = store
 	return rstore
@@ -43,7 +43,7 @@ func (rstore *requestEmbedDataStore) Set(key string, value string) error {
 func (rstore *requestEmbedDataStore) Get(key string) (string, error) {
 	value, ok := rstore.store[key]
 	if !ok {
-		return "", fmt.Errorf("No field name %s", key)
+		return "", fmt.Errorf("no field name %s", key)
 	}
 	return value, nil
 }

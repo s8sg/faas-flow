@@ -8,11 +8,11 @@ type DataStore interface {
 	Init() error
 	// Set store a value for key, in failure returns error
 	Set(key string, value string) error
-	// Get retrives a value by key, if failure returns error
+	// Get retrieves a value by key, if failure returns error
 	Get(key string) (string, error)
-	// Del delets a value by a key
+	// Del deletes a value by a key
 	Del(key string) error
-	// Cleanup all the resorces in DataStore
+	// Cleanup all the resources in DataStore
 	Cleanup() error
 }
 
@@ -28,7 +28,7 @@ type StateStore interface {
 	Get(key string) (string, error)
 	// Compare and Update a value
 	Update(key string, oldValue string, newValue string) error
-	// Cleanup all the resorces in StateStore (called only once in a request span)
+	// Cleanup all the resources in StateStore (called only once in a request span)
 	Cleanup() error
 }
 

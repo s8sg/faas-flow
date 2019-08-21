@@ -97,8 +97,8 @@ type FlowExecutor struct {
 
 	partial      bool          // denotes the flow is in partial execution state
 	newRequest   *RawRequest   // holds the new request
-	partialState *PartialState // holds the partially complted state
-	finished     bool          // denots the flow has finished execution
+	partialState *PartialState // holds the partially completed state
+	finished     bool          // denote the flow has finished execution
 
 	executor Executor // executor
 }
@@ -554,7 +554,7 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 			if serr != nil {
 				return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
 			}
-			fexec.log("[Request `%s`] Intermidiate result for option %s from Node %s to %s stored as %s\n",
+			fexec.log("[Request `%s`] Intermediate result for option %s from Node %s to %s stored as %s\n",
 				fexec.id, option, currentNodeUniqueId, subNode.GetUniqueId(), key)
 
 			// intermediateData is set to blank once its stored in storage
@@ -699,21 +699,21 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 	// Store the current data
 	subDataMap[currentOption] = result
 
-	// Recive data from a dynamic graph for each options
+	// Receive data from a dynamic graph for each options
 	for _, option := range options {
 		key := fmt.Sprintf("%s--%s--%s",
 			option, pipeline.GetNodeExecutionUniqueId(currentNode), currentNode.GetUniqueId())
 
-		// skip retriving data for current option
+		// skip retrieving data for current option
 		if option == currentOption {
 			context.Del(key)
 			continue
 		}
 
 		idata := context.GetBytes(key)
-		fexec.log("[Request `%s`] Intermidiate result from Branch to Dynamic Node %s for option %s retrived from %s\n",
+		fexec.log("[Request `%s`] Intermediate result from Branch to Dynamic Node %s for option %s retrieved from %s\n",
 			fexec.id, currentNode.GetUniqueId(), option, key)
-		// delete intermidiate data after retrival
+		// delete Intermediate data after retrieval
 		context.Del(key)
 
 		subDataMap[option] = idata
@@ -883,10 +883,10 @@ func (fexec *FlowExecutor) getDagIntermediateData(context *sdk.Context) ([]byte,
 			// Option not get appended in key as its already in state
 			key := fmt.Sprintf("%s--%s", pipeline.GetNodeExecutionUniqueId(dagNode), currentNode.GetUniqueId())
 			data = context.GetBytes(key)
-			fexec.log("[Request `%s`] Intermidiate result from Node %s to Node %s for option %s retrived from %s\n",
+			fexec.log("[Request `%s`] Intermediate result from Node %s to Node %s for option %s retrieved from %s\n",
 				fexec.id, dagNode.GetUniqueId(), currentNode.GetUniqueId(),
 				option, key)
-			// delete intermidiate data after retrival
+			// delete intermediate data after retrieval
 			context.Del(key)
 		}
 
@@ -903,9 +903,9 @@ func (fexec *FlowExecutor) getDagIntermediateData(context *sdk.Context) ([]byte,
 
 			key := fmt.Sprintf("%s--%s", pipeline.GetNodeExecutionUniqueId(node), currentNode.GetUniqueId())
 			idata := context.GetBytes(key)
-			fexec.log("[Request `%s`] Intermidiate result from Node %s to Node %s retrived from %s\n",
+			fexec.log("[Request `%s`] Intermediate result from Node %s to Node %s retrieved from %s\n",
 				fexec.id, node.GetUniqueId(), currentNode.GetUniqueId(), key)
-			// delete intermidiate data after retrival
+			// delete intermediate data after retrieval
 			context.Del(key)
 
 			dataMap[node.Id] = idata
@@ -920,7 +920,7 @@ func (fexec *FlowExecutor) getDagIntermediateData(context *sdk.Context) ([]byte,
 			data = dataMap[dependencies[0].Id]
 		}
 
-		// If Aggregator is available get agregator
+		// If Aggregator is available get aggregator
 		aggregator := currentNode.GetAggregator()
 		if aggregator != nil {
 			sdata, serr := aggregator(dataMap)
@@ -1070,7 +1070,7 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 		fexec.flow.ApplyState(request.getExecutionState())
 		fexec.id = requestId
 		fexec.query = request.Query
-		fexec.dataStore = retriveDataStore(request.getContextStore())
+		fexec.dataStore = retrieveDataStore(request.getContextStore())
 
 		requestData = request.getData()
 

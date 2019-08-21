@@ -113,7 +113,7 @@ func (pipeline *Pipeline) GetCurrentNodeDag() (*Node, *Dag) {
 }
 
 // UpdatePipelineExecutionPosition updates pipeline execution position
-// specifyed depthAdjustment and vertex denotes how the ExecutionPosition must be altered
+// specified depthAdjustment and vertex denotes how the ExecutionPosition must be altered
 func (pipeline *Pipeline) UpdatePipelineExecutionPosition(depthAdjustment int, vertex string) {
 	pipeline.ExecutionDepth = pipeline.ExecutionDepth + depthAdjustment
 	depthStr := fmt.Sprintf("%d", pipeline.ExecutionDepth)
