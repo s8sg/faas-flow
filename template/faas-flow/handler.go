@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"handler/function"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -11,10 +10,10 @@ import (
 	"strings"
 
 	faasflow "github.com/s8sg/faas-flow"
-
 	sdk "github.com/s8sg/faas-flow/sdk"
 	executor "github.com/s8sg/faas-flow/sdk/executor"
 	exporter "github.com/s8sg/faas-flow/sdk/exporter"
+	function "github.com/s8sg/faas-flow/template/faas-flow/function"
 )
 
 const (
