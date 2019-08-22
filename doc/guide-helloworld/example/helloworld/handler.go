@@ -2,7 +2,8 @@ package function
 
 import (
 	"fmt"
-	"github.com/s8sg/faasflow"
+
+	faasflow "github.com/s8sg/faas-flow"
 )
 
 // Define provide definiton of the workflow

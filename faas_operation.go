@@ -1,6 +1,7 @@
 package faasflow
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 )
@@ -105,6 +106,18 @@ func (operation *FaasOperation) GetId() string {
 		id = "callback-" + operation.CallbackUrl[len(operation.CallbackUrl)-12:]
 	}
 	return id
+}
+
+func (operation *FaasOperation) Encode() ([]byte, error) {
+	return json.Marshal(operation)
+}
+
+func (operation *FaasOperation) Decode(data []byte) error {
+	return json.Unmarshal(data, operation)
+}
+
+func (operation *FaasOperation) Execute(data []byte) ([]byte, error) {
+	return nil, nil
 }
 
 func (operation *FaasOperation) GetProperties() map[string][]string {

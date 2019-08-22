@@ -3,7 +3,7 @@
 #### Get the faasflow template
 To create a new flow `faasflow` template is needed
 ```bash
-faas template pull https://github.com/s8sg/faasflow
+faas template pull https://github.com/s8sg/faas-flow
 ```
 
 #### Create a new faasflow

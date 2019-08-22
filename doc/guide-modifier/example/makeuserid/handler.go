@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"github.com/s8sg/faasflow"
+
+	faasflow "github.com/s8sg/faas-flow"
 )
 
 // Define provide definiton of the workflow

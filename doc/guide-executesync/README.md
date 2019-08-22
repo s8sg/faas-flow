@@ -18,7 +18,7 @@ Edit the function `func2`  at `func2/handler.py`
 def handler(req):
     return "func2(" + req + ")"
 ```
-   
+
 Build and deploy the dummy functions
 ```bash
 faas build -f stack.yml
@@ -28,7 +28,7 @@ faas deploy -f stack.yml
 #### Create Faasflow function to stitch both of them
 We will create a faasflow function `syncflow`, to stitch both of them in a simgle flow
 ```bash
-faas template pull https://github.com/s8sg/faasflow
+faas template pull https://github.com/s8sg/faas-flow
 faas new --lang faasflow -a stack.yml syncflow
 ```
 add the faasflow mandetory variables for `syncflow` at `stack.yml`
@@ -41,7 +41,7 @@ add the faasflow mandetory variables for `syncflow` at `stack.yml`
        write_debug: true
        combine_output: false
 ```
-     
+
 `syncflow` will call both `func1` and `func2` in sync and return the response to the caller.  
 
 #### Call function using `Apply()`
