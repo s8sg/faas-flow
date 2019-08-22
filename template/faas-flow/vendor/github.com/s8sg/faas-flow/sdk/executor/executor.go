@@ -395,7 +395,7 @@ func (fexec *FlowExecutor) findCurrentNodeToExecute() {
 }
 
 // forwardState forward async request to faasflow
-func (fexec *FlowExecutor) forwardState(currentNodeId string, result []byte) error {
+func (fexec *FlowExecutor) forwardState(currentNodeId string, nextNodeId string, result []byte) error {
 	var sign string
 	store := make(map[string]string)
 
@@ -433,11 +433,13 @@ func (fexec *FlowExecutor) forwardState(currentNodeId string, result []byte) err
 
 	if fexec.isPaused() {
 		// if request is paused, store the partial state in the StateStore
-		fexec.log("[Request `%s`] Request is paused, storing partial state %s\n", fexec.id)
+		fexec.log("[Request `%s`] Request is paused, storing partial state for node: %s\n", fexec.id, nextNodeId)
 		err = fexec.storePartialState(partialState)
-	} else {
-		err = fexec.executor.HandleNextNode(partialState)
+		if err != nil {
+			return err
+		}
 	}
+	err = fexec.executor.HandleNextNode(partialState)
 	if err != nil {
 		return err
 	}
@@ -567,7 +569,8 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 		pipeline.CurrentDynamicOption[currentNode.GetUniqueId()] = option
 
 		// forward the flow request
-		forwardErr := fexec.forwardState(currentNode.GetUniqueId(), intermediateData)
+		forwardErr := fexec.forwardState(currentNode.GetUniqueId(), subNode.GetUniqueId(),
+			intermediateData)
 		if forwardErr != nil {
 			// reset dag execution position
 			pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_DECREMENT, currentNode.Id)
@@ -575,7 +578,7 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 				currentNode.GetUniqueId(), forwardErr)
 		}
 
-		fexec.log("[Request `%s`] Async request submitted for Node %s option %s\n",
+		fexec.log("[Request `%s`] Request submitted for Node %s option %s\n",
 			fexec.id, subNode.GetUniqueId(), option)
 
 		// reset pipeline
@@ -799,7 +802,7 @@ func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) 
 		pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_SAME, node.Id)
 
 		// forward the flow request
-		forwardErr := fexec.forwardState(currentNode.GetUniqueId(),
+		forwardErr := fexec.forwardState(currentNode.GetUniqueId(), node.GetUniqueId(),
 			intermediateData)
 		if forwardErr != nil {
 			// reset dag execution position
@@ -808,7 +811,7 @@ func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) 
 				node.GetUniqueId(), forwardErr)
 		}
 
-		fexec.log("[Request `%s`] Async request submitted for Node %s\n",
+		fexec.log("[Request `%s`] Request submitted for Node %s\n",
 			fexec.id, node.GetUniqueId())
 
 	}
@@ -1177,7 +1180,7 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 	fexec.isExecutionFlow = fexec.flow.Dag.IsExecutionFlow()
 
 	// hence we Check if the pipeline is running
-	if fexec.partial && !fexec.isRunning() {
+	if fexec.partial && !fexec.isActive() {
 		return nil, fmt.Errorf("[Request `%s`] flow is not running", fexec.id)
 	}
 
@@ -1358,6 +1361,10 @@ func (fexec *FlowExecutor) Pause(reqId string) error {
 	_, _, err := fexec.initializeStore()
 	if err != nil {
 		return fmt.Errorf("[Request `%s`] Failed to init stores, %v", fexec.id, err)
+	}
+
+	if !fexec.isRunning() {
+		return fmt.Errorf("[Request `%s`] Failed to pause, request is not running", fexec.id)
 	}
 
 	err = fexec.setRequestState(STATE_PAUSED)
