@@ -87,6 +87,39 @@ func isDagExportRequest(req *HttpRequest) bool {
 	return false
 }
 
+// getStopRequestId check if stop request and return the requestID
+func getStopRequestId(req *HttpRequest) string {
+	values, err := url.ParseQuery(req.QueryString)
+	if err != nil {
+		return ""
+	}
+
+	reqId := values.Get("stop-flow")
+	return reqId
+}
+
+// getPauseRequestId check if pause request and return the requestID
+func getPauseRequestId(req *HttpRequest) string {
+	values, err := url.ParseQuery(req.QueryString)
+	if err != nil {
+		return ""
+	}
+
+	reqId := values.Get("pause-flow")
+	return reqId
+}
+
+// getResumeRequestId check if resume request and return the requestID
+func getResumeRequestId(req *HttpRequest) string {
+	values, err := url.ParseQuery(req.QueryString)
+	if err != nil {
+		return ""
+	}
+
+	reqId := values.Get("resume-flow")
+	return reqId
+}
+
 // buildHttpRequest build upstream request for function
 func buildHttpRequest(url string, method string, data []byte, params map[string][]string,
 	headers map[string]string) (*http.Request, error) {
@@ -96,16 +129,16 @@ func buildHttpRequest(url string, method string, data []byte, params map[string]
 		url = url + queryString
 	}
 
-	httpreq, err := http.NewRequest(method, url, bytes.NewReader(data))
+	httpReq, err := http.NewRequest(method, url, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
 
 	for key, value := range headers {
-		httpreq.Header.Add(key, value)
+		httpReq.Header.Add(key, value)
 	}
 
-	return httpreq, nil
+	return httpReq, nil
 }
 
 // executeFunction executes a function call
@@ -117,7 +150,7 @@ func executeFunction(gateway string, operation *faasflow.FaasOperation, data []b
 	params := operation.GetParams()
 	headers := operation.GetHeaders()
 
-	url := buildURL("http://"+gateway, "function", name)
+	funcUrl := buildURL("http://"+gateway, "function", name)
 
 	method := os.Getenv("default-method")
 	if method == "" {
@@ -128,17 +161,17 @@ func executeFunction(gateway string, operation *faasflow.FaasOperation, data []b
 		method = m
 	}
 
-	httpreq, err := buildHttpRequest(url, method, data, params, headers)
+	httpReq, err := buildHttpRequest(funcUrl, method, data, params, headers)
 	if err != nil {
-		return []byte{}, fmt.Errorf("cannot connect to Function on URL: %s", url)
+		return []byte{}, fmt.Errorf("cannot connect to Function on URL: %s", funcUrl)
 	}
 
 	if operation.Requesthandler != nil {
-		operation.Requesthandler(httpreq)
+		operation.Requesthandler(httpReq)
 	}
 
 	client := &http.Client{}
-	resp, err := client.Do(httpreq)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return []byte{}, err
 	}
@@ -148,7 +181,7 @@ func executeFunction(gateway string, operation *faasflow.FaasOperation, data []b
 		result, err = operation.OnResphandler(resp)
 	} else {
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
-			err = fmt.Errorf("invalid return status %d while connecting %s", resp.StatusCode, url)
+			err = fmt.Errorf("invalid return status %d while connecting %s", resp.StatusCode, funcUrl)
 			result, _ = ioutil.ReadAll(resp.Body)
 		} else {
 			result, err = ioutil.ReadAll(resp.Body)
@@ -162,7 +195,7 @@ func executeFunction(gateway string, operation *faasflow.FaasOperation, data []b
 func executeCallback(operation *faasflow.FaasOperation, data []byte) error {
 	var err error
 
-	cburl := operation.CallbackUrl
+	cbUrl := operation.CallbackUrl
 	params := operation.GetParams()
 	headers := operation.GetHeaders()
 
@@ -175,17 +208,17 @@ func executeCallback(operation *faasflow.FaasOperation, data []byte) error {
 		method = m
 	}
 
-	httpreq, err := buildHttpRequest(cburl, method, data, params, headers)
+	httpReq, err := buildHttpRequest(cbUrl, method, data, params, headers)
 	if err != nil {
-		return fmt.Errorf("cannot connect to Function on URL: %s", cburl)
+		return fmt.Errorf("cannot connect to Function on URL: %s", cbUrl)
 	}
 
 	if operation.Requesthandler != nil {
-		operation.Requesthandler(httpreq)
+		operation.Requesthandler(httpReq)
 	}
 
 	client := &http.Client{}
-	resp, err := client.Do(httpreq)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return err
 	}
@@ -195,8 +228,8 @@ func executeCallback(operation *faasflow.FaasOperation, data []byte) error {
 		_, err = operation.OnResphandler(resp)
 	} else {
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
-			cbresult, _ := ioutil.ReadAll(resp.Body)
-			err := fmt.Errorf("%v:%s", err, string(cbresult))
+			cbResult, _ := ioutil.ReadAll(resp.Body)
+			err := fmt.Errorf("%v:%s", err, string(cbResult))
 			return err
 		}
 	}

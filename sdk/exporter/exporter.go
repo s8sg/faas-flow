@@ -17,7 +17,7 @@ type Exporter interface {
 type FlowExporter struct {
 	flow     *sdk.Pipeline
 	flowName string
-	exporter Exporter // exporterr
+	exporter Exporter // exporter
 }
 
 // createContext create a context from request handler
@@ -28,7 +28,7 @@ func (fexp *FlowExporter) createContext() *sdk.Context {
 	return context
 }
 
-// Export retrive faasflow definition
+// Export retrieve faasflow definition
 func (fexp *FlowExporter) Export() ([]byte, error) {
 
 	// Init flow
@@ -43,9 +43,9 @@ func (fexp *FlowExporter) Export() ([]byte, error) {
 		return nil, fmt.Errorf("Failed to define flow, %v", err)
 	}
 
-	defintion := sdk.GetPipelineDefinition(fexp.flow)
+	definition := sdk.GetPipelineDefinition(fexp.flow)
 
-	return []byte(defintion), nil
+	return []byte(definition), nil
 }
 
 // CreateFlowExporter initiate a FlowExporter with a provided Executor

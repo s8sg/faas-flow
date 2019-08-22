@@ -49,7 +49,7 @@ type ExecutionRuntime interface {
 type Executor interface {
 	// Configure configure an executor with request id
 	Configure(requestId string)
-	// GetFlowName get nbame of the flow
+	// GetFlowName get name of the flow
 	GetFlowName() string
 	// GetFlowDefinition get definition of the faas-flow
 	GetFlowDefinition(*sdk.Pipeline, *sdk.Context) error
@@ -71,7 +71,7 @@ type Executor interface {
 	GetLogger() (sdk.Logger, error)
 	// GetStateStore get the state store
 	GetStateStore() (sdk.StateStore, error)
-	// GetDataStore get the datta store
+	// GetDataStore get the data store
 	GetDataStore() (sdk.DataStore, error)
 
 	ExecutionRuntime
@@ -174,20 +174,20 @@ func (fexec *FlowExecutor) getDynamicBranchOptions(nodeUniqueId string) ([]strin
 	return option, err
 }
 
-// incrementCounter increment counter by given term, if doesn't exist init with incrementby
-func (fexec *FlowExecutor) incrementCounter(counter string, incrementby int) (int, error) {
+// incrementCounter increment counter by given term, if doesn't exist init with increment by
+func (fexec *FlowExecutor) incrementCounter(counter string, incrementBy int) (int, error) {
 	var serr error
 	count := 0
 	for i := 0; i < counterUpdateRetryCount; i++ {
 		encoded, err := fexec.stateStore.Get(counter)
 		if err != nil {
 			// if doesn't exist try to create
-			err := fexec.stateStore.Set(counter, fmt.Sprintf("%d", incrementby))
+			err := fexec.stateStore.Set(counter, fmt.Sprintf("%d", incrementBy))
 			if err != nil {
 				serr = fmt.Errorf("failed to update counter %s, error %v", counter, err)
 				continue
 			}
-			return incrementby, nil
+			return incrementBy, nil
 		}
 
 		current, err := strconv.Atoi(encoded)
@@ -195,7 +195,7 @@ func (fexec *FlowExecutor) incrementCounter(counter string, incrementby int) (in
 			return 0, fmt.Errorf("failed to update counter %s, error %v", counter, err)
 		}
 
-		count = current + incrementby
+		count = current + incrementBy
 		counterStr := fmt.Sprintf("%d", count)
 
 		err = fexec.stateStore.Update(counter, encoded, counterStr)
@@ -207,8 +207,8 @@ func (fexec *FlowExecutor) incrementCounter(counter string, incrementby int) (in
 	return 0, fmt.Errorf("failed to update counter after max retry for %s, error %v", counter, serr)
 }
 
-// retriveCounter retrives a counter value
-func (fexec *FlowExecutor) retriveCounter(counter string) (int, error) {
+// retrieveCounter retrieves a counter value
+func (fexec *FlowExecutor) retrieveCounter(counter string) (int, error) {
 	encoded, err := fexec.stateStore.Get(counter)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get counter %s, error %v", counter, err)
@@ -261,7 +261,7 @@ func (fexec *FlowExecutor) storePartialState(partialState *PartialState) error {
 	return fmt.Errorf("failed to update partial-state after max retry, error %v", serr)
 }
 
-func (fexec *FlowExecutor) retrivePartialStates() ([]*PartialState, error) {
+func (fexec *FlowExecutor) retrievePartialStates() ([]*PartialState, error) {
 
 	key := "partial-state"
 	var encodedStates []string
@@ -295,7 +295,7 @@ func (fexec *FlowExecutor) isActive() bool {
 		return false
 	}
 
-	return (state == STATE_RUNNING || state == STATE_PAUSED)
+	return state == STATE_RUNNING || state == STATE_PAUSED
 }
 
 // isRunning check if flow is running
@@ -306,7 +306,7 @@ func (fexec *FlowExecutor) isRunning() bool {
 		return false
 	}
 
-	return (state == STATE_RUNNING)
+	return state == STATE_RUNNING
 }
 
 // isPaused check if flow is paused
@@ -317,7 +317,7 @@ func (fexec *FlowExecutor) isPaused() bool {
 		return false
 	}
 
-	return (state == STATE_PAUSED)
+	return state == STATE_PAUSED
 }
 
 // executeNode  executes a node on a faas-flow dag
@@ -1387,7 +1387,7 @@ func (fexec *FlowExecutor) Resume(reqId string) error {
 		return fmt.Errorf("[Request `%s`] Failed to mark dag state, error %v", fexec.id, err)
 	}
 
-	partialStates, err := fexec.retrivePartialStates()
+	partialStates, err := fexec.retrievePartialStates()
 	if err != nil {
 		return fmt.Errorf("[Request `%s`] Failed to retrive partial state, error %v", fexec.id, err)
 	}

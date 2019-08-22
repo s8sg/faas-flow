@@ -307,8 +307,7 @@ func (of *openFaasExecutor) init(req *HttpRequest) error {
 	return nil
 }
 
-// RequestHandler
-
+// Handle handle requests to flow function
 func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) error {
 
 	err := of.init(req)
@@ -316,15 +315,43 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 		panic(err.Error())
 	}
 
-	if isDagExportRequest(req) {
+	switch {
+	case isDagExportRequest(req):
 		flowExporter := exporter.CreateFlowExporter(of)
 		resp, err := flowExporter.Export()
 		if err != nil {
 			panic(err)
 		}
 		response.Body = resp
-	} else {
 
+	case getStopRequestId(req) != "":
+		requestId := getStopRequestId(req)
+		flowExecutor := executor.CreateFlowExecutor(of)
+		err := flowExecutor.Stop(requestId)
+		if err != nil {
+			panic(err.Error())
+		}
+		response.Body = []byte("Successfully stopped request " + requestId)
+
+	case getPauseRequestId(req) != "":
+		requestId := getStopRequestId(req)
+		flowExecutor := executor.CreateFlowExecutor(of)
+		err := flowExecutor.Pause(requestId)
+		if err != nil {
+			panic(err.Error())
+		}
+		response.Body = []byte("Successfully paused request " + requestId)
+
+	case getResumeRequestId(req) != "":
+		requestId := getStopRequestId(req)
+		flowExecutor := executor.CreateFlowExecutor(of)
+		err := flowExecutor.Resume(requestId)
+		if err != nil {
+			panic(err.Error())
+		}
+		response.Body = []byte("Successfully resumed request " + requestId)
+
+	default:
 		var stateOption executor.ExecutionStateOption
 
 		reqId := req.Header.Get("X-Faas-Flow-Reqid")
