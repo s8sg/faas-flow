@@ -49,7 +49,7 @@ type ExecutionRuntime interface {
 type Executor interface {
 	// Configure configure an executor with request id
 	Configure(requestId string)
-	// GetFlowName get nbame of the flow
+	// GetFlowName get name of the flow
 	GetFlowName() string
 	// GetFlowDefinition get definition of the faas-flow
 	GetFlowDefinition(*sdk.Pipeline, *sdk.Context) error
@@ -71,7 +71,7 @@ type Executor interface {
 	GetLogger() (sdk.Logger, error)
 	// GetStateStore get the state store
 	GetStateStore() (sdk.StateStore, error)
-	// GetDataStore get the datta store
+	// GetDataStore get the data store
 	GetDataStore() (sdk.DataStore, error)
 
 	ExecutionRuntime
@@ -97,17 +97,17 @@ type FlowExecutor struct {
 
 	partial      bool          // denotes the flow is in partial execution state
 	newRequest   *RawRequest   // holds the new request
-	partialState *PartialState // holds the partially complted state
-	finished     bool          // denots the flow has finished execution
+	partialState *PartialState // holds the partially completed state
+	finished     bool          // denote the flow has finished execution
 
 	executor Executor // executor
 }
 
-/*
-type ExecutionOption struct {
-}
-type ExecutionOption func(*ExecutionOptions)
-*/
+const (
+	STATE_RUNNING  = "RUNNING"
+	STATE_FINISHED = "FINISHED"
+	STATE_PAUSED   = "PAUSED"
+)
 
 type ExecutionStateOptions struct {
 	newRequest   *RawRequest
@@ -144,17 +144,14 @@ func (fexec *FlowExecutor) log(str string, a ...interface{}) {
 }
 
 // setRequestState set the request state
-func (fexec *FlowExecutor) setRequestState(state bool) error {
-	return fexec.stateStore.Set("request-state", "true")
+func (fexec *FlowExecutor) setRequestState(state string) error {
+	return fexec.stateStore.Set("request-state", state)
 }
 
 // getRequestState get state of the request
-func (fexec *FlowExecutor) getRequestState() (bool, error) {
+func (fexec *FlowExecutor) getRequestState() (string, error) {
 	value, err := fexec.stateStore.Get("request-state")
-	if value == "true" {
-		return true, nil
-	}
-	return false, err
+	return value, err
 }
 
 // setDynamicBranchOptions set dynamic options for a dynamic node
@@ -177,19 +174,20 @@ func (fexec *FlowExecutor) getDynamicBranchOptions(nodeUniqueId string) ([]strin
 	return option, err
 }
 
-// incrementCounter increment counter by given term, if doesn't exist init with incrementby
-func (fexec *FlowExecutor) incrementCounter(counter string, incrementby int) (int, error) {
+// incrementCounter increment counter by given term, if doesn't exist init with increment by
+func (fexec *FlowExecutor) incrementCounter(counter string, incrementBy int) (int, error) {
 	var serr error
 	count := 0
 	for i := 0; i < counterUpdateRetryCount; i++ {
 		encoded, err := fexec.stateStore.Get(counter)
 		if err != nil {
 			// if doesn't exist try to create
-			err := fexec.stateStore.Set(counter, fmt.Sprintf("%d", incrementby))
+			err := fexec.stateStore.Set(counter, fmt.Sprintf("%d", incrementBy))
 			if err != nil {
-				return 0, fmt.Errorf("failed to update counter %s, error %v", counter, err)
+				serr = fmt.Errorf("failed to update counter %s, error %v", counter, err)
+				continue
 			}
-			return incrementby, nil
+			return incrementBy, nil
 		}
 
 		current, err := strconv.Atoi(encoded)
@@ -197,7 +195,7 @@ func (fexec *FlowExecutor) incrementCounter(counter string, incrementby int) (in
 			return 0, fmt.Errorf("failed to update counter %s, error %v", counter, err)
 		}
 
-		count = current + incrementby
+		count = current + incrementBy
 		counterStr := fmt.Sprintf("%d", count)
 
 		err = fexec.stateStore.Update(counter, encoded, counterStr)
@@ -209,8 +207,8 @@ func (fexec *FlowExecutor) incrementCounter(counter string, incrementby int) (in
 	return 0, fmt.Errorf("failed to update counter after max retry for %s, error %v", counter, serr)
 }
 
-// retriveCounter retrives a counter value
-func (fexec *FlowExecutor) retriveCounter(counter string) (int, error) {
+// retrieveCounter retrieves a counter value
+func (fexec *FlowExecutor) retrieveCounter(counter string) (int, error) {
 	encoded, err := fexec.stateStore.Get(counter)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get counter %s, error %v", counter, err)
@@ -222,6 +220,73 @@ func (fexec *FlowExecutor) retriveCounter(counter string) (int, error) {
 	return current, nil
 }
 
+func (fexec *FlowExecutor) storePartialState(partialState *PartialState) error {
+
+	data, _ := partialState.Encode()
+	enState := string(data)
+
+	partialStates := []string{enState}
+	key := "partial-state"
+
+	var serr error
+	for i := 0; i < counterUpdateRetryCount; i++ {
+		encoded, err := fexec.stateStore.Get(key)
+		if err != nil {
+
+			data, _ := json.Marshal(partialStates)
+			// if doesn't exist try to create
+			err := fexec.stateStore.Set(key, string(data))
+			if err != nil {
+				serr = fmt.Errorf("failed to update partial-state, error %v", err)
+				continue
+			}
+			return nil
+		}
+
+		err = json.Unmarshal([]byte(encoded), &partialStates)
+		if err != nil {
+			return fmt.Errorf("failed to update partial-state, error %v", err)
+		}
+
+		partialStates = append(partialStates, enState)
+
+		data, _ := json.Marshal(partialStates)
+
+		err = fexec.stateStore.Update(key, encoded, string(data))
+		if err == nil {
+			return nil
+		}
+		serr = err
+	}
+	return fmt.Errorf("failed to update partial-state after max retry, error %v", serr)
+}
+
+func (fexec *FlowExecutor) retrievePartialStates() ([]*PartialState, error) {
+
+	key := "partial-state"
+	var encodedStates []string
+	var partialStates []*PartialState
+
+	encoded, err := fexec.stateStore.Get(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrive partial-state, error %v", err)
+	}
+
+	err = json.Unmarshal([]byte(encoded), &encodedStates)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrive partial-state, error %v", err)
+	}
+
+	for _, state := range encodedStates {
+		ps, err := DecodePartialReq([]byte(state))
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrive partial-state, error %v", err)
+		}
+		partialStates = append(partialStates, ps)
+	}
+	return partialStates, nil
+}
+
 // isActive check if flow is active
 func (fexec *FlowExecutor) isActive() bool {
 	state, err := fexec.getRequestState()
@@ -230,7 +295,29 @@ func (fexec *FlowExecutor) isActive() bool {
 		return false
 	}
 
-	return state
+	return state == STATE_RUNNING || state == STATE_PAUSED
+}
+
+// isRunning check if flow is running
+func (fexec *FlowExecutor) isRunning() bool {
+	state, err := fexec.getRequestState()
+	if err != nil {
+		fexec.log("[Request `%s`] Failed to obtain pipeline state\n", fexec.id)
+		return false
+	}
+
+	return state == STATE_RUNNING
+}
+
+// isPaused check if flow is paused
+func (fexec *FlowExecutor) isPaused() bool {
+	state, err := fexec.getRequestState()
+	if err != nil {
+		fexec.log("[Request `%s`] Failed to obtain pipeline state\n", fexec.id)
+		return false
+	}
+
+	return state == STATE_PAUSED
 }
 
 // executeNode  executes a node on a faas-flow dag
@@ -248,6 +335,12 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 	}
 
 	for _, operation := range currentNode.Operations() {
+		// Check if request is terminate
+		if !fexec.isActive() {
+			fexec.log("[Request `%s`] Pipeline is not active\n", fexec.id)
+			panic(fmt.Sprintf("[Request `%s`] Pipeline is not active", fexec.id))
+		}
+
 		if fexec.executor.MonitoringEnabled() {
 			fexec.eventHandler.ReportOperationStart(operation.GetId(), currentNode.GetUniqueId(), fexec.id)
 		}
@@ -302,7 +395,7 @@ func (fexec *FlowExecutor) findCurrentNodeToExecute() {
 }
 
 // forwardState forward async request to faasflow
-func (fexec *FlowExecutor) forwardState(currentNodeId string, result []byte) error {
+func (fexec *FlowExecutor) forwardState(currentNodeId string, nextNodeId string, result []byte) error {
 	var sign string
 	store := make(map[string]string)
 
@@ -336,7 +429,17 @@ func (fexec *FlowExecutor) forwardState(currentNodeId string, result []byte) err
 
 	partialState := &PartialState{uprequest: uprequest}
 
-	err := fexec.executor.HandleNextNode(partialState)
+	var err error
+
+	if fexec.isPaused() {
+		// if request is paused, store the partial state in the StateStore
+		fexec.log("[Request `%s`] Request is paused, storing partial state for node: %s\n", fexec.id, nextNodeId)
+		err = fexec.storePartialState(partialState)
+		if err != nil {
+			return err
+		}
+	}
+	err = fexec.executor.HandleNextNode(partialState)
 	if err != nil {
 		return err
 	}
@@ -453,7 +556,7 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 			if serr != nil {
 				return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
 			}
-			fexec.log("[Request `%s`] Intermidiate result for option %s from Node %s to %s stored as %s\n",
+			fexec.log("[Request `%s`] Intermediate result for option %s from Node %s to %s stored as %s\n",
 				fexec.id, option, currentNodeUniqueId, subNode.GetUniqueId(), key)
 
 			// intermediateData is set to blank once its stored in storage
@@ -466,7 +569,8 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 		pipeline.CurrentDynamicOption[currentNode.GetUniqueId()] = option
 
 		// forward the flow request
-		forwardErr := fexec.forwardState(currentNode.GetUniqueId(), intermediateData)
+		forwardErr := fexec.forwardState(currentNode.GetUniqueId(), subNode.GetUniqueId(),
+			intermediateData)
 		if forwardErr != nil {
 			// reset dag execution position
 			pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_DECREMENT, currentNode.Id)
@@ -474,7 +578,7 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 				currentNode.GetUniqueId(), forwardErr)
 		}
 
-		fexec.log("[Request `%s`] Async request submitted for Node %s option %s\n",
+		fexec.log("[Request `%s`] Request submitted for Node %s option %s\n",
 			fexec.id, subNode.GetUniqueId(), option)
 
 		// reset pipeline
@@ -490,10 +594,10 @@ func (fexec *FlowExecutor) findNextNodeToExecute() bool {
 	// get pipeline
 	pipeline := fexec.flow
 
-	// Check if pipeline is active in statestore when executing dag with branches
-	if fexec.hasBranch && !fexec.isActive() {
-		fexec.log("[Request `%s`] Pipeline has been terminated\n", fexec.id)
-		panic(fmt.Sprintf("[Request `%s`] Pipeline has been terminated", fexec.id))
+	// Check if pipeline is active in statestore
+	if !fexec.isActive() {
+		fexec.log("[Request `%s`] Pipeline is not active\n", fexec.id)
+		panic(fmt.Sprintf("[Request `%s`] Pipeline is not active", fexec.id))
 	}
 
 	currentNode, currentDag := pipeline.GetCurrentNodeDag()
@@ -598,21 +702,21 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 	// Store the current data
 	subDataMap[currentOption] = result
 
-	// Recive data from a dynamic graph for each options
+	// Receive data from a dynamic graph for each options
 	for _, option := range options {
 		key := fmt.Sprintf("%s--%s--%s",
 			option, pipeline.GetNodeExecutionUniqueId(currentNode), currentNode.GetUniqueId())
 
-		// skip retriving data for current option
+		// skip retrieving data for current option
 		if option == currentOption {
 			context.Del(key)
 			continue
 		}
 
 		idata := context.GetBytes(key)
-		fexec.log("[Request `%s`] Intermidiate result from Branch to Dynamic Node %s for option %s retrived from %s\n",
+		fexec.log("[Request `%s`] Intermediate result from Branch to Dynamic Node %s for option %s retrieved from %s\n",
 			fexec.id, currentNode.GetUniqueId(), option, key)
-		// delete intermidiate data after retrival
+		// delete Intermediate data after retrieval
 		context.Del(key)
 
 		subDataMap[option] = idata
@@ -698,7 +802,7 @@ func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) 
 		pipeline.UpdatePipelineExecutionPosition(sdk.DEPTH_SAME, node.Id)
 
 		// forward the flow request
-		forwardErr := fexec.forwardState(currentNode.GetUniqueId(),
+		forwardErr := fexec.forwardState(currentNode.GetUniqueId(), node.GetUniqueId(),
 			intermediateData)
 		if forwardErr != nil {
 			// reset dag execution position
@@ -707,7 +811,7 @@ func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) 
 				node.GetUniqueId(), forwardErr)
 		}
 
-		fexec.log("[Request `%s`] Async request submitted for Node %s\n",
+		fexec.log("[Request `%s`] Request submitted for Node %s\n",
 			fexec.id, node.GetUniqueId())
 
 	}
@@ -782,10 +886,10 @@ func (fexec *FlowExecutor) getDagIntermediateData(context *sdk.Context) ([]byte,
 			// Option not get appended in key as its already in state
 			key := fmt.Sprintf("%s--%s", pipeline.GetNodeExecutionUniqueId(dagNode), currentNode.GetUniqueId())
 			data = context.GetBytes(key)
-			fexec.log("[Request `%s`] Intermidiate result from Node %s to Node %s for option %s retrived from %s\n",
+			fexec.log("[Request `%s`] Intermediate result from Node %s to Node %s for option %s retrieved from %s\n",
 				fexec.id, dagNode.GetUniqueId(), currentNode.GetUniqueId(),
 				option, key)
-			// delete intermidiate data after retrival
+			// delete intermediate data after retrieval
 			context.Del(key)
 		}
 
@@ -802,9 +906,9 @@ func (fexec *FlowExecutor) getDagIntermediateData(context *sdk.Context) ([]byte,
 
 			key := fmt.Sprintf("%s--%s", pipeline.GetNodeExecutionUniqueId(node), currentNode.GetUniqueId())
 			idata := context.GetBytes(key)
-			fexec.log("[Request `%s`] Intermidiate result from Node %s to Node %s retrived from %s\n",
+			fexec.log("[Request `%s`] Intermediate result from Node %s to Node %s retrieved from %s\n",
 				fexec.id, node.GetUniqueId(), currentNode.GetUniqueId(), key)
-			// delete intermidiate data after retrival
+			// delete intermediate data after retrieval
 			context.Del(key)
 
 			dataMap[node.Id] = idata
@@ -819,7 +923,7 @@ func (fexec *FlowExecutor) getDagIntermediateData(context *sdk.Context) ([]byte,
 			data = dataMap[dependencies[0].Id]
 		}
 
-		// If Aggregator is available get agregator
+		// If Aggregator is available get aggregator
 		aggregator := currentNode.GetAggregator()
 		if aggregator != nil {
 			sdata, serr := aggregator(dataMap)
@@ -835,7 +939,7 @@ func (fexec *FlowExecutor) getDagIntermediateData(context *sdk.Context) ([]byte,
 	return data, nil
 }
 
-// initializeStore initialize the store and return true if both store if overriden
+// initializeStore initialize the store
 func (fexec *FlowExecutor) initializeStore() (stateSDefined bool, dataSOverride bool, err error) {
 
 	stateSDefined = false
@@ -969,7 +1073,7 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 		fexec.flow.ApplyState(request.getExecutionState())
 		fexec.id = requestId
 		fexec.query = request.Query
-		fexec.dataStore = retriveDataStore(request.getContextStore())
+		fexec.dataStore = retrieveDataStore(request.getContextStore())
 
 		requestData = request.getData()
 
@@ -1075,16 +1179,14 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 	fexec.hasEdge = fexec.flow.Dag.HasEdge()
 	fexec.isExecutionFlow = fexec.flow.Dag.IsExecutionFlow()
 
-	// For dag one of the branch can cause the pipeline to terminate
-	// hence we Check if the pipeline is active
-	if fexec.hasBranch && fexec.partial && !fexec.isActive() {
-		return nil, fmt.Errorf("[Request `%s`] flow has been terminated", fexec.id)
+	// hence we Check if the pipeline is running
+	if fexec.partial && !fexec.isActive() {
+		return nil, fmt.Errorf("[Request `%s`] flow is not running", fexec.id)
 	}
 
-	// For dag which has branches
-	// StateStore need to be external
-	if fexec.hasBranch && !stateSDefined {
-		return nil, fmt.Errorf("[Request `%s`] Failed, DAG flow need external StateStore", fexec.id)
+	// StateStore need to be defined
+	if !stateSDefined {
+		return nil, fmt.Errorf("[Request `%s`] Failed, StateStore need to be defined", fexec.id)
 	}
 
 	// If dags has atleast one edge
@@ -1098,9 +1200,9 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 	// If not a partial request
 	if !fexec.partial {
 
-		// For a new dag pipeline that has branches Create the vertex in stateStore
-		if fexec.hasBranch {
-			serr := fexec.setRequestState(true)
+		// For a new dag pipeline that has edges Create the vertex in stateStore
+		if fexec.hasEdge {
+			serr := fexec.setRequestState(STATE_RUNNING)
 			if serr != nil {
 				return nil, fmt.Errorf("[Request `%s`] Failed to mark dag state, error %v", fexec.id, serr)
 			}
@@ -1218,6 +1320,93 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 	}
 
 	return resp, nil
+}
+
+// Stop marks end of an active dag execution
+func (fexec *FlowExecutor) Stop(reqId string) error {
+
+	fexec.executor.Configure(reqId)
+	fexec.flowName = fexec.executor.GetFlowName()
+	fexec.id = reqId
+	fexec.partial = true
+
+	// Init Stores: Get definition of StateStore and DataStore from user
+	_, _, err := fexec.initializeStore()
+	if err != nil {
+		return fmt.Errorf("[Request `%s`] Failed to init stores, %v", fexec.id, err)
+	}
+
+	err = fexec.setRequestState(STATE_FINISHED)
+	if err != nil {
+		return fmt.Errorf("[Request `%s`] Failed to mark dag state, error %v", fexec.id, err)
+	}
+	fexec.stateStore.Cleanup()
+
+	if fexec.dataStore != nil {
+		fexec.dataStore.Cleanup()
+	}
+
+	return nil
+}
+
+// Pause pauses an active dag execution
+func (fexec *FlowExecutor) Pause(reqId string) error {
+
+	fexec.executor.Configure(reqId)
+	fexec.flowName = fexec.executor.GetFlowName()
+	fexec.id = reqId
+	fexec.partial = true
+
+	// Init Stores: Get definition of StateStore and DataStore from user
+	_, _, err := fexec.initializeStore()
+	if err != nil {
+		return fmt.Errorf("[Request `%s`] Failed to init stores, %v", fexec.id, err)
+	}
+
+	if !fexec.isRunning() {
+		return fmt.Errorf("[Request `%s`] Failed to pause, request is not running", fexec.id)
+	}
+
+	err = fexec.setRequestState(STATE_PAUSED)
+	if err != nil {
+		return fmt.Errorf("[Request `%s`] Failed to mark dag state, error %v", fexec.id, err)
+	}
+
+	return nil
+}
+
+// Resume resumes a paused dag execution
+func (fexec *FlowExecutor) Resume(reqId string) error {
+
+	fexec.executor.Configure(reqId)
+	fexec.flowName = fexec.executor.GetFlowName()
+	fexec.id = reqId
+	fexec.partial = true
+
+	// Init Stores: Get definition of StateStore and DataStore from user
+	_, _, err := fexec.initializeStore()
+	if err != nil {
+		return fmt.Errorf("[Request `%s`] Failed to init stores, %v", fexec.id, err)
+	}
+
+	err = fexec.setRequestState(STATE_RUNNING)
+	if err != nil {
+		return fmt.Errorf("[Request `%s`] Failed to mark dag state, error %v", fexec.id, err)
+	}
+
+	partialStates, err := fexec.retrievePartialStates()
+	if err != nil {
+		return fmt.Errorf("[Request `%s`] Failed to retrive partial state, error %v", fexec.id, err)
+	}
+
+	for _, ps := range partialStates {
+		err = fexec.executor.HandleNextNode(ps)
+		if err != nil {
+			return fmt.Errorf("[Request `%s`] Failed to forward partial state, error %v", fexec.id, err)
+		}
+	}
+
+	return nil
 }
 
 // CreateFlowExecutor initiate a FlowExecutor with a provided Executor

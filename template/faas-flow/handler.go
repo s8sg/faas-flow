@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"handler/function"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -68,7 +69,7 @@ func (eh *openFaasEventHandler) Configure(flowName string, requestId string) {
 
 func (eh *openFaasEventHandler) Init() error {
 	var err error
-	// initialize traceserve if tracing enabled
+	// initialize trace server if tracing enabled
 	eh.tracer, err = initRequestTracer(eh.flowName)
 	if err != nil {
 		return fmt.Errorf("failed to init request tracer, error %v", err)
@@ -304,11 +305,17 @@ func (of *openFaasExecutor) init(req *HttpRequest) error {
 	}
 	of.asyncUrl = buildURL("http://"+of.gateway, "async-function", of.flowName)
 
+	var err error
+	// initialize trace server if tracing enabled
+	of.openFaasEventHandler.tracer, err = initRequestTracer(of.flowName)
+	if err != nil {
+		return fmt.Errorf("failed to init request tracer, error %v", err)
+	}
+
 	return nil
 }
 
-// RequestHandler
-
+// Handle handle requests to flow function
 func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) error {
 
 	err := of.init(req)
@@ -316,15 +323,46 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 		panic(err.Error())
 	}
 
-	if isDagExportRequest(req) {
+	switch {
+	case isDagExportRequest(req):
 		flowExporter := exporter.CreateFlowExporter(of)
 		resp, err := flowExporter.Export()
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("failed to export dag, error %v", err)
 		}
 		response.Body = resp
-	} else {
 
+	case getStopRequestId(req) != "":
+		requestId := getStopRequestId(req)
+		flowExecutor := executor.CreateFlowExecutor(of)
+		err := flowExecutor.Stop(requestId)
+		if err != nil {
+			log.Printf(err.Error())
+			return fmt.Errorf("Failed to stop request " + requestId + ", check if request is active")
+		}
+		response.Body = []byte("Successfully stopped request " + requestId)
+
+	case getPauseRequestId(req) != "":
+		requestId := getPauseRequestId(req)
+		flowExecutor := executor.CreateFlowExecutor(of)
+		err := flowExecutor.Pause(requestId)
+		if err != nil {
+			log.Printf(err.Error())
+			return fmt.Errorf("Failed to pause request " + requestId + ", check if request is active")
+		}
+		response.Body = []byte("Successfully paused request " + requestId)
+
+	case getResumeRequestId(req) != "":
+		requestId := getResumeRequestId(req)
+		flowExecutor := executor.CreateFlowExecutor(of)
+		err := flowExecutor.Resume(requestId)
+		if err != nil {
+			log.Printf(err.Error())
+			return fmt.Errorf("Failed to resume request " + requestId + ", check if request is active")
+		}
+		response.Body = []byte("Successfully resumed request " + requestId)
+
+	default:
 		var stateOption executor.ExecutionStateOption
 
 		reqId := req.Header.Get("X-Faas-Flow-Reqid")
@@ -338,7 +376,8 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 			of.openFaasEventHandler.header = req.Header
 			partialState, err := executor.DecodePartialReq(req.Body)
 			if err != nil {
-				return fmt.Errorf("failed to decode partial state, err %v", err)
+				log.Printf(err.Error())
+				return fmt.Errorf("failed to decode partial state")
 			}
 			stateOption = executor.PartialRequest(partialState)
 		}
@@ -347,7 +386,8 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 		flowExecutor := executor.CreateFlowExecutor(of)
 		resp, err := flowExecutor.Execute(stateOption)
 		if err != nil {
-			panic(err.Error())
+			log.Printf(err.Error())
+			return fmt.Errorf("failed to execute request")
 		}
 		response.Body = resp
 		response.Header.Set("X-Faas-Flow-Reqid", of.reqId)

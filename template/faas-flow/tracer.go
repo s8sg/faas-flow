@@ -138,6 +138,9 @@ func (tracerObj *traceHandler) extendReqSpan(reqId string, lastNode string, url 
 	//       forward the nodeSpan's SpanContext
 	// span := reqSpan
 	span := tracerObj.nodeSpans[lastNode]
+	if span == nil {
+		return
+	}
 
 	ext.SpanKindRPCClient.Set(span)
 	ext.HTTPUrl.Set(span, url)

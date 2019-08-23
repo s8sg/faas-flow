@@ -66,7 +66,7 @@ func (context *Context) Set(key string, data interface{}) error {
 	return context.dataStore.Set(key, string(b))
 }
 
-// Get retrive a value from the context using DataStore
+// Get retrieve a value from the context using DataStore
 func (context *Context) Get(key string) (interface{}, error) {
 	data, err := context.dataStore.Get(key)
 	if err != nil {
@@ -83,7 +83,7 @@ func (context *Context) Get(key string) (interface{}, error) {
 	return c.Value, err
 }
 
-// GetInt retrive a integer value from the context using DataStore
+// GetInt retrieve a integer value from the context using DataStore
 func (context *Context) GetInt(key string) int {
 	data, err := context.dataStore.Get(key)
 	if err != nil {
@@ -102,7 +102,7 @@ func (context *Context) GetInt(key string) int {
 	return c.Value
 }
 
-// GetString retrive a string value from the context using DataStore
+// GetString retrieve a string value from the context using DataStore
 func (context *Context) GetString(key string) string {
 	data, err := context.dataStore.Get(key)
 	if err != nil {
@@ -121,7 +121,7 @@ func (context *Context) GetString(key string) string {
 	return c.Value
 }
 
-// GetBytes retrive a byte array from the context using DataStore
+// GetBytes retrieve a byte array from the context using DataStore
 func (context *Context) GetBytes(key string) []byte {
 	data, err := context.dataStore.Get(key)
 	if err != nil {
@@ -140,7 +140,7 @@ func (context *Context) GetBytes(key string) []byte {
 	return c.Value
 }
 
-// GetBool retrive a boolean value from the context using DataStore
+// GetBool retrieve a boolean value from the context using DataStore
 func (context *Context) GetBool(key string) bool {
 	data, err := context.dataStore.Get(key)
 	if err != nil {

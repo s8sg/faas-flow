@@ -25,7 +25,7 @@ type NodeExporter struct {
 	IsDynamic        bool `json:"is-dynamic"`
 	IsCondition      bool `json:"is-condition"`
 	IsForeach        bool `json:"is-foreach"`
-	HasAgregator     bool `json:"has-aggregator"`
+	HasAggregator     bool `json:"has-aggregator"`
 	HasSubAggregator bool `json:"has-sub-aggregator"`
 	HasSubDag        bool `json:"has-subdag"`
 	InDegree         int  `json:"in-degree"`
@@ -37,7 +37,7 @@ type NodeExporter struct {
 	DynamicExecOnly bool                    `json:"dynamic-exec-only"`
 	Operations      []*OperationExporter    `json:"operations,omitempty"`
 
-	Childrens        []string        `json:"childrens,omitempty"`
+	Children         []string        `json:"childrens,omitempty"`
 	ChildrenExecOnly map[string]bool `json:"child-exec-only"`
 }
 
@@ -79,7 +79,7 @@ func exportNode(exportNode *NodeExporter, node *Node) {
 		}
 	}
 	if node.aggregator != nil {
-		exportNode.HasAgregator = true
+		exportNode.HasAggregator = true
 	}
 	if node.subAggregator != nil {
 		exportNode.HasSubAggregator = true
@@ -98,7 +98,7 @@ func exportNode(exportNode *NodeExporter, node *Node) {
 
 	exportNode.ChildrenExecOnly = make(map[string]bool)
 	for _, snode := range node.children {
-		exportNode.Childrens = append(exportNode.Childrens, snode.Id)
+		exportNode.Children = append(exportNode.Children, snode.Id)
 		if node.forwarder[snode.Id] == nil {
 			exportNode.ChildrenExecOnly[snode.Id] = true
 		} else {

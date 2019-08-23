@@ -13,7 +13,7 @@ type Request struct {
 	ExecutionState string `json: "state"` // Execution State (execution position / execution vertex)
 
 	Data []byte `json: "data"` // Partial execution data
-	// (empty if intermediate_stoarge enabled
+	// (empty if intermediate_storage enabled
 
 	ContextStore map[string]string `json: "store"` // Context State for default DataStore
 	// (empty if external Store is used
