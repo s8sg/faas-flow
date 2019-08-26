@@ -365,14 +365,22 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 	default:
 		var stateOption executor.ExecutionStateOption
 
-		reqId := req.Header.Get("X-Faas-Flow-Reqid")
-		if reqId == "" {
+		requestId := req.Header.Get("X-Faas-Flow-Reqid")
+		state := req.Header.Get("X-Faas-Flow-State")
+		if state == "" {
 			rawRequest := &executor.RawRequest{}
 			rawRequest.Data = req.Body
 			rawRequest.Query = req.QueryString
 			rawRequest.AuthSignature = req.Header.Get("X-Hub-Signature")
+			// Check if any request Id is passed
+			if requestId != "" {
+				rawRequest.RequestId = requestId
+			}
 			stateOption = executor.NewRequest(rawRequest)
 		} else {
+			if requestId == "" {
+				return fmt.Errorf("request ID not set in partial request")
+			}
 			of.openFaasEventHandler.header = req.Header
 			partialState, err := executor.DecodePartialReq(req.Body)
 			if err != nil {
@@ -382,7 +390,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 			stateOption = executor.PartialRequest(partialState)
 		}
 
-		// Create a flow executor, openFaasExecutor implements executor
+		// Create a flow executor, OpenFaaSExecutor implements executor
 		flowExecutor := executor.CreateFlowExecutor(of)
 		resp, err := flowExecutor.Execute(stateOption)
 		if err != nil {
@@ -391,6 +399,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 		}
 		response.Body = resp
 		response.Header.Set("X-Faas-Flow-Reqid", of.reqId)
+		response.Header.Set("X-Faas-Flow-State", "partial")
 	}
 
 	response.StatusCode = http.StatusOK
