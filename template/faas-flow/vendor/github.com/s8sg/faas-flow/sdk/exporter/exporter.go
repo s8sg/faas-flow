@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"fmt"
+
 	"github.com/s8sg/faas-flow/sdk"
 )
 

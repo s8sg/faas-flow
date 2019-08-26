@@ -17,6 +17,7 @@ type RawRequest struct {
 	Data          []byte
 	AuthSignature string
 	Query         string
+	RequestId     string // RequestId is Optional, if provided faas-flow will reuse it
 }
 
 // PartialState a partial request for the flow
@@ -77,13 +78,13 @@ type Executor interface {
 	ExecutionRuntime
 }
 
-// FlowExecutor faasflow executor
+// FlowExecutor faas-flow executor
 type FlowExecutor struct {
-	flow *sdk.Pipeline // the faasflow
+	flow *sdk.Pipeline // the faas-flow
 
 	// the pipeline properties
-	hasBranch       bool // State if the pipeline dag has atleast one branch
-	hasEdge         bool // State if pipeline dag has atleast one edge
+	hasBranch       bool // State if the pipeline dag has at-least one branch
+	hasEdge         bool // State if pipeline dag has at-least one edge
 	isExecutionFlow bool // State if pipeline has execution only branches
 
 	flowName string // the name of the flow
@@ -467,7 +468,7 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 
 	fexec.log("[Request `%s`] Processing dynamic node %s\n", fexec.id, currentNodeUniqueId)
 
-	// subresults and subdags
+	// sub results and sub dags
 	subresults := make(map[string][]byte)
 	subdags := make(map[string]*sdk.Dag)
 	options := []string{}
@@ -524,11 +525,11 @@ func (fexec *FlowExecutor) executeDynamic(context *sdk.Context, result []byte) (
 	key := pipeline.GetNodeExecutionUniqueId(currentNode) + "-branch-completion"
 	_, err := fexec.incrementCounter(key, 0)
 	if err != nil {
-		return nil, fmt.Errorf("[Request `%s`] Failed to initiate dynamic indegree count for %s, err %v",
+		return nil, fmt.Errorf("[Request `%s`] Failed to initiate dynamic in-degree count for %s, err %v",
 			fexec.id, key, err)
 	}
 
-	fexec.log("[Request `%s`] Dynamic indegree count initiated as %s\n",
+	fexec.log("[Request `%s`] Dynamic in-degree count initiated as %s\n",
 		fexec.id, key)
 
 	// Set all the dynamic options for the current dynamic node
@@ -594,14 +595,14 @@ func (fexec *FlowExecutor) findNextNodeToExecute() bool {
 	// get pipeline
 	pipeline := fexec.flow
 
-	// Check if pipeline is active in statestore
+	// Check if pipeline is active in state-store
 	if !fexec.isActive() {
 		fexec.log("[Request `%s`] Pipeline is not active\n", fexec.id)
 		panic(fmt.Sprintf("[Request `%s`] Pipeline is not active", fexec.id))
 	}
 
 	currentNode, currentDag := pipeline.GetCurrentNodeDag()
-	// Check if the pipeline has completed excution return
+	// Check if the pipeline has completed execution return
 	// else change depth and continue executing
 	for true {
 		if fexec.executor.MonitoringEnabled() {
@@ -654,12 +655,12 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 	// Get unique execution id of the node
 	branchkey := pipeline.GetNodeExecutionUniqueId(currentNode) + "-branch-completion"
 
-	// if indegree is > 1 then use statestore to get indegree completion state
+	// if in-degree is > 1 then use state-store to get in-degree completion state
 	if len(options) > 1 {
 
 		// Get unique execution id of the node
 		key = pipeline.GetNodeExecutionUniqueId(currentNode) + "-branch-completion"
-		// Update the state of indegree completion and get the updated state
+		// Update the state of in-degree completion and get the updated state
 
 		// Skip if dynamic node data forwarding is not disabled
 		if currentNode.GetForwarder("dynamic") != nil {
@@ -671,7 +672,7 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 				return nil, fmt.Errorf("failed to store branch result of dynamic node %s for option %s, error %v",
 					currentNode.GetUniqueId(), option, err)
 			}
-			fexec.log("[Request `%s`] Intermidiate result from Branch to Dynamic Node %s for option %s stored as %s\n",
+			fexec.log("[Request `%s`] Intermediate result from Branch to Dynamic Node %s for option %s stored as %s\n",
 				fexec.id, currentNode.GetUniqueId(), option, key)
 		}
 		realIndegree, err := fexec.incrementCounter(branchkey, 1)
@@ -738,7 +739,7 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 	return data, nil
 }
 
-// handleNextNodes Handle request Response for a faasflow perform response/asyncforward
+// handleNextNodes Handle request Response for a faas-flow perform response/async-forward
 func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) ([]byte, error) {
 	// get pipeline
 	pipeline := fexec.flow
@@ -750,7 +751,7 @@ func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) 
 
 		var intermediateData []byte
 
-		// Node's total Indegree
+		// Node's total In-degree
 		inDegree := node.Indegree()
 
 		// Get forwarder for child node
@@ -766,7 +767,7 @@ func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) 
 			if serr != nil {
 				return []byte(""), fmt.Errorf("failed to store intermediate result, error %v", serr)
 			}
-			fexec.log("[Request `%s`] Intermidiate result from Node %s to %s stored as %s\n",
+			fexec.log("[Request `%s`] Intermediate result from Node %s to %s stored as %s\n",
 				fexec.id, currentNode.GetUniqueId(), node.GetUniqueId(), key)
 
 			// intermediateData is set to blank once its stored in storage
@@ -776,16 +777,16 @@ func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) 
 			intermediateData = []byte("")
 		}
 
-		// if indegree is > 1 then use statestore to get indegree completion state
+		// if in-degree is > 1 then use state-store to get in-degree completion state
 		if inDegree > 1 {
-			// Update the state of indegree completion and get the updated state
+			// Update the state of in-degree completion and get the updated state
 			key := pipeline.GetNodeExecutionUniqueId(node)
 			inDegreeUpdatedCount, err := fexec.incrementCounter(key, 1)
 			if err != nil {
 				return []byte(""), fmt.Errorf("failed to update inDegree counter for node %s", node.GetUniqueId())
 			}
 
-			// If all indegree has finished call that node
+			// If all in-degree has finished call that node
 			if inDegree > inDegreeUpdatedCount {
 				fexec.log("[Request `%s`] request for Node %s is delayed, completed indegree: %d/%d\n",
 					fexec.id, node.GetUniqueId(), inDegreeUpdatedCount, inDegree)
@@ -918,7 +919,7 @@ func (fexec *FlowExecutor) getDagIntermediateData(context *sdk.Context) ([]byte,
 		// Avail the non aggregated input at context
 		context.NodeInput = dataMap
 
-		// If it has only one indegree assign the result as a data
+		// If it has only one in-degree assign the result as a data
 		if len(dependencies) == 1 {
 			data = dataMap[dependencies[0].Id]
 		}
@@ -1012,7 +1013,11 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 			}
 		}
 
-		requestId = xid.New().String()
+		// Use request Id if already provided
+		requestId = fexec.newRequest.RequestId
+		if requestId == "" {
+			requestId = xid.New().String()
+		}
 		fexec.executor.Configure(requestId)
 
 		fexec.flowName = fexec.executor.GetFlowName()
@@ -1133,7 +1138,7 @@ func (fexec *FlowExecutor) GetReqId() string {
 	return fexec.id
 }
 
-// Execute start faasflow execution
+// Execute start faas-flow execution
 func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 	var resp []byte
 	var gerr error
@@ -1189,7 +1194,7 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 		return nil, fmt.Errorf("[Request `%s`] Failed, StateStore need to be defined", fexec.id)
 	}
 
-	// If dags has atleast one edge
+	// If dags has at-least one edge
 	// and nodes forwards data, data store need to be external
 	if fexec.hasEdge && !fexec.isExecutionFlow && !dataSOverride {
 		return nil, fmt.Errorf("[Request `%s`] Failed not an execution flow, DAG data flow need external DataStore", fexec.id)
