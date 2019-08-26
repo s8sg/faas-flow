@@ -258,7 +258,7 @@ For each new request, faas-flow generates a unique `Request Id` for the flow. Th
 2018/08/13 07:52:03 [Request `bdojh7oi7u6bl8te4r0g`] Received
 ```
 The assigned request Id is set on the response header `X-Faas-Flow-Reqid` 
-
+One may provide custom request Id by setting `X-Faas-Flow-Reqid` in the request header    
     
 ## Request Tracing by Open-Tracing 
    
