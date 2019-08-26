@@ -41,9 +41,9 @@ func (req *PartialState) Encode() ([]byte, error) {
 // ExecutionRuntime implements how operation executed and handle next nodes in async
 type ExecutionRuntime interface {
 	// HandleNextNode handles execution of next nodes based on partial state
-	HandleNextNode(*PartialState) (err error)
-	// ExecuteOperation implements execution of an operation
-	ExecuteOperation(sdk.Operation, []byte) ([]byte, error)
+	HandleNextNode(state *PartialState) (err error)
+	// Provide an execution option that will be passed to the operation
+	GetExecutionOption(operation sdk.Operation) map[string]interface{}
 }
 
 // Executor implements a faas-flow executor
@@ -345,10 +345,13 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 		if fexec.executor.MonitoringEnabled() {
 			fexec.eventHandler.ReportOperationStart(operation.GetId(), currentNode.GetUniqueId(), fexec.id)
 		}
+
+		options := fexec.executor.GetExecutionOption(operation)
+
 		if result == nil {
-			result, err = fexec.executor.ExecuteOperation(operation, request)
+			result, err = operation.Execute(request, options)
 		} else {
-			result, err = fexec.executor.ExecuteOperation(operation, result)
+			result, err = operation.Execute(result, options)
 		}
 		if err != nil {
 			if fexec.executor.MonitoringEnabled() {
