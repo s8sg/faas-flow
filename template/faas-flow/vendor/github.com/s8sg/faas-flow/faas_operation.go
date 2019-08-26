@@ -1,7 +1,13 @@
 package faasflow
 
 import (
+	"bytes"
+	"fmt"
+	"io/ioutil"
 	"net/http"
+	"net/url"
+	"os"
+	"path"
 	"strings"
 )
 
@@ -105,6 +111,209 @@ func (operation *FaasOperation) GetId() string {
 		id = "callback-" + operation.CallbackUrl[len(operation.CallbackUrl)-12:]
 	}
 	return id
+}
+
+func (operation *FaasOperation) Encode() []byte {
+	return []byte("")
+}
+
+// buildURL builds OpenFaaS function execution url for the flow
+func buildURL(gateway, rPath, function string) string {
+	u, _ := url.Parse(gateway)
+	u.Path = path.Join(u.Path, rPath+"/"+function)
+	return u.String()
+}
+
+// makeQueryStringFromParam create query string from provided query
+func makeQueryStringFromParam(params map[string][]string) string {
+	if params == nil {
+		return ""
+	}
+	result := ""
+	for key, array := range params {
+		for _, value := range array {
+			keyVal := fmt.Sprintf("%s-%s", key, value)
+			if result == "" {
+				result = "?" + keyVal
+			} else {
+				result = result + "&" + keyVal
+			}
+		}
+	}
+	return result
+}
+
+// buildHttpRequest build upstream request for function
+func buildHttpRequest(url string, method string, data []byte, params map[string][]string,
+	headers map[string]string) (*http.Request, error) {
+
+	queryString := makeQueryStringFromParam(params)
+	if queryString != "" {
+		url = url + queryString
+	}
+
+	httpReq, err := http.NewRequest(method, url, bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+
+	for key, value := range headers {
+		httpReq.Header.Add(key, value)
+	}
+
+	return httpReq, nil
+}
+
+// executeFunction executes a function call
+func executeFunction(gateway string, operation *FaasOperation, data []byte) ([]byte, error) {
+	var err error
+	var result []byte
+
+	name := operation.Function
+	params := operation.GetParams()
+	headers := operation.GetHeaders()
+
+	funcUrl := buildURL("http://"+gateway, "function", name)
+
+	method := os.Getenv("default-method")
+	if method == "" {
+		method = "POST"
+	}
+
+	if m, ok := headers["method"]; ok {
+		method = m
+	}
+
+	httpReq, err := buildHttpRequest(funcUrl, method, data, params, headers)
+	if err != nil {
+		return []byte{}, fmt.Errorf("cannot connect to Function on URL: %s", funcUrl)
+	}
+
+	if operation.Requesthandler != nil {
+		operation.Requesthandler(httpReq)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	defer resp.Body.Close()
+	if operation.OnResphandler != nil {
+		result, err = operation.OnResphandler(resp)
+	} else {
+		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			err = fmt.Errorf("invalid return status %d while connecting %s", resp.StatusCode, funcUrl)
+			result, _ = ioutil.ReadAll(resp.Body)
+		} else {
+			result, err = ioutil.ReadAll(resp.Body)
+		}
+	}
+
+	return result, err
+}
+
+// executeCallback executes a callback
+func executeCallback(operation *FaasOperation, data []byte) error {
+	var err error
+
+	cbUrl := operation.CallbackUrl
+	params := operation.GetParams()
+	headers := operation.GetHeaders()
+
+	method := os.Getenv("default-method")
+	if method == "" {
+		method = "POST"
+	}
+
+	if m, ok := headers["method"]; ok {
+		method = m
+	}
+
+	httpReq, err := buildHttpRequest(cbUrl, method, data, params, headers)
+	if err != nil {
+		return fmt.Errorf("cannot connect to Function on URL: %s", cbUrl)
+	}
+
+	if operation.Requesthandler != nil {
+		operation.Requesthandler(httpReq)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+	if operation.OnResphandler != nil {
+		_, err = operation.OnResphandler(resp)
+	} else {
+		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			cbResult, _ := ioutil.ReadAll(resp.Body)
+			err := fmt.Errorf("%v:%s", err, string(cbResult))
+			return err
+		}
+	}
+	return err
+
+}
+
+func (operation *FaasOperation) Execute(data []byte, option map[string]interface{}) ([]byte, error) {
+	var result []byte
+	var err error
+
+	reqId := fmt.Sprintf("%v", option["request-id"])
+	gateway := fmt.Sprintf("%v", option["gateway"])
+
+	switch {
+	// If function
+	case operation.Function != "":
+		fmt.Printf("[Request `%s`] Executing function `%s`\n",
+			reqId, operation.Function)
+		result, err = executeFunction(gateway, operation, data)
+		if err != nil {
+			err = fmt.Errorf("Function(%s), error: function execution failed, %v",
+				operation.Function, err)
+			if operation.FailureHandler != nil {
+				err = operation.FailureHandler(err)
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+
+	// If callback
+	case operation.CallbackUrl != "":
+		fmt.Printf("[Request `%s`] Executing callback `%s`\n",
+			reqId, operation.CallbackUrl)
+		err = executeCallback(operation, data)
+		if err != nil {
+			err = fmt.Errorf("Callback(%s), error: callback failed, %v",
+				operation.CallbackUrl, err)
+			if operation.FailureHandler != nil {
+				err = operation.FailureHandler(err)
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+
+	// If modifier
+	default:
+		fmt.Printf("[Request `%s`] Executing modifier\n", reqId)
+		result, err = operation.Mod(data)
+		if err != nil {
+			err = fmt.Errorf("error: Failed at modifier, %v", err)
+			return nil, err
+		}
+		if result == nil {
+			result = []byte("")
+		}
+	}
+
+	return result, nil
 }
 
 func (operation *FaasOperation) GetProperties() map[string][]string {

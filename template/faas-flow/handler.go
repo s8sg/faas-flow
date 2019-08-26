@@ -31,7 +31,7 @@ var (
 // implements faasflow.EventHandler
 type openFaasEventHandler struct {
 	currentNodeId string        // used to inject current node id in tracer
-	tracer        *traceHandler // handle traces with opentracing
+	tracer        *traceHandler // handle traces with open-tracing
 	flowName      string
 	header        http.Header
 }
@@ -129,63 +129,6 @@ func (eh *openFaasEventHandler) Flush() {
 
 // ExecutionRuntime
 
-func (of *openFaasExecutor) ExecuteOperation(operation sdk.Operation, data []byte) ([]byte, error) {
-	var result []byte
-	var err error
-
-	ofoperation, ok := operation.(*faasflow.FaasOperation)
-	if !ok {
-		return nil, fmt.Errorf("Operation is not of type faasflow.OpenfaasOperation")
-	}
-
-	switch {
-	// If function
-	case ofoperation.Function != "":
-		fmt.Printf("[Request `%s`] Executing function `%s`\n",
-			of.reqId, ofoperation.Function)
-		result, err = executeFunction(of.gateway, ofoperation, data)
-		if err != nil {
-			err = fmt.Errorf("Function(%s), error: function execution failed, %v",
-				ofoperation.Function, err)
-			if ofoperation.FailureHandler != nil {
-				err = ofoperation.FailureHandler(err)
-			}
-			if err != nil {
-				return nil, err
-			}
-		}
-	// If callback
-	case ofoperation.CallbackUrl != "":
-		fmt.Printf("[Request `%s`] Executing callback `%s`\n",
-			of.reqId, ofoperation.CallbackUrl)
-		err = executeCallback(ofoperation, data)
-		if err != nil {
-			err = fmt.Errorf("Callback(%s), error: callback failed, %v",
-				ofoperation.CallbackUrl, err)
-			if ofoperation.FailureHandler != nil {
-				err = ofoperation.FailureHandler(err)
-			}
-			if err != nil {
-				return nil, err
-			}
-		}
-
-	// If modifier
-	default:
-		fmt.Printf("[Request `%s`] Executing modifier\n", of.reqId)
-		result, err = ofoperation.Mod(data)
-		if err != nil {
-			err = fmt.Errorf("error: Failed at modifier, %v", err)
-			return nil, err
-		}
-		if result == nil {
-			result = []byte("")
-		}
-	}
-
-	return result, nil
-}
-
 func (of *openFaasExecutor) HandleNextNode(partial *executor.PartialState) error {
 
 	state, err := partial.Encode()
@@ -198,6 +141,7 @@ func (of *openFaasExecutor) HandleNextNode(partial *executor.PartialState) error
 	httpreq.Header.Add("Accept", "application/json")
 	httpreq.Header.Add("Content-Type", "application/json")
 	httpreq.Header.Add("X-Faas-Flow-Reqid", of.reqId)
+	httpreq.Header.Set("X-Faas-Flow-State", "partial")
 
 	// extend req span for async call
 	of.tracer.extendReqSpan(of.reqId, of.openFaasEventHandler.currentNodeId,
@@ -216,6 +160,14 @@ func (of *openFaasExecutor) HandleNextNode(partial *executor.PartialState) error
 		return fmt.Errorf("%d: %s", res.StatusCode, string(resdata))
 	}
 	return nil
+}
+
+func (of *openFaasExecutor) GetExecutionOption(operation sdk.Operation) map[string]interface{} {
+	options := make(map[string]interface{})
+	options["gateway"] = of.gateway
+	options["request-id"] = of.reqId
+
+	return options
 }
 
 // Executor
@@ -399,7 +351,6 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 		}
 		response.Body = resp
 		response.Header.Set("X-Faas-Flow-Reqid", of.reqId)
-		response.Header.Set("X-Faas-Flow-State", "partial")
 	}
 
 	response.StatusCode = http.StatusOK

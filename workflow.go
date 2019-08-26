@@ -161,7 +161,7 @@ func (flow *Workflow) SetDag(dag *Dag) {
 	pipeline.SetDag(dag.udag)
 }
 
-// NewDag creates a new dag seperately from pipeline
+// NewDag creates a new dag separately from pipeline
 func NewDag() *Dag {
 	dag := &Dag{}
 	dag.udag = sdk.NewDag()
@@ -228,8 +228,8 @@ func (this *Dag) SubDag(vertex string, dag *Dag) {
 	return
 }
 
-// ForEachBranch composites a subdag which executes for each value
-// It returns the subdag that will be executed for each value
+// ForEachBranch composites a sub-dag which executes for each value
+// It returns the sub-dag that will be executed for each value
 func (this *Dag) ForEachBranch(vertex string, foreach sdk.ForEach, options ...BranchOption) (dag *Dag) {
 	node := this.udag.AddVertex(vertex, []sdk.Operation{})
 	if foreach == nil {
@@ -257,7 +257,7 @@ func (this *Dag) ForEachBranch(vertex string, foreach sdk.ForEach, options ...Br
 	return
 }
 
-// ConditionalBranch composites multiple dags as a subdag which executes for a conditions matched
+// ConditionalBranch composites multiple dags as a sub-dag which executes for a conditions matched
 // and returns the set of dags based on the condition passed
 func (this *Dag) ConditionalBranch(vertex string, conditions []string, condition sdk.Condition,
 	options ...BranchOption) (conditiondags map[string]*Dag) {
