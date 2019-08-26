@@ -329,7 +329,7 @@ for more details check Faas-flow [GoDoc](https://godoc.org/github.com/s8sg/faas-
 
 
 ## External `StateStore` for coordination controller
-Any DAG which has a branch needs coordination for nodes completion events. Faas-flow implements coordination controller which allows the user to use any external Synchronous KV store. User can define custom state-store with `StateStore` interface   
+Any DAG which has a branch needs coordination for nodes completion events, also request execution state needs to me maintained. Faas-flow implements coordination controller and request state store which allows the user to use any external Synchronous KV store. User can define custom state-store with `StateStore` interface   
 ```go
 type StateStore interface {
         // Configure the StateStore with flow name and request ID
@@ -354,6 +354,7 @@ func DefineStateStore() (faasflow.StateStore, error) {
         return consulss, err
 }
 ```
+`StateStore` is mandetory for a FaaSFlow to operate.  
   
 #### Available state-stores:  
 * **[ConsulStateStore](https://github.com/s8sg/faas-flow-consul-statestore)** statestore implementation with **consul**    
@@ -387,6 +388,7 @@ func DefineDataStore() (faasflow.DataStore, error) {
         return miniods, err
 }
 ```
+`DataStore` is only needed for dags that stores intermediate data
 
 #### Available data-stores:  
 * **[MinioDataStore](https://github.com/s8sg/faas-flow-minio-datastore)** allows to store data in **amazon s3** or local **minio DB**
