@@ -239,11 +239,20 @@ func (of *openFaasExecutor) GetLogger() (sdk.Logger, error) {
 }
 
 func (of *openFaasExecutor) GetStateStore() (sdk.StateStore, error) {
-	return function.DefineStateStore()
+	stateStore, err := function.DefineStateStore()
+	if err != nil {
+		return stateStore, err
+	}
+	if stateStore == nil {
+		log.Print("using DefaultStateStore, distributed request may fail")
+		stateStore = &DefaultStateStore{}
+	}
+	return stateStore, nil
 }
 
 func (of *openFaasExecutor) GetDataStore() (sdk.DataStore, error) {
-	return function.DefineDataStore()
+	stateStore, err := function.DefineDataStore()
+	return stateStore, err
 }
 
 // internal
@@ -272,7 +281,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 
 	err := of.init(req)
 	if err != nil {
-		panic(err.Error())
+		return err
 	}
 
 	switch {
@@ -290,7 +299,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 		err := flowExecutor.Stop(requestId)
 		if err != nil {
 			log.Printf(err.Error())
-			return fmt.Errorf("Failed to stop request " + requestId + ", check if request is active")
+			return fmt.Errorf("failed to stop request " + requestId + ", check if request is active")
 		}
 		response.Body = []byte("Successfully stopped request " + requestId)
 
@@ -300,7 +309,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 		err := flowExecutor.Pause(requestId)
 		if err != nil {
 			log.Printf(err.Error())
-			return fmt.Errorf("Failed to pause request " + requestId + ", check if request is active")
+			return fmt.Errorf("failed to pause request " + requestId + ", check if request is active")
 		}
 		response.Body = []byte("Successfully paused request " + requestId)
 
@@ -310,7 +319,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 		err := flowExecutor.Resume(requestId)
 		if err != nil {
 			log.Printf(err.Error())
-			return fmt.Errorf("Failed to resume request " + requestId + ", check if request is active")
+			return fmt.Errorf("failed to resume request " + requestId + ", check if request is active")
 		}
 		response.Body = []byte("Successfully resumed request " + requestId)
 
