@@ -72,7 +72,9 @@ func makeRequestHandler() func(http.ResponseWriter, *http.Request) {
 		}
 
 		if responseErr != nil {
-			fmt.Printf("[ Failed ] %v\n", responseErr)
+			errorStr := fmt.Sprintf("[ Failed ] %v\n", responseErr)
+			fmt.Printf(errorStr)
+			w.Write([]byte(errorStr))
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
 			if response.StatusCode == 0 {

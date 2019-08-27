@@ -292,7 +292,7 @@ func (fexec *FlowExecutor) retrievePartialStates() ([]*PartialState, error) {
 func (fexec *FlowExecutor) isActive() bool {
 	state, err := fexec.getRequestState()
 	if err != nil {
-		fexec.log("[Request `%s`] Failed to obtain pipeline state\n", fexec.id)
+		fexec.log("[Request `%s`] Failed to obtain pipeline state, error %v\n", fexec.id, err)
 		return false
 	}
 
@@ -1209,13 +1209,12 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 	if !fexec.partial {
 
 		// For a new dag pipeline that has edges Create the vertex in stateStore
-		if fexec.hasEdge {
-			serr := fexec.setRequestState(STATE_RUNNING)
-			if serr != nil {
-				return nil, fmt.Errorf("[Request `%s`] Failed to mark dag state, error %v", fexec.id, serr)
-			}
-			fexec.log("[Request `%s`] DAG state initiated at StateStore\n", fexec.id)
+		serr := fexec.setRequestState(STATE_RUNNING)
+		if serr != nil {
+			return nil, fmt.Errorf("[Request `%s`] Failed to mark dag state, error %v", fexec.id, serr)
 		}
+		fexec.log("[Request `%s`] DAG state initiated at StateStore\n", fexec.id)
+
 
 		// set the execution position to initial node
 		// On the 0th depth set the initial node as the current execution position
