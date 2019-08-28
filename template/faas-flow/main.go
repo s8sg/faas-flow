@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/s8sg/faas-flow/sdk"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -37,6 +38,10 @@ type FunctionHandler interface {
 	Handle(req *HttpRequest, response *HttpResponse) (err error)
 }
 
+var (
+	stateStore sdk.StateStore
+)
+
 func makeRequestHandler() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var input []byte
@@ -64,7 +69,8 @@ func makeRequestHandler() func(http.ResponseWriter, *http.Request) {
 		response := &HttpResponse{}
 		response.Header = make(map[string][]string)
 
-		openfaasExecutor := &openFaasExecutor{}
+		openfaasExecutor := &openFaasExecutor{defaultStateStore: stateStore}
+
 		responseErr := openfaasExecutor.Handle(req, response)
 
 		for k, v := range response.Header {
@@ -106,6 +112,17 @@ func parseIntOrDurationValue(val string, fallback time.Duration) time.Duration {
 func main() {
 	readTimeout := parseIntOrDurationValue(os.Getenv("read_timeout"), 10*time.Second)
 	writeTimeout := parseIntOrDurationValue(os.Getenv("write_timeout"), 10*time.Second)
+
+	var err error
+
+	stateStore, err = GetBoltStateStore("default.db")
+	if err != nil {
+		log.Print("Flow using in Memory default StateStore, " +
+			"async and dag request will fail without external dataStore")
+		stateStore = &DefaultStateStore{}
+	}
+	log.Print("Flow using file based default StateStore, " +
+		"distributed dag request will fail if function replication factor > 1")
 
 	s := &http.Server{
 		Addr:           fmt.Sprintf(":%d", 8082),

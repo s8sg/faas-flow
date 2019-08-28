@@ -41,12 +41,13 @@ type openFaasLogger struct{}
 
 // implements faasflow.Executor + RequestHandler
 type openFaasExecutor struct {
-	gateway      string
-	asyncUrl     string // the async URL of the flow
-	flowName     string // the name of the function
-	reqId        string // the request id
-	partialState []byte
-	rawRequest   *executor.RawRequest
+	gateway           string
+	asyncUrl          string // the async URL of the flow
+	flowName          string // the name of the function
+	reqId             string // the request id
+	partialState      []byte
+	rawRequest        *executor.RawRequest
+	defaultStateStore sdk.StateStore
 
 	openFaasEventHandler
 	openFaasLogger
@@ -244,8 +245,10 @@ func (of *openFaasExecutor) GetStateStore() (sdk.StateStore, error) {
 		return stateStore, err
 	}
 	if stateStore == nil {
-		log.Print("using DefaultStateStore, distributed request may fail")
-		stateStore = &DefaultStateStore{}
+
+		stateStore = of.defaultStateStore
+
+		log.Print("Warning: using default StateStore, distributed async call will not work properly")
 	}
 	return stateStore, nil
 }
