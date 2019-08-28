@@ -281,8 +281,28 @@ Retrive the requestID from `X-Faas-Flow-Reqid` header of response
 Below is an example of tracing information for [example-branching-in-Faas-flow](https://github.com/s8sg/branching-in-faas-flow) in [Faas-flow-tower](https://github.com/s8sg/faas-flow-tower)  
 ![alt monitoring](https://github.com/s8sg/faas-flow-tower/blob/master/doc/monitoring.png)
     
-     
-    
+## Pause, Resume or Stop Request
+
+A request in faasflow has three states :
+1. Running
+2. Paused
+3. Stopped
+> Faasflow doesn't keep the state of a finished request  
+
+To pause a running request:
+```
+faas invoke <workflow_name> --query pause-flow=<request_id>
+```
+To resume a paused request 
+```
+faas invoke <workflow_name> --query resume-flow=<request_id>
+```
+To stop an active (pasued/running) request
+```
+faas invoke <workflow_name> --query stop-flow=<request_id>
+```
+
+
 ## Use of context
 
 Context can be used inside definition for differet usecases. Context provide verious information such as:   
