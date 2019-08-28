@@ -113,15 +113,16 @@ func (eh *openFaasEventHandler) ReportNodeFailure(nodeId string, requestId strin
 }
 
 func (eh *openFaasEventHandler) ReportOperationStart(operationId string, nodeId string, requestId string) {
-	// TODO: add feature
+	eh.tracer.startOperationSpan(nodeId, requestId, operationId)
 }
 
 func (eh *openFaasEventHandler) ReportOperationEnd(operationId string, nodeId string, requestId string) {
-	// TODO: add feature
+	eh.tracer.stopOperationSpan(nodeId, operationId)
 }
 
 func (eh *openFaasEventHandler) ReportOperationFailure(operationId string, nodeId string, requestId string, err error) {
-	// TODO: add feature
+	// TODO: add log
+	eh.tracer.stopOperationSpan(nodeId, operationId)
 }
 
 func (eh *openFaasEventHandler) Flush() {
