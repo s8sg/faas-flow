@@ -95,7 +95,7 @@ func initRequestTracer(flowName string) (*traceHandler, error) {
 		config.Logger(jaeger.StdLogger),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to init tracer, error %v", err.Error())
+		return nil, fmt.Errorf("failed to init tracer, error %v", err.Error())
 	}
 
 	tracerObj.closer = traceCloser
@@ -172,9 +172,6 @@ func (tracerObj *traceHandler) stopReqSpan() {
 
 // startNodeSpan starts a node span
 func (tracerObj *traceHandler) startNodeSpan(node string, reqId string) {
-	if tracerObj.reqSpan == nil {
-		return
-	}
 
 	tracerObj.nodeSpans[node] = tracerObj.tracer.StartSpan(
 		node, ext.RPCServerOption(tracerObj.reqSpanCtx))
@@ -191,10 +188,6 @@ func (tracerObj *traceHandler) startNodeSpan(node string, reqId string) {
 
 // stopNodeSpan terminates a node span
 func (tracerObj *traceHandler) stopNodeSpan(node string) {
-
-	if tracerObj.reqSpan == nil {
-		return
-	}
 
 	tracerObj.nodeSpans[node].Finish()
 }
@@ -214,9 +207,8 @@ func (tracerObj *traceHandler) startOperationSpan(node string, reqId string, ope
 
 	nodeContext := tracerObj.nodeSpans[node].Context()
 	operationSpans[operationId] = tracerObj.tracer.StartSpan(
-		operationId, ext.RPCServerOption(nodeContext))
+		operationId, opentracing.ChildOf(nodeContext))
 
-	operationSpans[operationId].SetTag("sync", "true")
 	operationSpans[operationId].SetTag("request", reqId)
 	operationSpans[operationId].SetTag("node", node)
 	operationSpans[operationId].SetTag("operation", operationId)
