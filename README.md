@@ -283,11 +283,11 @@ Below is an example of tracing information for [example-branching-in-Faas-flow](
     
 ## Pause, Resume or Stop Request
 
-A request in faasflow has three states :
+A request in faas-flow has three states :
 1. Running
 2. Paused
 3. Stopped
-> Faasflow doesn't keep the state of a finished request  
+> Faas-flow doesn't keep the state of a finished request  
 
 To pause a running request:
 ```
