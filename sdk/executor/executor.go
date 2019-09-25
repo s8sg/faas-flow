@@ -101,7 +101,8 @@ type FlowExecutor struct {
 	partialState *PartialState // holds the partially completed state
 	finished     bool          // denote the flow has finished execution
 
-	executor Executor // executor
+	executor Executor      // executor
+	exitChan chan struct{} // exit channel
 }
 
 const (
@@ -1215,7 +1216,6 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 		}
 		fexec.log("[Request `%s`] DAG state initiated at StateStore\n", fexec.id)
 
-
 		// set the execution position to initial node
 		// On the 0th depth set the initial node as the current execution position
 		fexec.flow.UpdatePipelineExecutionPosition(sdk.DEPTH_SAME,
@@ -1318,6 +1318,8 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 		}
 		fexec.dataStore.Cleanup()
 
+		fexec.exitChan <- struct{}{}
+
 		resp = result
 	}
 
@@ -1352,6 +1354,8 @@ func (fexec *FlowExecutor) Stop(reqId string) error {
 	if fexec.dataStore != nil {
 		fexec.dataStore.Cleanup()
 	}
+
+	fexec.exitChan <- struct{}{}
 
 	return nil
 }
@@ -1420,6 +1424,7 @@ func (fexec *FlowExecutor) Resume(reqId string) error {
 func CreateFlowExecutor(executor Executor) (fexec *FlowExecutor) {
 	fexec = &FlowExecutor{}
 	fexec.executor = executor
+	fexec.exitChan = make(chan struct{})
 
 	return fexec
 }
