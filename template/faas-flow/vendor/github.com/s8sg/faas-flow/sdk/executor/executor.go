@@ -101,8 +101,8 @@ type FlowExecutor struct {
 	partialState *PartialState // holds the partially completed state
 	finished     bool          // denote the flow has finished execution
 
-	executor Executor      // executor
-	exitChan chan struct{} // exit channel
+	executor   Executor    // executor
+	notifyChan chan string // notify about execution complete
 }
 
 const (
@@ -1318,7 +1318,7 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 		}
 		fexec.dataStore.Cleanup()
 
-		fexec.exitChan <- struct{}{}
+		fexec.notifyChan <- fexec.id
 
 		resp = result
 	}
@@ -1355,7 +1355,7 @@ func (fexec *FlowExecutor) Stop(reqId string) error {
 		fexec.dataStore.Cleanup()
 	}
 
-	fexec.exitChan <- struct{}{}
+	fexec.notifyChan <- fexec.id
 
 	return nil
 }
@@ -1421,10 +1421,8 @@ func (fexec *FlowExecutor) Resume(reqId string) error {
 }
 
 // CreateFlowExecutor initiate a FlowExecutor with a provided Executor
-func CreateFlowExecutor(executor Executor) (*FlowExecutor, chan struct{}) {
-	fexec := &FlowExecutor{}
-	fexec.executor = executor
-	fexec.exitChan = make(chan struct{}, 1)
+func CreateFlowExecutor(executor Executor, notifyChan chan string) (fexec *FlowExecutor) {
+	fexec = &FlowExecutor{executor: executor, notifyChan: notifyChan}
 
-	return fexec, fexec.exitChan
+	return fexec
 }

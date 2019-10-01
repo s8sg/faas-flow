@@ -291,6 +291,11 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 		return err
 	}
 
+	notifyChan := make(chan string, 1)
+	defer func() {
+		close(notifyChan)
+	}()
+
 	switch {
 	case isDagExportRequest(req):
 		flowExporter := exporter.CreateFlowExporter(of)
@@ -302,7 +307,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 
 	case getStopRequestId(req) != "":
 		requestId := getStopRequestId(req)
-		flowExecutor, _ := executor.CreateFlowExecutor(of)
+		flowExecutor := executor.CreateFlowExecutor(of, notifyChan)
 		err := flowExecutor.Stop(requestId)
 		if err != nil {
 			log.Printf(err.Error())
@@ -312,7 +317,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 
 	case getPauseRequestId(req) != "":
 		requestId := getPauseRequestId(req)
-		flowExecutor, _ := executor.CreateFlowExecutor(of)
+		flowExecutor := executor.CreateFlowExecutor(of, notifyChan)
 		err := flowExecutor.Pause(requestId)
 		if err != nil {
 			log.Printf(err.Error())
@@ -322,7 +327,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 
 	case getResumeRequestId(req) != "":
 		requestId := getResumeRequestId(req)
-		flowExecutor, _ := executor.CreateFlowExecutor(of)
+		flowExecutor := executor.CreateFlowExecutor(of, notifyChan)
 		err := flowExecutor.Resume(requestId)
 		if err != nil {
 			log.Printf(err.Error())
@@ -359,7 +364,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 		}
 
 		// Create a flow executor, OpenFaaSExecutor implements executor
-		flowExecutor, _ := executor.CreateFlowExecutor(of)
+		flowExecutor := executor.CreateFlowExecutor(of, notifyChan)
 		resp, err := flowExecutor.Execute(stateOption)
 		if err != nil {
 			log.Printf(err.Error())
