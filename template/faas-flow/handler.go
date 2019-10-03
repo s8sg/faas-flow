@@ -146,11 +146,9 @@ func (of *openFaasExecutor) HandleNextNode(partial *executor.PartialState) error
 	httpreq.Header.Add("X-Faas-Flow-Reqid", of.reqId)
 	httpreq.Header.Set("X-Faas-Flow-State", "partial")
 
-	if of.MonitoringEnabled() {
-		// extend req span for async call
-		of.tracer.extendReqSpan(of.reqId, of.openFaasEventHandler.currentNodeId,
-			of.asyncUrl, httpreq)
-	}
+	// extend req span for async call
+	of.tracer.extendReqSpan(of.reqId, of.openFaasEventHandler.currentNodeId,
+		of.asyncUrl, httpreq)
 
 	client := &http.Client{}
 	res, resErr := client.Do(httpreq)
