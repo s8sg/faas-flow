@@ -1421,10 +1421,10 @@ func (fexec *FlowExecutor) Resume(reqId string) error {
 }
 
 // CreateFlowExecutor initiate a FlowExecutor with a provided Executor
-func CreateFlowExecutor(executor Executor) (fexec *FlowExecutor) {
-	fexec = &FlowExecutor{}
+func CreateFlowExecutor(executor Executor) (*FlowExecutor, chan struct{}) {
+	fexec := &FlowExecutor{}
 	fexec.executor = executor
 	fexec.exitChan = make(chan struct{}, 1)
 
-	return fexec
+	return fexec, fexec.exitChan
 }

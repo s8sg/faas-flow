@@ -302,7 +302,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 
 	case getStopRequestId(req) != "":
 		requestId := getStopRequestId(req)
-		flowExecutor := executor.CreateFlowExecutor(of)
+		flowExecutor, _ := executor.CreateFlowExecutor(of)
 		err := flowExecutor.Stop(requestId)
 		if err != nil {
 			log.Printf(err.Error())
@@ -312,7 +312,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 
 	case getPauseRequestId(req) != "":
 		requestId := getPauseRequestId(req)
-		flowExecutor := executor.CreateFlowExecutor(of)
+		flowExecutor, _ := executor.CreateFlowExecutor(of)
 		err := flowExecutor.Pause(requestId)
 		if err != nil {
 			log.Printf(err.Error())
@@ -322,7 +322,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 
 	case getResumeRequestId(req) != "":
 		requestId := getResumeRequestId(req)
-		flowExecutor := executor.CreateFlowExecutor(of)
+		flowExecutor, _ := executor.CreateFlowExecutor(of)
 		err := flowExecutor.Resume(requestId)
 		if err != nil {
 			log.Printf(err.Error())
@@ -359,7 +359,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 		}
 
 		// Create a flow executor, OpenFaaSExecutor implements executor
-		flowExecutor := executor.CreateFlowExecutor(of)
+		flowExecutor, _ := executor.CreateFlowExecutor(of)
 		resp, err := flowExecutor.Execute(stateOption)
 		if err != nil {
 			log.Printf(err.Error())
