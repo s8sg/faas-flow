@@ -1424,7 +1424,7 @@ func (fexec *FlowExecutor) Resume(reqId string) error {
 func CreateFlowExecutor(executor Executor) (fexec *FlowExecutor) {
 	fexec = &FlowExecutor{}
 	fexec.executor = executor
-	fexec.exitChan = make(chan struct{})
+	fexec.exitChan = make(chan struct{}, 1)
 
 	return fexec
 }

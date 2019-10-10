@@ -70,6 +70,7 @@ func (eh *openFaasEventHandler) Configure(flowName string, requestId string) {
 
 func (eh *openFaasEventHandler) Init() error {
 	var err error
+
 	// initialize trace server if tracing enabled
 	eh.tracer, err = initRequestTracer(eh.flowName)
 	if err != nil {
@@ -270,11 +271,13 @@ func (of *openFaasExecutor) init(req *HttpRequest) error {
 	}
 	of.asyncUrl = buildURL("http://"+of.gateway, "async-function", of.flowName)
 
-	var err error
-	// initialize trace server if tracing enabled
-	of.openFaasEventHandler.tracer, err = initRequestTracer(of.flowName)
-	if err != nil {
-		return fmt.Errorf("failed to init request tracer, error %v", err)
+	if of.MonitoringEnabled() {
+		var err error
+		// initialize trace server if tracing enabled
+		of.openFaasEventHandler.tracer, err = initRequestTracer(of.flowName)
+		if err != nil {
+			return fmt.Errorf("failed to init request tracer, error %v", err)
+		}
 	}
 
 	return nil
