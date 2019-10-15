@@ -117,12 +117,12 @@ func main() {
 
 	stateStore, err = GetBoltStateStore("default.db")
 	if err != nil {
-		log.Print("Flow using in Memory default StateStore, " +
-			"async and dag request will fail without external dataStore")
 		stateStore = &DefaultStateStore{}
+		log.Print("In-memory default StateStore initialized, " +
+			"Async and DAG request will fail without external StateStore")
 	}
-	log.Print("Flow using file based default StateStore, " +
-		"distributed dag request will fail if function replication factor > 1")
+	log.Print("File based default StateStore initialized, " +
+		"distributed DAG request may fail without external StateStore")
 
 	s := &http.Server{
 		Addr:           fmt.Sprintf(":%d", 8082),

@@ -294,9 +294,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 	}
 
 	notifyChan := make(chan string, 1)
-	defer func() {
-		close(notifyChan)
-	}()
+	defer close(notifyChan)
 
 	switch {
 	case isDagExportRequest(req):
