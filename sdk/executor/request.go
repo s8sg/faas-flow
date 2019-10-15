@@ -6,9 +6,10 @@ import (
 
 // Request defines the body of async forward request to faasflow
 type Request struct {
-	Sign  string `json: "sign"`  // request signature
-	ID    string `json: "id"`    // request ID
-	Query string `json: "query"` // query string
+	Sign        string `json: "sign"`         // request signature
+	ID          string `json: "id"`           // request ID
+	Query       string `json: "query"`        // query string
+	CallbackUrl string `json: "callback-url"` // callback url
 
 	ExecutionState string `json: "state"` // Execution State (execution position / execution vertex)
 
