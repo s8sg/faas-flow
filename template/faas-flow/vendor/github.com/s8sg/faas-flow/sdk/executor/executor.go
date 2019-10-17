@@ -1168,6 +1168,15 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("[Request `%s`] Failed to init flow, %v", fexec.id, err)
 	}
+	// status = fmt.Sprintf("[Request `%s`]", fexec.id)
+	status := ""
+	if stateSDefined {
+		status = status + " StateStore overridden"
+	}
+	if dataSOverride {
+		status = status + " DataStore overridden"
+	}
+	fexec.log(status)
 
 	// Make Context: make the request context from flow
 	context := fexec.createContext()
