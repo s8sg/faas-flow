@@ -29,9 +29,9 @@ type ReqHandler func(*http.Request)
 
 type FaasOperation struct {
 	// FaasOperations
-	Function    string   // The name of the function
-	CallbackUrl string   // Callback Url
-	Mod         Modifier // Modifier
+	Function       string   // The name of the function
+	HttpRequestUrl string   // HttpRequest Url
+	Mod            Modifier // Modifier
 
 	// Optional Options
 	Header map[string]string   // The HTTP call header
@@ -58,10 +58,10 @@ func createModifier(mod Modifier) *FaasOperation {
 	return operation
 }
 
-// createCallback Create a callback
-func createCallback(url string) *FaasOperation {
+// createHttpRequest Create a httpRequest
+func createHttpRequest(url string) *FaasOperation {
 	operation := &FaasOperation{}
-	operation.CallbackUrl = url
+	operation.HttpRequestUrl = url
 	operation.Header = make(map[string]string)
 	operation.Param = make(map[string][]string)
 	return operation
@@ -107,8 +107,8 @@ func (operation *FaasOperation) GetId() string {
 	switch {
 	case operation.Function != "":
 		id = operation.Function
-	case operation.CallbackUrl != "":
-		id = "callback-" + operation.CallbackUrl[len(operation.CallbackUrl)-12:]
+	case operation.HttpRequestUrl != "":
+		id = "http-req-" + operation.HttpRequestUrl[len(operation.HttpRequestUrl)-16:]
 	}
 	return id
 }
@@ -214,11 +214,12 @@ func executeFunction(gateway string, operation *FaasOperation, data []byte) ([]b
 	return result, err
 }
 
-// executeCallback executes a callback
-func executeCallback(operation *FaasOperation, data []byte) error {
+// executeHttpRequest executes a httpRequest
+func executeHttpRequest(operation *FaasOperation, data []byte) ([]byte, error) {
 	var err error
+	var result []byte
 
-	cbUrl := operation.CallbackUrl
+	httpUrl := operation.HttpRequestUrl
 	params := operation.GetParams()
 	headers := operation.GetHeaders()
 
@@ -231,9 +232,9 @@ func executeCallback(operation *FaasOperation, data []byte) error {
 		method = m
 	}
 
-	httpReq, err := buildHttpRequest(cbUrl, method, data, params, headers)
+	httpReq, err := buildHttpRequest(httpUrl, method, data, params, headers)
 	if err != nil {
-		return fmt.Errorf("cannot connect to Function on URL: %s", cbUrl)
+		return nil, fmt.Errorf("cannot connect to Function on URL: %s", httpUrl)
 	}
 
 	if operation.Requesthandler != nil {
@@ -243,7 +244,7 @@ func executeCallback(operation *FaasOperation, data []byte) error {
 	client := &http.Client{}
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer resp.Body.Close()
@@ -251,12 +252,13 @@ func executeCallback(operation *FaasOperation, data []byte) error {
 		_, err = operation.OnResphandler(resp)
 	} else {
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
-			cbResult, _ := ioutil.ReadAll(resp.Body)
-			err := fmt.Errorf("%v:%s", err, string(cbResult))
-			return err
+			err = fmt.Errorf("invalid return status %d while connecting %s", resp.StatusCode, httpUrl)
+			result, _ = ioutil.ReadAll(resp.Body)
+		} else {
+			result, err = ioutil.ReadAll(resp.Body)
 		}
 	}
-	return err
+	return result, err
 
 }
 
@@ -284,20 +286,23 @@ func (operation *FaasOperation) Execute(data []byte, option map[string]interface
 			}
 		}
 
-	// If callback
-	case operation.CallbackUrl != "":
-		fmt.Printf("[Request `%s`] Executing callback `%s`\n",
-			reqId, operation.CallbackUrl)
-		err = executeCallback(operation, data)
+	// If httpRequest
+	case operation.HttpRequestUrl != "":
+		fmt.Printf("[Request `%s`] Executing httpRequest `%s`\n",
+			reqId, operation.HttpRequestUrl)
+		result, err = executeHttpRequest(operation, data)
 		if err != nil {
-			err = fmt.Errorf("Callback(%s), error: callback failed, %v",
-				operation.CallbackUrl, err)
+			err = fmt.Errorf("HttpRequest(%s), error: httpRequest failed, %v",
+				operation.HttpRequestUrl, err)
 			if operation.FailureHandler != nil {
 				err = operation.FailureHandler(err)
 			}
 			if err != nil {
 				return nil, err
 			}
+		}
+		if result == nil {
+			result = []byte("")
 		}
 
 	// If modifier
@@ -322,7 +327,7 @@ func (operation *FaasOperation) GetProperties() map[string][]string {
 
 	isMod := "false"
 	isFunction := "false"
-	isCallback := "false"
+	isHttpRequest := "false"
 	hasFailureHandler := "false"
 	hasResponseHandler := "false"
 
@@ -332,8 +337,8 @@ func (operation *FaasOperation) GetProperties() map[string][]string {
 	if operation.Function != "" {
 		isFunction = "true"
 	}
-	if operation.CallbackUrl != "" {
-		isCallback = "true"
+	if operation.HttpRequestUrl != "" {
+		isHttpRequest = "true"
 	}
 	if operation.FailureHandler != nil {
 		hasFailureHandler = "true"
@@ -344,7 +349,7 @@ func (operation *FaasOperation) GetProperties() map[string][]string {
 
 	result["isMod"] = []string{isMod}
 	result["isFunction"] = []string{isFunction}
-	result["isCallback"] = []string{isCallback}
+	result["isHttpRequest"] = []string{isHttpRequest}
 	result["hasFailureHandler"] = []string{hasFailureHandler}
 	result["hasResponseHandler"] = []string{hasResponseHandler}
 
@@ -396,9 +401,9 @@ func (node *Node) Apply(function string, opts ...Option) *Node {
 	return node
 }
 
-// Callback adds a new callback to the given vertex
-func (node *Node) Callback(url string, opts ...Option) *Node {
-	newCallback := createCallback(url)
+// Request adds a new http Request to the given vertex
+func (node *Node) Request(url string, opts ...Option) *Node {
+	newHttpRequest := createHttpRequest(url)
 
 	o := &Options{}
 	for _, opt := range opts {
@@ -406,27 +411,27 @@ func (node *Node) Callback(url string, opts ...Option) *Node {
 		opt(o)
 		if len(o.header) != 0 {
 			for key, value := range o.header {
-				newCallback.addheader(key, value)
+				newHttpRequest.addheader(key, value)
 			}
 		}
 		if len(o.query) != 0 {
 			for key, array := range o.query {
 				for _, value := range array {
-					newCallback.addparam(key, value)
+					newHttpRequest.addparam(key, value)
 				}
 			}
 		}
 		if o.failureHandler != nil {
-			newCallback.addFailureHandler(o.failureHandler)
+			newHttpRequest.addFailureHandler(o.failureHandler)
 		}
 		if o.responseHandler != nil {
-			newCallback.addResponseHandler(o.responseHandler)
+			newHttpRequest.addResponseHandler(o.responseHandler)
 		}
 		if o.requestHandler != nil {
-			newCallback.addRequestHandler(o.requestHandler)
+			newHttpRequest.addRequestHandler(o.requestHandler)
 		}
 	}
 
-	node.unode.AddOperation(newCallback)
+	node.unode.AddOperation(newHttpRequest)
 	return node
 }

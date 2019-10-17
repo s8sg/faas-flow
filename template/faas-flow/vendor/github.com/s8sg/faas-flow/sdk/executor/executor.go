@@ -44,6 +44,8 @@ type ExecutionRuntime interface {
 	HandleNextNode(state *PartialState) (err error)
 	// Provide an execution option that will be passed to the operation
 	GetExecutionOption(operation sdk.Operation) map[string]interface{}
+	// Handle the completion of execution of data
+	HandleExecutionCompletion(data []byte) error
 }
 
 // Executor implements a faas-flow executor
@@ -1018,7 +1020,7 @@ func (fexec *FlowExecutor) init() ([]byte, error) {
 		}
 
 		// Use request Id if already provided
-		requestId = fexec.newRequest.RequestId
+		requestId = rawRequest.RequestId
 		if requestId == "" {
 			requestId = xid.New().String()
 		}
@@ -1166,6 +1168,15 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("[Request `%s`] Failed to init flow, %v", fexec.id, err)
 	}
+	// status = fmt.Sprintf("[Request `%s`]", fexec.id)
+	status := ""
+	if stateSDefined {
+		status = status + " StateStore overridden"
+	}
+	if dataSOverride {
+		status = status + " DataStore overridden"
+	}
+	fexec.log(status)
 
 	// Make Context: make the request context from flow
 	context := fexec.createContext()
@@ -1318,6 +1329,12 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 		}
 		fexec.dataStore.Cleanup()
 
+		// Call execution completion handler
+		fexec.log("[Request `%s`] Calling completion handler\n", fexec.id)
+		err = fexec.executor.HandleExecutionCompletion(result)
+		if err != nil {
+			fexec.log("[Request `%s`] completion handler failed, error %v\n", fexec.id, err)
+		}
 		fexec.notifyChan <- fexec.id
 
 		resp = result

@@ -45,6 +45,7 @@ type openFaasExecutor struct {
 	asyncUrl          string // the async URL of the flow
 	flowName          string // the name of the function
 	reqId             string // the request id
+	callbackUrl       string // the callback url
 	partialState      []byte
 	rawRequest        *executor.RawRequest
 	defaultStateStore sdk.StateStore
@@ -145,6 +146,7 @@ func (of *openFaasExecutor) HandleNextNode(partial *executor.PartialState) error
 	httpreq.Header.Add("Content-Type", "application/json")
 	httpreq.Header.Add("X-Faas-Flow-Reqid", of.reqId)
 	httpreq.Header.Set("X-Faas-Flow-State", "partial")
+	httpreq.Header.Set("X-Faas-Flow-Callback-Url", of.callbackUrl)
 
 	// extend req span for async call
 	if of.MonitoringEnabled() {
@@ -173,6 +175,30 @@ func (of *openFaasExecutor) GetExecutionOption(operation sdk.Operation) map[stri
 	options["request-id"] = of.reqId
 
 	return options
+}
+
+func (of *openFaasExecutor) HandleExecutionCompletion(data []byte) error {
+	if of.callbackUrl == "" {
+		return nil
+	}
+
+	log.Printf("calling callback url (%s) with result", of.callbackUrl)
+	httpreq, _ := http.NewRequest(http.MethodPost, of.callbackUrl, bytes.NewReader(data))
+	httpreq.Header.Add("X-Faas-Flow-Reqid", of.reqId)
+	client := &http.Client{}
+
+	res, resErr := client.Do(httpreq)
+	if resErr != nil {
+		return resErr
+	}
+	defer res.Body.Close()
+	resdata, _ := ioutil.ReadAll(res.Body)
+
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("failed to call callback %d: %s", res.StatusCode, string(resdata))
+	}
+
+	return nil
 }
 
 // Executor
@@ -340,6 +366,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 
 		requestId := req.Header.Get("X-Faas-Flow-Reqid")
 		state := req.Header.Get("X-Faas-Flow-State")
+		of.callbackUrl = req.Header.Get("X-Faas-Flow-Callback-Url")
 		if state == "" {
 			rawRequest := &executor.RawRequest{}
 			rawRequest.Data = req.Body
@@ -372,6 +399,7 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 		}
 		response.Body = resp
 		response.Header.Set("X-Faas-Flow-Reqid", of.reqId)
+		response.Header.Set("X-Faas-Flow-Callback-Url", of.callbackUrl)
 	}
 
 	response.StatusCode = http.StatusOK

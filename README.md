@@ -69,7 +69,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
                         // do something
                         return data, nil
                 })
-        dag.Node("n3").Callback("http://gateway:8080/function/fake-storage")
+        dag.Node("n3")
         dag.Edge("n1", "n2")
         dag.Edge("n2", "n3")
         return
@@ -91,7 +91,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
         dag.Node("n4", faasflow.Aggregator(func(data map[string][]byte) ([]byte, error) {
                 // aggregate branch result data["n2"] and data["n3"]
                 return []byte(""), nil
-        })).Callback("http://gateway:8080/function/fake-storage")
+        }))
 
         dag.Edge("n1", "n2")
         dag.Edge("n1", "n3")
@@ -140,7 +140,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
                 // do something
                 return data, nil
         })
-        dag.Node("n2").Callback("http://gateway:8080/function/fake-storage")
+        dag.Node("n2")
         dag.Edge("n1", "C")
         dag.Edge("C", "n2")
 }
@@ -204,6 +204,7 @@ Edit function stack file `greet.yml`
     environment:
       read_timeout: 120 # A value larger than `max` of all execution times of Nodes
       write_timeout: 120 # A value larger than `max` of all execution times of Nodes
+      exec_timeout: 0 # disable exec timeout
       write_debug: true
       combine_output: false
     environment_file:
@@ -280,7 +281,10 @@ Retrive the requestID from `X-Faas-Flow-Reqid` header of response
 
 Below is an example of tracing information for [example-branching-in-Faas-flow](https://github.com/s8sg/branching-in-faas-flow) in [Faas-flow-tower](https://github.com/s8sg/faas-flow-tower)  
 ![alt monitoring](https://github.com/s8sg/faas-flow-tower/blob/master/doc/monitoring.png)
-    
+   
+## Use of Callback
+To receive a result of long running **FaaSFlow** request, you can specify the `X-Faas-Flow-Callback-Url`. FaaSFlow will invoked the callback URL with the final result and with the request ID set as `X-Faas-Flow-Reqid` in request Header. `X-Callback-Url` from OpenFaaS is not supported in FaaSFlow.   
+   
 ## Pause, Resume or Stop Request
 
 A request in faas-flow has three states :
@@ -338,7 +342,7 @@ Http Query to flow can be used retrieved from context using `context.Query`
      	 })
 ```  
 
-#### Other from context:
+#### Use of request context:
 Node, requestId, State is provided by the `context`
 ```go
    currentNode := context.GetNode()
