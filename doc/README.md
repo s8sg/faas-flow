@@ -1,4 +1,4 @@
-## faasflow doc
+## faasflow doc (obsolete)
 
 Faasflow guide helps you to get started with faasflow pipeline with example
 
