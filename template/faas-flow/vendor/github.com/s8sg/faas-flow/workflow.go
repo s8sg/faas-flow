@@ -2,6 +2,7 @@ package faasflow
 
 import (
 	"fmt"
+
 	sdk "github.com/s8sg/faas-flow/sdk"
 )
 
@@ -148,6 +149,11 @@ func (flow *Workflow) GetPipeline() *sdk.Pipeline {
 	return flow.pipeline
 }
 
+// SdkDag provides the sdk.Dag object
+func (flow *Workflow) SdkDag() *sdk.Dag {
+	return flow.pipeline.Dag
+}
+
 // Dag provides the workflow dag object
 func (flow *Workflow) Dag() *Dag {
 	dag := &Dag{}
@@ -286,6 +292,10 @@ func (this *Dag) ConditionalBranch(vertex string, conditions []string, condition
 		conditiondags[conditionKey] = dag
 	}
 	return
+}
+
+func (node *Node) SdkNode() *sdk.Node {
+	return node.unode
 }
 
 // AddOperation adds an Operation to the given vertex
