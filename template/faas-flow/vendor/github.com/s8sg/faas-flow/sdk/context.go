@@ -63,12 +63,12 @@ func (context *Context) Set(key string, data interface{}) error {
 		return fmt.Errorf("Failed to marshal data, error %v", err)
 	}
 
-	return context.dataStore.Set(key, string(b))
+	return context.dataStore.Set([]byte(key), b)
 }
 
 // Get retrieve a value from the context using DataStore
 func (context *Context) Get(key string) (interface{}, error) {
-	data, err := context.dataStore.Get(key)
+	data, err := context.dataStore.Get([]byte(key))
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (context *Context) Get(key string) (interface{}, error) {
 		Key   string      `json:"key"`
 		Value interface{} `json:"value"`
 	}{}
-	err = json.Unmarshal([]byte(data), &c)
+	err = json.Unmarshal(data, &c)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to unmarshal data, error %v", err)
 	}
@@ -85,7 +85,7 @@ func (context *Context) Get(key string) (interface{}, error) {
 
 // GetInt retrieve a integer value from the context using DataStore
 func (context *Context) GetInt(key string) int {
-	data, err := context.dataStore.Get(key)
+	data, err := context.dataStore.Get([]byte(key))
 	if err != nil {
 		panic(fmt.Sprintf("error %v", err))
 	}
@@ -94,7 +94,7 @@ func (context *Context) GetInt(key string) int {
 		Key   string `json:"key"`
 		Value int    `json:"value"`
 	}{}
-	err = json.Unmarshal([]byte(data), &c)
+	err = json.Unmarshal(data, &c)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to unmarshal data, error %v", err))
 	}
@@ -104,7 +104,7 @@ func (context *Context) GetInt(key string) int {
 
 // GetString retrieve a string value from the context using DataStore
 func (context *Context) GetString(key string) string {
-	data, err := context.dataStore.Get(key)
+	data, err := context.dataStore.Get([]byte(key))
 	if err != nil {
 		panic(fmt.Sprintf("error %v", err))
 	}
@@ -113,7 +113,7 @@ func (context *Context) GetString(key string) string {
 		Key   string `json:"key"`
 		Value string `json:"value"`
 	}{}
-	err = json.Unmarshal([]byte(data), &c)
+	err = json.Unmarshal(data, &c)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to unmarshal data, error %v", err))
 	}
@@ -123,7 +123,7 @@ func (context *Context) GetString(key string) string {
 
 // GetBytes retrieve a byte array from the context using DataStore
 func (context *Context) GetBytes(key string) []byte {
-	data, err := context.dataStore.Get(key)
+	data, err := context.dataStore.Get([]byte(key))
 	if err != nil {
 		panic(fmt.Sprintf("error %v", err))
 	}
@@ -132,7 +132,7 @@ func (context *Context) GetBytes(key string) []byte {
 		Key   string `json:"key"`
 		Value []byte `json:"value"`
 	}{}
-	err = json.Unmarshal([]byte(data), &c)
+	err = json.Unmarshal(data, &c)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to unmarshal data, error %v", err))
 	}
@@ -142,7 +142,7 @@ func (context *Context) GetBytes(key string) []byte {
 
 // GetBool retrieve a boolean value from the context using DataStore
 func (context *Context) GetBool(key string) bool {
-	data, err := context.dataStore.Get(key)
+	data, err := context.dataStore.Get([]byte(key))
 	if err != nil {
 		panic(fmt.Sprintf("error %v", err))
 	}
@@ -151,7 +151,7 @@ func (context *Context) GetBool(key string) bool {
 		Key   string `json:"key"`
 		Value bool   `json:"value"`
 	}{}
-	err = json.Unmarshal([]byte(data), &c)
+	err = json.Unmarshal(data, &c)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to unmarshal data, error %v", err))
 	}
@@ -161,5 +161,5 @@ func (context *Context) GetBool(key string) bool {
 
 // Del deletes a value from the context using DataStore
 func (context *Context) Del(key string) error {
-	return context.dataStore.Del(key)
+	return context.dataStore.Del([]byte(key))
 }

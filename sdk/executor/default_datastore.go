@@ -6,18 +6,18 @@ import (
 
 // json to encode
 type requestEmbedDataStore struct {
-	store map[string]string
+	store map[string][]byte
 }
 
 // CreateDataStore creates a new requestEmbedDataStore
 func createDataStore() *requestEmbedDataStore {
 	rstore := &requestEmbedDataStore{}
-	rstore.store = make(map[string]string)
+	rstore.store = make(map[string][]byte)
 	return rstore
 }
 
 // retrieveDataStore creates a store manager from a map
-func retrieveDataStore(store map[string]string) *requestEmbedDataStore {
+func retrieveDataStore(store map[string][]byte) *requestEmbedDataStore {
 	rstore := &requestEmbedDataStore{}
 	rstore.store = store
 	return rstore
@@ -34,24 +34,24 @@ func (rstore *requestEmbedDataStore) Init() error {
 }
 
 // Set sets a value (implement DataStore)
-func (rstore *requestEmbedDataStore) Set(key string, value string) error {
-	rstore.store[key] = value
+func (rstore *requestEmbedDataStore) Set(key []byte, value []byte) error {
+	rstore.store[string(key)] = value
 	return nil
 }
 
 // Get gets a value (implement DataStore)
-func (rstore *requestEmbedDataStore) Get(key string) (string, error) {
-	value, ok := rstore.store[key]
+func (rstore *requestEmbedDataStore) Get(key []byte) ([]byte, error) {
+	value, ok := rstore.store[string(key)]
 	if !ok {
-		return "", fmt.Errorf("no field name %s", key)
+		return nil, fmt.Errorf("no field name %s", key)
 	}
 	return value, nil
 }
 
 // Del delets a value (implement DataStore)
-func (rstore *requestEmbedDataStore) Del(key string) error {
-	if _, ok := rstore.store[key]; ok {
-		delete(rstore.store, key)
+func (rstore *requestEmbedDataStore) Del(key []byte) error {
+	if _, ok := rstore.store[string(key)]; ok {
+		delete(rstore.store, string(key))
 	}
 	return nil
 }

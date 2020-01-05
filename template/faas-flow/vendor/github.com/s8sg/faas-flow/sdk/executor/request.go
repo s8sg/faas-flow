@@ -16,7 +16,7 @@ type Request struct {
 	Data []byte `json: "data"` // Partial execution data
 	// (empty if intermediate_storage enabled
 
-	ContextStore map[string]string `json: "store"` // Context State for default DataStore
+	ContextStore map[string][]byte `json: "store"` // Context State for default DataStore
 	// (empty if external Store is used
 }
 
@@ -24,7 +24,7 @@ func buildRequest(id string,
 	state string,
 	query string,
 	data []byte,
-	contextstate map[string]string,
+	contextstate map[string][]byte,
 	sign string) *Request {
 
 	request := &Request{
@@ -63,7 +63,7 @@ func (req *Request) getExecutionState() string {
 	return req.ExecutionState
 }
 
-func (req *Request) getContextStore() map[string]string {
+func (req *Request) getContextStore() map[string][]byte {
 	return req.ContextStore
 }
 
