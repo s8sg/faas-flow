@@ -104,7 +104,7 @@ type FlowExecutor struct {
 	finished     bool          // denote the flow has finished execution
 
 	executor   Executor    // executor
-	notifyChan chan string // notify about execution complete
+	notifyChan chan string // notify about execution complete, if not nil
 }
 
 const (
@@ -1335,7 +1335,9 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 		if err != nil {
 			fexec.log("[Request `%s`] completion handler failed, error %v\n", fexec.id, err)
 		}
-		fexec.notifyChan <- fexec.id
+		if fexec.notifyChan != nil {
+			fexec.notifyChan <- fexec.id
+		}
 
 		resp = result
 	}
@@ -1372,7 +1374,9 @@ func (fexec *FlowExecutor) Stop(reqId string) error {
 		fexec.dataStore.Cleanup()
 	}
 
-	fexec.notifyChan <- fexec.id
+	if fexec.notifyChan != nil {
+		fexec.notifyChan <- fexec.id
+	}
 
 	return nil
 }
