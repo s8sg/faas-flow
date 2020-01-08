@@ -237,8 +237,8 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 #### Build and Deploy
 Build and deploy
 ```bash
-faas build
-faas deploy
+faas build -f greet.yml
+faas deploy -f greet.yml
 ```
 > This function will generate one Synchronous node     
 > ```
