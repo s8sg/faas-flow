@@ -2,6 +2,7 @@ package faasflow
 
 import (
 	"fmt"
+
 	sdk "github.com/s8sg/faas-flow/sdk"
 )
 
@@ -166,6 +167,26 @@ func NewDag() *Dag {
 	dag := &Dag{}
 	dag.udag = sdk.NewDag()
 	return dag
+}
+
+func (this *Dag) CutDag(id string) (*Dag, error) {
+	ndag, err := this.udag.CutDag(id)
+	if err != nil {
+		return nil, err
+	}
+	dag := &Dag{}
+	dag.udag = ndag
+	return dag, nil
+}
+
+func (this *Dag) Reverse() (*Dag, error) {
+	ndag, err := this.udag.Reverse()
+	if err != nil {
+		return nil, err
+	}
+	dag := &Dag{}
+	dag.udag = ndag
+	return dag, nil
 }
 
 // Append generalizes a seperate dag by appending its properties into current dag.

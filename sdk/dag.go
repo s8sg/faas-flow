@@ -205,6 +205,141 @@ func (this *Dag) HasEdge() bool {
 	return this.hasEdge
 }
 
+func (this *Dag) CutDag(id string) (*Dag, error) {
+	if !this.validated {
+		if err := this.Validate(); err != nil {
+			return nil, err
+		}
+	}
+
+	dag := NewDag()
+
+	onode := this.GetNode(id)
+	if onode == nil {
+		return nil, fmt.Errorf("invalid node %s", id)
+	}
+
+	fillForwardVertex(dag, onode)
+
+	return dag, nil
+}
+
+func fillForwardVertex(this *Dag, snode *Node) {
+	var nnode *Node
+
+	if nnode = this.GetNode(snode.Id); nnode == nil {
+		nnode = this.AddVertex(snode.Id, snode.Operations())
+		if ndag := snode.SubDag(); ndag != nil {
+			nnode.AddSubDag(ndag)
+		}
+		/*
+			for fid, fwd := range snode.forwarder {
+				nnode.AddForwarder(fid, fwd)
+			}
+		*/
+	}
+	for _, child := range snode.Children() {
+		if this.GetNode(child.Id) == nil {
+			nnode = this.AddVertex(child.Id, child.Operations())
+			if ndag := child.SubDag(); ndag != nil {
+				nnode.AddSubDag(ndag)
+			}
+		}
+		/*
+			for fid, fwd := range child.forwarder {
+				nnode.AddForwarder(fid, fwd)
+			}
+		*/
+		for _, dep := range child.Dependency() {
+			if this.GetNode(dep.Id) == nil {
+				fillForwardVertex(this, dep)
+			}
+			this.AddEdge(dep.Id, child.Id)
+		}
+
+		if len(child.Children()) > 0 {
+			fillForwardVertex(this, child)
+		}
+
+		for _, child := range child.Children() {
+			this.AddEdge(snode.Id, child.Id)
+		}
+
+	}
+}
+
+func fillReverseVertex(this *Dag, snode *Node) {
+	var nnode *Node
+
+	if nnode = this.GetNode(snode.Id); nnode == nil {
+		nnode = this.AddVertex(snode.Id, snode.Operations())
+		if ndag := snode.ParentDag(); ndag != nil || this != ndag {
+			nnode.AddSubDag(ndag)
+		}
+		/*
+		   for fid, fwd := range snode.forwarder {
+		   			if fnode := this.GetNode(fid); fnode != nil {
+		   				fnode.AddForwarder(nnode.Id, fwd)
+		   			}
+		   		}
+		*/
+	}
+
+	for _, child := range snode.Children() {
+		this.AddEdge(child.Id, nnode.Id)
+	}
+
+	for _, parent := range snode.Dependency() {
+		fillReverseVertex(this, parent)
+		if this.GetNode(parent.Id) == nil {
+			fillReverseVertex(this, parent)
+		}
+		if ndag := parent.ParentDag(); ndag != nil && this != ndag {
+			nnode.AddSubDag(ndag)
+		}
+		/*
+			for fid, fwd := range parent.forwarder {
+				if fnode := this.GetNode(fid); fnode != nil {
+					fnode.AddForwarder(nnode.Id, fwd)
+				}
+			}
+		*/
+		for _, dep := range parent.Dependency() {
+			fillReverseVertex(this, dep)
+			this.AddEdge(parent.Id, dep.Id)
+		}
+
+		if len(parent.Dependency()) > 0 {
+			fillReverseVertex(this, parent)
+		}
+
+		for _, child := range parent.Children() {
+			this.AddEdge(child.Id, parent.Id)
+		}
+	}
+
+}
+
+func (this *Dag) Reverse() (*Dag, error) {
+	if !this.validated {
+		if err := this.Validate(); err != nil {
+			return nil, err
+		}
+	}
+
+	dag := NewDag()
+	onode := this.GetEndNode()
+
+	fillReverseVertex(dag, onode)
+	if err := dag.Validate(); err != nil {
+		return nil, err
+	}
+
+	//printDag(dag.GetInitialNode())
+
+	return dag, nil
+}
+
 // Validate validates a dag and all subdag as per faas-flow dag requirments
 // A validated graph has only one initialNode and one EndNode set
 // if a graph has more than one endnode, a seperate endnode gets added
