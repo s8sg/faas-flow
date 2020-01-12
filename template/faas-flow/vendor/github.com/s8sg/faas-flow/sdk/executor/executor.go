@@ -404,7 +404,7 @@ func (fexec *FlowExecutor) findCurrentNodeToExecute() {
 // forwardState forward async request to faasflow
 func (fexec *FlowExecutor) forwardState(currentNodeId string, nextNodeId string, result []byte) error {
 	var sign string
-	store := make(map[string]string)
+	store := make(map[string][]byte)
 
 	// get pipeline
 	pipeline := fexec.flow

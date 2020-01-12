@@ -6,18 +6,18 @@ import (
 
 // json to encode
 type requestEmbedDataStore struct {
-	store map[string]string
+	store map[string][]byte
 }
 
 // CreateDataStore creates a new requestEmbedDataStore
 func createDataStore() *requestEmbedDataStore {
 	rstore := &requestEmbedDataStore{}
-	rstore.store = make(map[string]string)
+	rstore.store = make(map[string][]byte)
 	return rstore
 }
 
 // retrieveDataStore creates a store manager from a map
-func retrieveDataStore(store map[string]string) *requestEmbedDataStore {
+func retrieveDataStore(store map[string][]byte) *requestEmbedDataStore {
 	rstore := &requestEmbedDataStore{}
 	rstore.store = store
 	return rstore
@@ -34,16 +34,16 @@ func (rstore *requestEmbedDataStore) Init() error {
 }
 
 // Set sets a value (implement DataStore)
-func (rstore *requestEmbedDataStore) Set(key string, value string) error {
+func (rstore *requestEmbedDataStore) Set(key string, value []byte) error {
 	rstore.store[key] = value
 	return nil
 }
 
 // Get gets a value (implement DataStore)
-func (rstore *requestEmbedDataStore) Get(key string) (string, error) {
+func (rstore *requestEmbedDataStore) Get(key string) ([]byte, error) {
 	value, ok := rstore.store[key]
 	if !ok {
-		return "", fmt.Errorf("no field name %s", key)
+		return nil, fmt.Errorf("no field name %s", key)
 	}
 	return value, nil
 }
