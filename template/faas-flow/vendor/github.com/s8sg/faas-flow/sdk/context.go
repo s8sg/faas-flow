@@ -23,7 +23,7 @@ const (
 	StateSuccess = "success"
 	// StateFailure denotes failure state
 	StateFailure = "failure"
-	// StateOngoing denotes onging satte
+	// StateOngoing denotes ongoing state
 	StateOngoing = "ongoing"
 )
 
@@ -63,7 +63,7 @@ func (context *Context) Set(key string, data interface{}) error {
 		return fmt.Errorf("Failed to marshal data, error %v", err)
 	}
 
-	return context.dataStore.Set(key, string(b))
+	return context.dataStore.Set(key, b)
 }
 
 // Get retrieve a value from the context using DataStore
@@ -76,7 +76,7 @@ func (context *Context) Get(key string) (interface{}, error) {
 		Key   string      `json:"key"`
 		Value interface{} `json:"value"`
 	}{}
-	err = json.Unmarshal([]byte(data), &c)
+	err = json.Unmarshal(data, &c)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to unmarshal data, error %v", err)
 	}
@@ -94,7 +94,7 @@ func (context *Context) GetInt(key string) int {
 		Key   string `json:"key"`
 		Value int    `json:"value"`
 	}{}
-	err = json.Unmarshal([]byte(data), &c)
+	err = json.Unmarshal(data, &c)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to unmarshal data, error %v", err))
 	}
@@ -113,7 +113,7 @@ func (context *Context) GetString(key string) string {
 		Key   string `json:"key"`
 		Value string `json:"value"`
 	}{}
-	err = json.Unmarshal([]byte(data), &c)
+	err = json.Unmarshal(data, &c)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to unmarshal data, error %v", err))
 	}
@@ -132,7 +132,7 @@ func (context *Context) GetBytes(key string) []byte {
 		Key   string `json:"key"`
 		Value []byte `json:"value"`
 	}{}
-	err = json.Unmarshal([]byte(data), &c)
+	err = json.Unmarshal(data, &c)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to unmarshal data, error %v", err))
 	}
@@ -151,7 +151,7 @@ func (context *Context) GetBool(key string) bool {
 		Key   string `json:"key"`
 		Value bool   `json:"value"`
 	}{}
-	err = json.Unmarshal([]byte(data), &c)
+	err = json.Unmarshal(data, &c)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to unmarshal data, error %v", err))
 	}

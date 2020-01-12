@@ -7,9 +7,9 @@ type DataStore interface {
 	// Initialize the DataStore (called only once in a request span)
 	Init() error
 	// Set store a value for key, in failure returns error
-	Set(key string, value string) error
+	Set(key string, value []byte) error
 	// Get retrieves a value by key, if failure returns error
-	Get(key string) (string, error)
+	Get(key string) ([]byte, error)
 	// Del deletes a value by a key
 	Del(key string) error
 	// Cleanup all the resources in DataStore
