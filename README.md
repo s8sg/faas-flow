@@ -251,6 +251,11 @@ All calls will be performed in one single execution of the flow function and res
 ```
 echo "Adam" | faas invoke greet
 ```
+## Deploy FaaS-Flow Infra
+[FaaS-Flow infra](https://github.com/s8sg/faas-flow-infra) allows to set up the components needed to run more advance workflows 
+> **[Deploy in Kubernets](https://github.com/s8sg/faas-flow-infra/blob/master/README.md#deploy-in-kubernets)**     
+> **[Deploy in Swarm](https://github.com/s8sg/faas-flow-infra/blob/master/README.md#deploy-in-docker-swarm)**  
+
           
 ## Request Tracking by ID
 For each new request, faas-flow generates a unique `Request Id` for the flow. The same Id is used when logging 
@@ -270,6 +275,7 @@ Enable tracing and add trace server as:
 ```yaml
       enable_tracing: true
       trace_server: "jaegertracing:5775"
+      # trace_server: "faas-flow-infra.jaegertracing:5775" # use this for kubernets
 ``` 
     
 #### Start The Trace Server 
