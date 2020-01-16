@@ -275,7 +275,7 @@ Enable tracing and add trace server as:
 ```yaml
       enable_tracing: true
       trace_server: "jaegertracing:5775"
-      # trace_server: "faas-flow-infra.jaegertracing:5775" # use this for kubernets
+      # trace_server: "jaegertracing.faas-flow-infra:5775" # use this for kubernets
 ``` 
     
 #### Start The Trace Server 
