@@ -69,7 +69,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
                         // do something
                         return data, nil
                 })
-        dag.Node("n3")
+        dag.Node("n3").Apply("func4")
         dag.Edge("n1", "n2")
         dag.Edge("n2", "n3")
         return
