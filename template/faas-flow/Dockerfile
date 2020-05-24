@@ -1,11 +1,21 @@
-FROM openfaas/of-watchdog:0.5.3 as watchdog
-FROM golang:1.10.4-alpine3.8 as build
+FROM openfaas/of-watchdog:0.7.7 as watchdog
+FROM golang:1.14.3-alpine3.11 as build
 
 COPY --from=watchdog /fwatchdog /usr/bin/fwatchdog
 RUN chmod +x /usr/bin/fwatchdog
 
 RUN mkdir -p /go/src/handler
 WORKDIR /go/src/handler
+
+RUN apk update && \
+    apk --no-cache add \
+        gcc \
+        musl-dev
+
+COPY ./go.mod ./go.sum ./
+
+RUN go mod download
+
 COPY . .
 
 # Run a gofmt and exclude all vendored code.
@@ -15,7 +25,7 @@ RUN CGO_ENABLED=0 GOOS=linux \
     go build --ldflags "-s -w" -a -installsuffix cgo -o handler . && \
     go test $(go list ./... | grep -v /vendor/) -cover
 
-FROM alpine:3.8
+FROM alpine:3.11.6
 # Add non root user and certs
 RUN apk --no-cache add ca-certificates \
     && addgroup -S app && adduser -S -g app app \
