@@ -1,0 +1,21 @@
+name: Faas-Flow CI
+
+on: [push]
+
+jobs:
+
+  checks:
+    name: Unit test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - uses: actions/setup-go@v1
+        with:
+          go-version: '1.14'
+      - run: make coverage
+      - uses: actions/upload-artifact@v1
+        with:
+          name: coverage.html
+          path: /tmp/coverage.html
