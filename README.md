@@ -1,5 +1,6 @@
 # Faas-flow - Function Composition for [OpenFaaS](https://github.com/openfaas/faas)
-[![Build Status](https://travis-ci.org/s8sg/faas-flow.svg?branch=master)](https://travis-ci.org/s8sg/faas-flow)
+![Faas-Flow CI](https://github.com/s8sg/faas-flow/workflows/Faas-Flow%20CI/badge.svg)
+![Template CI](https://github.com/s8sg/faas-flow/workflows/Template%20Docker%20Image%20CI/badge.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GoDoc](https://godoc.org/github.com/s8sg/faas-flow?status.svg)](https://godoc.org/github.com/s8sg/faas-flow)
 [![OpenTracing Badge](https://img.shields.io/badge/OpenTracing-enabled-blue.svg)](http://opentracing.io)
