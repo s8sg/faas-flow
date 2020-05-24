@@ -13,15 +13,16 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 	return
 }
 
-// DefineStateStore provides the override of the default StateStore
-func DefineStateStore() (faasflow.StateStore, error) {
-	// NOTE: By default FaaS-Flow use a DefaultStateStore
-	// 		 It stores request state in memory,
-	//       for a distributed flow use external synchronous KV store (e.g. ETCD)
+// OverrideStateStore provides the override of the default StateStore
+func OverrideStateStore() (faasflow.StateStore, error) {
+	// NOTE: By default FaaS-Flow use consul as a state-store,
+	//       This can be overridden with other synchronous KV store (e.g. ETCD)
 	return nil, nil
 }
 
-// ProvideDataStore provides the override of the default DataStore
-func DefineDataStore() (faasflow.DataStore, error) {
+// OverrideDataStore provides the override of the default DataStore
+func OverrideDataStore() (faasflow.DataStore, error) {
+	// NOTE: By default FaaS-Flow use minio as a data-store,
+	//       This can be overridden with other synchronous KV store
 	return nil, nil
 }
