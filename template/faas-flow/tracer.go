@@ -67,7 +67,7 @@ func (c *CustomHeadersCarrier) Set(key, val string) {
 func getTraceServer() string {
 	traceServer := os.Getenv("trace_server")
 	if traceServer == "" {
-		traceServer = "jaegertracing:5775"
+		traceServer = "jaeger.faasflow:5775"
 	}
 	return traceServer
 }
