@@ -13,8 +13,6 @@ import (
 
 	faasflow "github.com/s8sg/faas-flow"
 
-	consulStateStore "github.com/s8sg/faas-flow-consul-statestore"
-	minioDataStore "github.com/s8sg/faas-flow-minio-datastore"
 	sdk "github.com/s8sg/faas-flow/sdk"
 	executor "github.com/s8sg/faas-flow/sdk/executor"
 	exporter "github.com/s8sg/faas-flow/sdk/exporter"
@@ -43,14 +41,15 @@ type openFaasLogger struct{}
 
 // implements faasflow.Executor + RequestHandler
 type openFaasExecutor struct {
-	gateway           string
-	asyncUrl          string // the async URL of the flow
-	flowName          string // the name of the function
-	reqId             string // the request id
-	callbackUrl       string // the callback url
-	partialState      []byte
-	rawRequest        *executor.RawRequest
-	defaultStateStore sdk.StateStore
+	gateway      string
+	asyncUrl     string // the async URL of the flow
+	flowName     string // the name of the function
+	reqId        string // the request id
+	callbackUrl  string // the callback url
+	partialState []byte
+	rawRequest   *executor.RawRequest
+	stateStore   sdk.StateStore
+	dataStore    sdk.DataStore
 
 	openFaasEventHandler
 	openFaasLogger
@@ -272,66 +271,11 @@ func (of *openFaasExecutor) GetLogger() (sdk.Logger, error) {
 }
 
 func (of *openFaasExecutor) GetStateStore() (sdk.StateStore, error) {
-	stateStore, err := function.OverrideStateStore()
-	if err != nil {
-		return stateStore, err
-	}
-	if stateStore == nil {
-
-		consulUrl := os.Getenv("consul_url")
-		if len(consulUrl) == 0 {
-			consulUrl = "consul.faasflow:8500"
-		}
-
-		consulDc := os.Getenv("consul_dc")
-		if len(consulDc) == 0 {
-			consulDc = "dc1"
-		}
-
-		stateStore, err = consulStateStore.GetConsulStateStore(consulUrl, consulDc)
-
-		log.Print("Using default state store (consul)")
-	}
-	return stateStore, nil
+	return of.stateStore, nil
 }
 
 func (of *openFaasExecutor) GetDataStore() (sdk.DataStore, error) {
-	dataStore, err := function.OverrideDataStore()
-	if err != nil {
-		return dataStore, err
-	}
-	if dataStore == nil {
-
-		minioUrl := os.Getenv("s3_url")
-		if len(minioUrl) == 0 {
-			minioUrl = "minio.faasflow:9000"
-		}
-
-		minioRegion := os.Getenv("s3_region")
-		if len(minioRegion) == 0 {
-			minioUrl = "us-east-1"
-		}
-
-		secretKeyName := os.Getenv("s3_secret_key_name")
-		if len(secretKeyName) == 0 {
-			secretKeyName = "s3-secret-key"
-		}
-
-		accessKeyName := os.Getenv("s3_access_key_name")
-		if len(accessKeyName) == 0 {
-			accessKeyName = "s3-access-key"
-		}
-
-		tlsEnabled := false
-		if connection := os.Getenv("s3_tls"); connection == "true" || connection == "1" {
-			tlsEnabled = true
-		}
-
-		dataStore, err = minioDataStore.Init(minioUrl, minioRegion, secretKeyName, accessKeyName, tlsEnabled)
-
-		log.Print("Using default data store (minio)")
-	}
-	return dataStore, err
+	return of.dataStore, nil
 }
 
 // internal

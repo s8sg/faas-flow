@@ -202,12 +202,6 @@ Edit function stack file `greet.yml`
     lang: faas-flow
     handler: ./greet
     image: greet:latest
-    environment:
-      read_timeout: 120 # A value larger than `max` of all execution times of Nodes
-      write_timeout: 120 # A value larger than `max` of all execution times of Nodes
-      exec_timeout: 0 # disable exec timeout
-      write_debug: true
-      combine_output: false
     environment_file:
       - flow.yml
 ``` 
@@ -216,8 +210,8 @@ Edit function stack file `greet.yml`
 Add a separate file `flow.yml` with faas-flow related configuration.
 ```yaml
 environment:
-  gateway: "gateway:8080" # The address of OpenFaaS gateway, Faas-flow use this to forward completion event
-  # gateway: "gateway.openfaas:8080" # For K8s 
+  gateway: "gateway.openfaas:8080" # The address of OpenFaaS gateway, Faas-flow use this to forward completion event
+  # gateway: "gateway:8080" # For swarm 
   enable_tracing: false # tracing allow to trace internal node execution with opentracing
   enable_hmac: true # hmac adds an extra layer of security by validating the event source
 ```
@@ -275,8 +269,8 @@ Request tracing can be retrieved from `trace_server` once enabled. Tracing is th
 Enable tracing and add trace server as:
 ```yaml
       enable_tracing: true
-      trace_server: "jaegertracing:5775"
-      # trace_server: "jaegertracing.faas-flow-infra:5775" # use this for kubernets
+      trace_server: "jaeger.faasflow:5775"
+      # trace_server: "jaegertracing:5775" # use this for swarm
 ``` 
     
 #### Start The Trace Server 
@@ -360,7 +354,7 @@ for more details check Faas-flow [GoDoc](https://godoc.org/github.com/s8sg/faas-
 
 
 ## External `StateStore` for coordination controller
-Any DAG which has a branch needs coordination for nodes completion events, also request execution state needs to me maintained. Faas-flow implements coordination controller and request state store which allows the user to use any external Synchronous KV store. User can define custom state-store with `StateStore` interface   
+Faas-flow implements coordination controller and store the intermidiate request with StateStore. By default Faas-flow uses [consul](https://github.com/s8sg/faas-flow-consul-statestore) as default state-store, although user can define custom state-store with `StateStore` intermace and use any external Synchronous KV store as backend.
 ```go
 type StateStore interface {
         // Configure the StateStore with flow name and request ID
@@ -377,22 +371,22 @@ type StateStore interface {
         Cleanup() error
 }
 ```
-A `StateStore` can be implemented with any KV Store that provides `Synchronization`. The implemented `StateStore` can be set with `DefineStateStore()` at `function/handler.go`:
+The custom `StateStore` can be set with `OverrideStateStore()` at `function/handler.go`:
 ```go
-// DefineStateStore provides the override of the default StateStore
-func DefineStateStore() (faasflow.StateStore, error) {
-        consulss, err := consulStateStore.GetConsulStateStore(os.Getenv("consul_url"), os.Getenv("consul_dc"))
-        return consulss, err
+// OverrideStateStore provides the override of the default StateStore
+func OverrideStateStore() (faasflow.StateStore, error) {
+        myss, err := myStateStore.Init()
+        return myss, err
 }
 ```
 `StateStore` is mandetory for a FaaSFlow to operate.  
   
-#### Available state-stores:  
-* **[ConsulStateStore](https://github.com/s8sg/faas-flow-consul-statestore)** statestore implementation with **consul**    
+#### Official state-stores:  
+* **[ConsulStateStore](https://github.com/s8sg/faas-flow-consul-statestore)** statestore implementation with **consul** (default)   
 * **[EtcdStateStore](https://github.com/s8sg/faas-flow-etcd-statestore)** statewtore implementation with **etcd**      
 
 ## External `DataStore` for storage controller
-Faas-flow uses the `DataStore` to store partially completed data between nodes and request context data. Faas-flow implements a storage controller to handle storage that allows the user to use any external object-store. User can define custom data-store with `DataStore` interface. 
+Faas-flow uses the `DataStore` to store partially completed data between nodes and request context data. By default Faas-flow uses [minio](https://github.com/s8sg/faas-flow-minio-datastore) as default data-store, although user can define custom data-store with `DataStore` interface and use any external storage as backend. 
 ```go
  type DataStore interface {
         // Configure the DaraStore with flow name and request ID
@@ -410,19 +404,18 @@ Faas-flow uses the `DataStore` to store partially completed data between nodes a
  }
 ```
     
-Data Store can be implemented and set by user at the `DefineDataStore()` at `function/handler.go`:
+Data Store can be implemented and set by user at the `OverrideDataStore()` at `function/handler.go`:
 ```go
-// ProvideDataStore provides the override of the default DataStore
-func DefineDataStore() (faasflow.DataStore, error) {
-        // initialize minio DataStore
-        miniods, err := minioDataStore.InitFromEnv()
-        return miniods, err
+// OverrideDataStore provides the override of the default DataStore
+func OverrideDataStore() (faasflow.DataStore, error) {
+        myds, err := myDs.Init()
+        return myds, err
 }
 ```
-`DataStore` is only needed for dags that stores intermediate data
+`DataStore` is mandetory for a FaaSFlow to operate.
 
 #### Available data-stores:  
-* **[MinioDataStore](https://github.com/s8sg/faas-flow-minio-datastore)** allows to store data in **amazon s3** or local **minio DB**
+* **[MinioDataStore](https://github.com/s8sg/faas-flow-minio-datastore)** allows to store data in **amazon s3** or local **minio DB** (default)
 
      
 ## Cleanup with `Finally()`

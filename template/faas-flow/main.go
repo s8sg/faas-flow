@@ -2,13 +2,17 @@ package main
 
 import (
 	"fmt"
-	"github.com/s8sg/faas-flow/sdk"
+	"handler/function"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
+
+	consulStateStore "github.com/s8sg/faas-flow-consul-statestore"
+	minioDataStore "github.com/s8sg/faas-flow-minio-datastore"
+	sdk "github.com/s8sg/faas-flow/sdk"
 )
 
 // HttpResponse of function call
@@ -40,6 +44,7 @@ type FunctionHandler interface {
 
 var (
 	stateStore sdk.StateStore
+	dataStore  sdk.DataStore
 )
 
 func makeRequestHandler() func(http.ResponseWriter, *http.Request) {
@@ -69,7 +74,7 @@ func makeRequestHandler() func(http.ResponseWriter, *http.Request) {
 		response := &HttpResponse{}
 		response.Header = make(map[string][]string)
 
-		openfaasExecutor := &openFaasExecutor{defaultStateStore: stateStore}
+		openfaasExecutor := &openFaasExecutor{stateStore: stateStore, dataStore: dataStore}
 
 		responseErr := openfaasExecutor.Handle(req, response)
 
@@ -109,20 +114,87 @@ func parseIntOrDurationValue(val string, fallback time.Duration) time.Duration {
 	return duration
 }
 
+func initStateStore() (err error) {
+	stateStore, err = function.OverrideStateStore()
+	if err != nil {
+		return err
+	}
+	if stateStore == nil {
+
+		consulUrl := os.Getenv("consul_url")
+		if len(consulUrl) == 0 {
+			consulUrl = "consul.faasflow:8500"
+		}
+
+		consulDc := os.Getenv("consul_dc")
+		if len(consulDc) == 0 {
+			consulDc = "dc1"
+		}
+
+		stateStore, err = consulStateStore.GetConsulStateStore(consulUrl, consulDc)
+
+		log.Print("Using default state store (consul)")
+	}
+	return err
+}
+
+func initDataStore() (err error) {
+	dataStore, err = function.OverrideDataStore()
+	if err != nil {
+		return err
+	}
+	if dataStore == nil {
+
+		/*
+			minioUrl := os.Getenv("s3_url")
+			if len(minioUrl) == 0 {
+				minioUrl = "minio.faasflow:9000"
+			}
+
+			minioRegion := os.Getenv("s3_region")
+			if len(minioRegion) == 0 {
+				minioUrl = "us-east-1"
+			}
+
+			secretKeyName := os.Getenv("s3_secret_key_name")
+			if len(secretKeyName) == 0 {
+				secretKeyName = "s3-secret-key"
+			}
+
+			accessKeyName := os.Getenv("s3_access_key_name")
+			if len(accessKeyName) == 0 {
+				accessKeyName = "s3-access-key"
+			}
+
+			tlsEnabled := false
+			if connection := os.Getenv("s3_tls"); connection == "true" || connection == "1" {
+				tlsEnabled = true
+			}
+
+			dataStore, err = minioDataStore.Init(minioUrl, minioRegion, secretKeyName, accessKeyName, tlsEnabled)
+		*/
+		dataStore, err = minioDataStore.InitFromEnv()
+
+		log.Print("Using default data store (minio)")
+	}
+	return err
+}
+
 func main() {
 	readTimeout := parseIntOrDurationValue(os.Getenv("read_timeout"), 10*time.Second)
 	writeTimeout := parseIntOrDurationValue(os.Getenv("write_timeout"), 10*time.Second)
 
 	var err error
 
-	stateStore, err = GetBoltStateStore("default.db")
+	err = initStateStore()
 	if err != nil {
-		stateStore = &DefaultStateStore{}
-		log.Print("In-memory default StateStore initialized, " +
-			"Async and DAG request will fail without external StateStore")
+		log.Fatalf("Failed to initialize the StateStore, %v", err)
 	}
-	log.Print("File based default StateStore initialized, " +
-		"distributed DAG request may fail without external StateStore")
+
+	err = initDataStore()
+	if err != nil {
+		log.Fatalf("Failed to initialize the StateStore, %v", err)
+	}
 
 	s := &http.Server{
 		Addr:           fmt.Sprintf(":%d", 8082),
