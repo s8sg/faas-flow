@@ -46,4 +46,10 @@ ENV fprocess="./handler"
 ENV mode="http"
 ENV upstream_url="http://127.0.0.1:8082"
 
+ENV read_timeout: 120
+ENV write_timeout: 120
+ENV exec_timeout: 0
+ENV write_debug: true
+ENV combine_output: false
+
 CMD ["./fwatchdog"]
