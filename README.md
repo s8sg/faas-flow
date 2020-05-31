@@ -265,9 +265,30 @@ contribute to make it better.
 
 ## Getting Started
 
+### Deploy OpenFaaS
+
+FaasFlow requires the OpenFaaS to be deployed and the OpenFaaS Cli to be installed. You
+can either have your OpenFaaS deployed in [Kubernets](https://kubernetes.io) or
+in [Swarm](https://docs.docker.com/engine/swarm/).
+
+To deploy OpenFaaS and to
+install the OpenFaaS cli client follow this guide:
+[https://docs.openfaas.com/deployment/](https://docs.openfaas.com/deployment/).
+
+### Deploy Faas-flow Components with Faas-flow Infra
+
+[Faas-Flow infra](https://github.com/s8sg/faas-flow-infra) provides the kubernetes and swarm deployment resources for faas-flow dependencies. Follow the [README](https://github.com/faasflow/faas-flow-infra#getting-started) to deploy Faas-Flow Infra 
+in Kubernets or in Swarm
+
+### Deploy Faas-flow Tower
+
+[Faas-Flow tower](https://github.com/faasflow/faas-flow-tower) provides the dashboard to visualise and monitor your flow. Follow the [README](https://github.com/faasflow/faas-flow-tower#deploy-faas-flow-tower) to deploy Faas-Flow tower on OpenFaaS
+
+### Writing Flow
+
 This example implements a very simple flow to `Greet`
 
-### Get template
+#### Get template
 
 Pull `faas-flow` template with the `faas-cli`
 
@@ -275,7 +296,7 @@ Pull `faas-flow` template with the `faas-cli`
 faas template pull https://github.com/s8sg/faas-flow
 ```
 
-### Create new flow function
+#### Create new flow function
 
 Create a new function using `faas-flow` template
 
@@ -283,7 +304,7 @@ Create a new function using `faas-flow` template
 faas new greet --lang faas-flow
 ```
 
-### Edit stack
+#### Edit stack.yml
 
 Edit function stack file `greet.yml`
 
@@ -292,22 +313,31 @@ greet:
   lang: faas-flow
   handler: ./greet
   image: greet:latest
+  labels:
+    faas-flow: 1
+  annotations:
+    faas-flow-desc: "test flow to greet"
   environment_file:
     - flow.yml
+  secrets:
+    - s3-secret-key
+    - s3-access-key
 ```
 
-### Add configuration
+#### Add configuration
 
-Add a separate file `flow.yml` with faas-flow related configuration.
+Add a separate configuration file `flow.yml` with faas-flow related configuration.
 
 ```yaml
 environment:
-  gateway: "gateway.openfaas:8080" # The address of OpenFaaS gateway, Faas-flow use this to forward completion event
-  enable_tracing: false # tracing allow to trace internal node execution with opentracing
-  enable_hmac: true # hmac adds an extra layer of security by validating the event source
+  gateway: "gateway.openfaas:8080" # The address of OpenFaaS gateway
+  enable_tracing: true # tracing allows to monitor requests
+  trace_server: "jaeger-agent.faasflow:5775" # The address of jaeger tracing agent
+  consul_url: "consul.faasflow:8500" # The address of consul
+  s3_url: "minio.faasflow:9000" # The address of minio
 ```
 
-### Edit function definition
+#### Edit flow definition
 
 Edit `greet/handler.go` and Update `Define()`
 
@@ -321,7 +351,7 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 }
 ```
 
-### Build and Deploy
+#### Build and Deploy
 
 Build and deploy
 
@@ -342,16 +372,13 @@ result will be returned to the callee.
 > Note: For flow that has more than one nodes, Faas-flow doesn't return any
 > response. External storage or callback can be used to retrieve an async result.
 
-### Invoke
+#### Invoke
 
 ```shell
 echo "Adam" | faas invoke greet
 ```
 
-## Deploy FaaS-Flow Infra
 
-[FaaS-Flow infra](https://github.com/s8sg/faas-flow-infra) allows to set up the
-components needed to run more advance workflows.
 
 ## Request Tracking by ID
 
@@ -367,32 +394,14 @@ The assigned request Id is set on the response header `X-Faas-Flow-Reqid`
 One may provide custom request Id by setting `X-Faas-Flow-Reqid` in the request
 header.
 
-## Request Tracing by Open-Tracing
-
-Request tracing can be retrieved from `trace_server` once enabled. Tracing is
+## Request Tracing with [Faas-Flow-Tower](https://github.com/s8sg/faas-flow-tower)
+    
+FaasFlow Tower enables the real time monitoring 
+for each requests. Request traces are visible when `enable_tracing` is enabled. FaaSFlow is
 the best way to monitor flows and execution status of each node for each request.
 
-### Edit `flow.yml`
-
-Enable tracing and add trace server as:
-
-```yaml
-    enable_tracing: true
-    trace_server: "jaeger-agent.faasflow:5775"
-```
-
-### Start The Trace Server
-
-`jaeger` (opentracing-1.x) is the tracing backend, for details please refer to
-the [quick start](https://www.jaegertracing.io/docs/1.8/getting-started/).
-
-### Use [faas-flow-tower](https://github.com/s8sg/faas-flow-tower)
-
-Retrive the requestID from `X-Faas-Flow-Reqid` header of response
-
-Below is an example of tracing information for
-[example-branching-in-Faas-flow](https://github.com/s8sg/branching-in-faas-flow)
-in [Faas-flow-tower](https://github.com/s8sg/faas-flow-tower).
+Below is an example of tracing page for a request of
+[faas-flow-example](https://github.com/faasflow/faas-flow-example).
 
 ![alt monitoring](https://github.com/s8sg/faas-flow-tower/blob/master/doc/monitoring.png)
 
@@ -401,7 +410,8 @@ in [Faas-flow-tower](https://github.com/s8sg/faas-flow-tower).
 To receive a result of long running **FaaSFlow** request, you can specify the
 `X-Faas-Flow-Callback-Url`. FaaSFlow will invoked the callback URL with the
 final result and with the request ID set as `X-Faas-Flow-Reqid` in request
-Header. `X-Callback-Url` from OpenFaaS is not supported in FaaSFlow.
+Header. 
+> Note: `X-Callback-Url` from OpenFaaS is not supported in FaaSFlow.
 
 ## Pause, Resume or Stop Request
 
