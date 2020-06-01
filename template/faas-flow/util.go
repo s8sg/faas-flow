@@ -96,3 +96,14 @@ func getResumeRequestId(req *HttpRequest) string {
 	reqId := values.Get("resume-flow")
 	return reqId
 }
+
+// getStateRequestId check if state request and return the requestID
+func getStateRequestId(req *HttpRequest) string {
+	values, err := url.ParseQuery(req.QueryString)
+	if err != nil {
+		return ""
+	}
+
+	reqId := values.Get("state")
+	return reqId
+}

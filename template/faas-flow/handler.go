@@ -348,6 +348,16 @@ func (of *openFaasExecutor) Handle(req *HttpRequest, response *HttpResponse) err
 		}
 		response.Body = []byte("Successfully resumed request " + requestId)
 
+	case getStateRequestId(req) != "":
+		requestId := getStateRequestId(req)
+		flowExecutor := executor.CreateFlowExecutor(of, nil)
+		state, err := flowExecutor.GetState(requestId)
+		if err != nil {
+			log.Printf(err.Error())
+			return fmt.Errorf("failed to get request state for " + requestId + ", check if request is active")
+		}
+		response.Body = []byte(state)
+
 	default:
 		var stateOption executor.ExecutionStateOption
 
