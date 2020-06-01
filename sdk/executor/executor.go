@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"strconv"
 
@@ -1439,6 +1440,28 @@ func (fexec *FlowExecutor) Resume(reqId string) error {
 	}
 
 	return nil
+}
+
+// GetState returns the state of the request
+func (fexec *FlowExecutor) GetState(reqId string) (string, error) {
+	fexec.executor.Configure(reqId)
+	fexec.flowName = fexec.executor.GetFlowName()
+	fexec.id = reqId
+	fexec.partial = true
+
+	// Init Stores: Get definition of StateStore and DataStore from user
+	_, _, err := fexec.initializeStore()
+	if err != nil {
+		return "", fmt.Errorf("[Request `%s`] Failed to init stores, %v", fexec.id, err)
+	}
+
+	state, err := fexec.getRequestState()
+	if err != nil {
+		log.Printf("[Request `%s`] Failed to load state, %v. State returned STATE_FINISHED", fexec.id, err)
+		return STATE_FINISHED, nil
+	}
+
+	return state, nil
 }
 
 // CreateFlowExecutor initiate a FlowExecutor with a provided Executor
