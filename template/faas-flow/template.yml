@@ -3,25 +3,25 @@ fprocess: ./handler
 welcome_message: |
   You have created a FaasFlow function.
 
-  Add the following configuration into Stack file.
+  Add the following configuration for function into Stack file.
 
-  labels:
-    faas-flow: 1
-  annotations:
-    faas-flow-desc: "my awesome flow"
-  environment_file:
-    - flow.yml
-  secrets:
-    - s3-secret-key
-    - s3-access-key
+      labels:
+        faas-flow: 1
+      annotations:
+        faas-flow-desc: "my awesome flow"
+      environment_file:
+        - conf.yml
+      secrets:
+        - s3-secret-key
+        - s3-access-key
 
-  Create a flow configuration file conf.yml with the follwing configuration.
+  Create a flow configuration file conf.yml with the following configuration.
 
   environment:
     gateway: "gateway.openfaas:8080"
     enable_tracing: true
-    trace_server: "jaeger-agent.faasflow:5775"t
+    trace_server: "jaeger-agent.faasflow:5775"
     consul_url: "consul.faasflow:8500"
     s3_url: "minio.faasflow:9000"
 
-  (You may need to change the configuration based on your faas-flow infra deployment).
+  (You may need to change the configuration based on your faas-flow deployment).
