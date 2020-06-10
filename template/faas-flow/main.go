@@ -1,9 +1,9 @@
 package main
 
 import (
-	"handler/executor"
+	"handler/controller"
 )
 
 func main() {
-	executor.StartServer()
+	controller.StartServer()
 }
