@@ -1,4 +1,4 @@
-package executor
+package controller
 
 import "github.com/s8sg/faas-flow/sdk"
 

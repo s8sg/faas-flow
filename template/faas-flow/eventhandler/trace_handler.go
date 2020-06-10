@@ -1,4 +1,4 @@
-package executor
+package eventhandler
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"net/http"
 )
 
-type traceHandler struct {
+type TraceHandler struct {
 	tracer opentracing.Tracer
 	closer io.Closer
 
@@ -21,15 +21,15 @@ type traceHandler struct {
 	operationSpans map[string]map[string]opentracing.Span
 }
 
-// startReqSpan starts a request span
-func (tracerObj *traceHandler) startReqSpan(reqID string) {
+// StartReqSpan starts a request span
+func (tracerObj *TraceHandler) StartReqSpan(reqID string) {
 	tracerObj.reqSpan = tracerObj.tracer.StartSpan(reqID)
 	tracerObj.reqSpan.SetTag("request", reqID)
 	tracerObj.reqSpanCtx = tracerObj.reqSpan.Context()
 }
 
-// continueReqSpan continue request span
-func (tracerObj *traceHandler) continueReqSpan(reqID string, header http.Header) {
+// ContinueReqSpan continue request span
+func (tracerObj *TraceHandler) ContinueReqSpan(reqID string, header http.Header) {
 	var err error
 
 	tracerObj.reqSpanCtx, err = tracerObj.tracer.Extract(
@@ -48,9 +48,9 @@ func (tracerObj *traceHandler) continueReqSpan(reqID string, header http.Header)
 	//reqSpan = opentracing.SpanFromContext(reqSpanCtx)
 }
 
-// extendReqSpan extend req span over a request
-// func extendReqSpan(url string, req *http.Request) {
-func (tracerObj *traceHandler) extendReqSpan(reqID string, lastNode string, url string, req *http.Request) {
+// ExtendReqSpan extend req span over a request
+// func ExtendReqSpan(url string, req *http.Request) {
+func (tracerObj *TraceHandler) ExtendReqSpan(reqID string, lastNode string, url string, req *http.Request) {
 	// TODO: as requestSpan can't be regenerated with the span context we
 	//       forward the nodes SpanContext
 	// span := reqSpan
@@ -76,8 +76,8 @@ func (tracerObj *traceHandler) extendReqSpan(reqID string, lastNode string, url 
 	}
 }
 
-// stopReqSpan terminate a request span
-func (tracerObj *traceHandler) stopReqSpan() {
+// StopReqSpan terminate a request span
+func (tracerObj *TraceHandler) StopReqSpan() {
 	if tracerObj.reqSpan == nil {
 		return
 	}
@@ -85,14 +85,14 @@ func (tracerObj *traceHandler) stopReqSpan() {
 	tracerObj.reqSpan.Finish()
 }
 
-// startNodeSpan starts a node span
-func (tracerObj *traceHandler) startNodeSpan(node string, reqID string) {
+// StartNodeSpan starts a node span
+func (tracerObj *TraceHandler) StartNodeSpan(node string, reqID string) {
 
 	tracerObj.nodeSpans[node] = tracerObj.tracer.StartSpan(
 		node, ext.RPCServerOption(tracerObj.reqSpanCtx))
 
 	/*
-		 tracerObj.nodeSpans[node] = tracerObj.tracer.StartSpan(
+		 tracerObj.nodeSpans[node] = tracerObj.Tracer.StartSpan(
 			node, opentracing.ChildOf(reqSpan.Context()))
 	*/
 
@@ -101,14 +101,14 @@ func (tracerObj *traceHandler) startNodeSpan(node string, reqID string) {
 	tracerObj.nodeSpans[node].SetTag("node", node)
 }
 
-// stopNodeSpan terminates a node span
-func (tracerObj *traceHandler) stopNodeSpan(node string) {
+// StopNodeSpan terminates a node span
+func (tracerObj *TraceHandler) StopNodeSpan(node string) {
 
 	tracerObj.nodeSpans[node].Finish()
 }
 
-// startOperationSpan starts an operation span
-func (tracerObj *traceHandler) startOperationSpan(node string, reqID string, operationID string) {
+// StartOperationSpan starts an operation span
+func (tracerObj *TraceHandler) StartOperationSpan(node string, reqID string, operationID string) {
 
 	if tracerObj.nodeSpans[node] == nil {
 		return
@@ -129,8 +129,8 @@ func (tracerObj *traceHandler) startOperationSpan(node string, reqID string, ope
 	operationSpans[operationID].SetTag("operation", operationID)
 }
 
-// stopOperationSpan stops an operation span
-func (tracerObj *traceHandler) stopOperationSpan(node string, operationID string) {
+// StopOperationSpan stops an operation span
+func (tracerObj *TraceHandler) StopOperationSpan(node string, operationID string) {
 
 	if tracerObj.nodeSpans[node] == nil {
 		return
@@ -140,7 +140,7 @@ func (tracerObj *traceHandler) stopOperationSpan(node string, operationID string
 	operationSpans[operationID].Finish()
 }
 
-// flushTracer flush all pending traces
-func (tracerObj *traceHandler) flushTracer() {
+// FlushTracer flush all pending traces
+func (tracerObj *TraceHandler) FlushTracer() {
 	tracerObj.closer.Close()
 }

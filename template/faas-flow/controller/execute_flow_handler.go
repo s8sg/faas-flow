@@ -1,4 +1,4 @@
-package executor
+package controller
 
 import (
 	"errors"
@@ -8,6 +8,12 @@ import (
 	"net/http"
 
 	"github.com/s8sg/faas-flow/sdk/executor"
+)
+
+const (
+	CallbackUrlHeader   = "X-Faas-Flow-Callback-Url"
+	RequestIdHeader     = "X-Faas-Flow-Reqid"
+	AuthSignatureHeader = "X-Hub-Signature"
 )
 
 func executeFlowHandler(w http.ResponseWriter, req *http.Request, id string, ex executor.Executor) ([]byte, error) {
@@ -21,18 +27,13 @@ func executeFlowHandler(w http.ResponseWriter, req *http.Request, id string, ex 
 		return nil, err
 	}
 
-	// TODO: fix this
-	openFaasEx := ex.(*openFaasExecutor)
-
-	state := req.Header.Get("X-Faas-Flow-State")
-	callbackURL := req.Header.Get("X-Faas-Flow-Callback-Url")
-	openFaasEx.callbackURL = callbackURL
+	state := req.Header.Get(RequestIdHeader)
+	callbackURL := req.Header.Get(CallbackUrlHeader)
 	if state == "" {
 		rawRequest := &executor.RawRequest{}
 		rawRequest.Data = body
 		rawRequest.Query = req.URL.RawQuery
-		rawRequest.AuthSignature = req.Header.Get("X-Hub-Signature")
-		// Check if any request Id is passed
+		rawRequest.AuthSignature = req.Header.Get(AuthSignatureHeader)
 		if id != "" {
 			rawRequest.RequestId = id
 		}
@@ -42,8 +43,6 @@ func executeFlowHandler(w http.ResponseWriter, req *http.Request, id string, ex 
 		if id == "" {
 			return nil, errors.New("request ID not set in partial request")
 		}
-
-		openFaasEx.openFaasEventHandler.header = req.Header
 		partialState, err := executor.DecodePartialReq(body)
 		if err != nil {
 			return nil, errors.New("failed to decode partial state")
@@ -51,15 +50,15 @@ func executeFlowHandler(w http.ResponseWriter, req *http.Request, id string, ex 
 		stateOption = executor.PartialRequest(partialState)
 	}
 
-	// Create a flow executor, OpenFaaSExecutor implements executor
+	// Create a flow controller, OpenFaaSExecutor implements controller
 	flowExecutor := executor.CreateFlowExecutor(ex, nil)
 	resp, err := flowExecutor.Execute(stateOption)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute request. %s", err.Error())
 	}
 	headers := w.Header()
-	headers["X-Faas-Flow-Reqid"] = []string{flowExecutor.GetReqId()}
-	headers["X-Faas-Flow-Callback-Url"] = []string{callbackURL}
+	headers[RequestIdHeader] = []string{flowExecutor.GetReqId()}
+	headers[CallbackUrlHeader] = []string{callbackURL}
 
 	return resp, nil
 }

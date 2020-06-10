@@ -1,4 +1,4 @@
-package executor
+package eventhandler
 
 import (
 	"fmt"
@@ -12,8 +12,8 @@ import (
 )
 
 // initRequestTracer init global trace with configuration
-func initRequestTracer(flowName string) (*traceHandler, error) {
-	tracerObj := &traceHandler{}
+func initRequestTracer(flowName string) (*TraceHandler, error) {
+	tracerObj := &TraceHandler{}
 
 	agentPort := hconfig.TraceServer()
 
@@ -34,7 +34,7 @@ func initRequestTracer(flowName string) (*traceHandler, error) {
 		config.Logger(jaeger.StdLogger),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to init tracer, error %v", err.Error())
+		return nil, fmt.Errorf("failed to init Tracer, error %v", err.Error())
 	}
 
 	tracerObj.closer = traceCloser
