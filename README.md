@@ -621,3 +621,8 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
 Join Faasflow [Slack](https://join.slack.com/t/faas-flow/shared_invite/enQtNzgwNDY2MjI4NTc5LWZiOGQ4M2ZlZTI0OTI0ZjU5YmUyMDgwOWJiOWU0YzIzMGQ3Y2QxMTMzMDlhZGZhYWFlZTkzMGQxMzU4NDdmOGU)
 for more.
+
+## Supported By
+<a href="https://www.jetbrains.com/?from=faas-flow">
+<img src="https://github.com/s8sg/faas-flow/blob/master/doc/jetbrains.png" data-canonical-src="https://github.com/s8sg/faas-flow/blob/master/doc/jetbrains.png" width="200" height="200" />
+</a>
