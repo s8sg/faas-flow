@@ -1,6 +1,6 @@
 package controller
 
-import "github.com/s8sg/faas-flow/sdk"
+import "github.com/faasflow/sdk"
 
 var (
 	stateStore sdk.StateStore

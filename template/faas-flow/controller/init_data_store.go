@@ -5,8 +5,8 @@ import (
 
 	"handler/function"
 
-	minioDataStore "github.com/s8sg/faas-flow-minio-datastore"
-	"github.com/s8sg/faas-flow/sdk"
+	minioDataStore "github.com/faasflow/faas-flow-minio-datastore"
+	"github.com/faasflow/sdk"
 )
 
 func initDataStore() (dataStore sdk.DataStore, err error) {

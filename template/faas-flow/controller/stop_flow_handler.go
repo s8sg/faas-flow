@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/s8sg/faas-flow/sdk/executor"
+	"github.com/faasflow/sdk/executor"
 )
 
 func stopFlowHandler(w http.ResponseWriter, req *http.Request, id string, ex executor.Executor) ([]byte, error) {

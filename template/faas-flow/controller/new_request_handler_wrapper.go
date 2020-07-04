@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/faasflow/sdk/executor"
 	"github.com/julienschmidt/httprouter"
-	"github.com/s8sg/faas-flow/sdk/executor"
 )
 
 func newRequestHandlerWrapper(handler func(http.ResponseWriter, *http.Request, string, executor.Executor) ([]byte, error)) func(http.ResponseWriter, *http.Request, httprouter.Params) {

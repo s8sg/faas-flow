@@ -6,8 +6,8 @@ import (
 	"handler/config"
 	"handler/function"
 
-	consulStateStore "github.com/s8sg/faas-flow-consul-statestore"
-	"github.com/s8sg/faas-flow/sdk"
+	consulStateStore "github.com/faasflow/faas-flow-consul-statestore"
+	"github.com/faasflow/sdk"
 )
 
 func initStateStore() (stateStore sdk.StateStore, err error) {

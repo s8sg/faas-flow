@@ -1,9 +1,7 @@
 # Faas-flow - Function Composition for [OpenFaaS](https://github.com/openfaas/faas)
 
-![Faas-Flow CI](https://github.com/s8sg/faas-flow/workflows/Faas-Flow%20CI/badge.svg)
 ![Template CI](https://github.com/s8sg/faas-flow/workflows/Template%20Docker%20Image%20CI/badge.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GoDoc](https://godoc.org/github.com/s8sg/faas-flow?status.svg)](https://godoc.org/github.com/s8sg/faas-flow)
 [![OpenTracing Badge](https://img.shields.io/badge/OpenTracing-enabled-blue.svg)](http://opentracing.io)
 [![OpenFaaS](https://img.shields.io/badge/openfaas-serverless-blue.svg)](https://www.openfaas.com)
 
@@ -500,7 +498,7 @@ for more details check Faas-flow
 
 Faas-flow implements coordination controller and store the intermediate request
 with StateStore. By default Faas-flow uses
-[consul](https://github.com/s8sg/faas-flow-consul-statestore) as default
+[consul](https://github.com/faasflow/faas-flow-consul-statestore) as default
 state-store, although user can define custom state-store with `StateStore`
 interface and use any external Synchronous KV store as backend.
 
@@ -536,7 +534,7 @@ func OverrideStateStore() (faasflow.StateStore, error) {
 
 ### Official state-stores
 
-- **[ConsulStateStore](https://github.com/s8sg/faas-flow-consul-statestore)**:
+- **[ConsulStateStore](https://github.com/faasflow/faas-flow-consul-statestore)**:
   statestore implementation with **consul** (default);
 - **[EtcdStateStore](https://github.com/s8sg/faas-flow-etcd-statestore)**:
   statewtore implementation with **etcd**.
@@ -545,7 +543,7 @@ func OverrideStateStore() (faasflow.StateStore, error) {
 
 Faas-flow uses the `DataStore` to store partially completed data between nodes
 and request context data. By default Faas-flow uses
-[minio](https://github.com/s8sg/faas-flow-minio-datastore) as default data-store,
+[minio](https://github.com/faasflow/faas-flow-minio-datastore) as default data-store,
 although user can define custom data-store with `DataStore` interface and use
 any external storage as backend.
 
@@ -581,7 +579,7 @@ func OverrideDataStore() (faasflow.DataStore, error) {
 
 ### Available data-stores
 
-- **[MinioDataStore](https://github.com/s8sg/faas-flow-minio-datastore)**:
+- **[MinioDataStore](https://github.com/faasflow/faas-flow-minio-datastore)**:
   allows to store data in **amazon s3** or local **minio DB** (default).
 
 ## Cleanup with `Finally()`

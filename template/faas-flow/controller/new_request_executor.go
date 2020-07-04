@@ -5,7 +5,7 @@ import (
 	"handler/openfaas"
 	"net/http"
 
-	"github.com/s8sg/faas-flow/sdk/executor"
+	"github.com/faasflow/sdk/executor"
 )
 
 func newRequestExecutor(request *http.Request) (executor.Executor, error) {
