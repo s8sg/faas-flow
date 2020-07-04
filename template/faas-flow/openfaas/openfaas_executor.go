@@ -17,12 +17,12 @@ import (
 	"handler/function"
 	hlog "handler/log"
 
-	faasflow "github.com/s8sg/faas-flow"
-	"github.com/s8sg/faas-flow/sdk"
-	"github.com/s8sg/faas-flow/sdk/executor"
+	faasflow "github.com/faasflow/lib/openfaas"
+	sdk "github.com/faasflow/sdk"
+	"github.com/faasflow/sdk/executor"
 )
 
-// A signature of SHA265 equivalent of "github.com/s8sg/faas-flow"
+// A signature of SHA265 equivalent of github.com/s8sg/faas-flow
 const defaultHmacKey = "71F1D3011F8E6160813B4997BA29856744375A7F26D427D491E1CCABD4627E7C"
 
 // implements faasflow.Executor + RequestHandler

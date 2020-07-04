@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/s8sg/faas-flow/sdk/executor"
+	"github.com/faasflow/sdk/executor"
 )
 
 const (

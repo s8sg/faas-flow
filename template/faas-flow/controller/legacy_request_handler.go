@@ -3,8 +3,8 @@ package controller
 import (
 	"net/http"
 
+	"github.com/faasflow/sdk/executor"
 	"github.com/julienschmidt/httprouter"
-	"github.com/s8sg/faas-flow/sdk/executor"
 )
 
 func legacyRequestHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
