@@ -3,6 +3,7 @@ package openfaas
 import (
 	"bytes"
 	"fmt"
+	"handler/runtime/controller/util"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -12,14 +13,13 @@ import (
 	"regexp"
 	"strings"
 
+	faasflow "github.com/faasflow/lib/openfaas"
+	sdk "github.com/faasflow/sdk"
+	"github.com/faasflow/sdk/executor"
 	"handler/config"
 	"handler/eventhandler"
 	"handler/function"
 	hlog "handler/log"
-
-	faasflow "github.com/faasflow/lib/openfaas"
-	sdk "github.com/faasflow/sdk"
-	"github.com/faasflow/sdk/executor"
 )
 
 // A signature of SHA265 equivalent of github.com/s8sg/faas-flow
@@ -48,12 +48,11 @@ func (of *OpenFaasExecutor) HandleNextNode(partial *executor.PartialState) error
 	}
 
 	// build url for calling the flow in async
-	httpReq, _ := http.NewRequest(http.MethodPost, of.asyncURL, bytes.NewReader(state))
+	httpReq, _ := http.NewRequest(http.MethodPost, fmt.Sprint(of.asyncURL, of.reqID), bytes.NewReader(state))
 	httpReq.Header.Add("Accept", "application/json")
 	httpReq.Header.Add("Content-Type", "application/json")
-	httpReq.Header.Add("X-Faas-Flow-Reqid", of.reqID)
-	httpReq.Header.Set("X-Faas-Flow-State", "partial")
-	httpReq.Header.Set("X-Faas-Flow-Callback-Url", of.CallbackURL)
+	httpReq.Header.Add(util.RequestIdHeader, of.reqID)
+	httpReq.Header.Set(util.CallbackUrlHeader, of.CallbackURL)
 
 	// extend req span for async call
 	if of.MonitoringEnabled() {
@@ -188,7 +187,7 @@ func (of *OpenFaasExecutor) Init(req *http.Request) error {
 	if of.flowName == "" {
 		return fmt.Errorf("failed to parse workflow name from host")
 	}
-	of.asyncURL = buildURL("http://"+of.gateway, "async-function", of.flowName)
+	of.asyncURL = buildURL("http://"+of.gateway, "async-function", of.flowName, "/flow/%s/execute")
 
 	callbackURL := req.Header.Get("X-Faas-Flow-Callback-Url")
 	of.CallbackURL = callbackURL
@@ -213,8 +212,8 @@ func getWorkflowNameFromHost(host string) string {
 }
 
 // buildURL builds execution url for the flow
-func buildURL(gateway, rPath, function string) string {
+func buildURL(gateway, rPath, function, urlPath string) string {
 	u, _ := url.Parse(gateway)
-	u.Path = path.Join(u.Path, rPath, function)
+	u.Path = path.Join(u.Path, rPath, function, urlPath)
 	return u.String()
 }

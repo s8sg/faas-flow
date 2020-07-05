@@ -1,4 +1,4 @@
-package controller
+package openfaas
 
 import (
 	"log"
