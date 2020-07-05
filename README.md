@@ -242,7 +242,7 @@ of earlier nodes. Like any distributed system the coordination is achieved via a
 centralized service. Faas-flow keeps the logic of the coordination controller
 inside of Faas-flow implementation and lets the user use any external
 synchronous KV store by implementing
-[`StateStore`](https://godoc.org/github.com/s8sg/faas-flow#StateStore).
+[`StateStore`](https://godoc.org/github.com/faasflow/sdk#StateStore).
 
 ![alt coordination](https://github.com/s8sg/faas-flow/blob/master/doc/design/3rd-party-statestore.jpg)
 
@@ -254,7 +254,7 @@ automatically initializes, store, retrieve and remove data between nodes. This
 fits great for data processing applications. Faas-flow keeps the logic of
 storage controller inside of Faas-flow implementation and lets the user use any
 external object storage by implementing
-[`DataStore`](https://godoc.org/github.com/s8sg/faas-flow#DataStore).
+[`DataStore`](https://godoc.org/github.com/faasflow/sdk#DataStore).
 
 ![alt storage](https://github.com/s8sg/faas-flow/blob/master/doc/design/3rd-party-storage.jpg)
 
