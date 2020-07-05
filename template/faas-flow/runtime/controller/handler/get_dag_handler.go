@@ -1,4 +1,4 @@
-package controller
+package handler
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"github.com/faasflow/sdk/exporter"
 )
 
-func getDagHandler(w http.ResponseWriter, req *http.Request, id string, ex executor.Executor) ([]byte, error) {
+func GetDagHandler(w http.ResponseWriter, req *http.Request, id string, ex executor.Executor) ([]byte, error) {
 	log.Println("Exporting flow's DAG")
 
 	flowExporter := exporter.CreateFlowExporter(ex)

@@ -1,9 +1,16 @@
 package main
 
 import (
-	"handler/controller"
+	"handler/config"
+	"handler/openfaas"
+	"handler/runtime/controller"
+	"log"
 )
 
 func main() {
-	controller.StartServer()
+	runtime := &openfaas.OpenFaasRuntime{}
+	port := 8082
+	readTimeout := config.ReadTimeout()
+	writeTimeout := config.WriteTimeout()
+	log.Fatal(controller.StartServer(runtime, port, readTimeout, writeTimeout))
 }

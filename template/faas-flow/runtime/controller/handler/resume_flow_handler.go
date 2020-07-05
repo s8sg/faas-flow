@@ -1,4 +1,4 @@
-package controller
+package handler
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"github.com/faasflow/sdk/executor"
 )
 
-func resumeFlowHandler(w http.ResponseWriter, req *http.Request, id string, ex executor.Executor) ([]byte, error) {
+func ResumeFlowHandler(w http.ResponseWriter, req *http.Request, id string, ex executor.Executor) ([]byte, error) {
 	log.Printf("Resuming flow %s\n", id)
 
 	flowExecutor := executor.CreateFlowExecutor(ex, nil)
