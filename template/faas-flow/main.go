@@ -1,9 +1,9 @@
 package main
 
 import (
+	"github.com/faasflow/runtime/controller"
 	"handler/config"
 	"handler/openfaas"
-	"handler/runtime/controller"
 	"log"
 )
 

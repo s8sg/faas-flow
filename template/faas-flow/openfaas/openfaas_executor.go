@@ -3,7 +3,7 @@ package openfaas
 import (
 	"bytes"
 	"fmt"
-	"handler/runtime/controller/util"
+	"github.com/faasflow/runtime/controller/util"
 	"io/ioutil"
 	"log"
 	"net/http"
