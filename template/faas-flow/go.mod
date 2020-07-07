@@ -7,8 +7,8 @@ require (
 	github.com/faasflow/faas-flow-consul-statestore v1.0.0
 	github.com/faasflow/faas-flow-minio-datastore v1.0.0
 	github.com/faasflow/lib v1.0.0
+	github.com/faasflow/runtime v0.1.0
 	github.com/faasflow/sdk v1.0.0
-	github.com/julienschmidt/httprouter v1.3.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/uber/jaeger-client-go v2.24.0+incompatible
