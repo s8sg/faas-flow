@@ -4,6 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![OpenTracing Badge](https://img.shields.io/badge/OpenTracing-enabled-blue.svg)](http://opentracing.io)
 [![OpenFaaS](https://img.shields.io/badge/openfaas-serverless-blue.svg)](https://www.openfaas.com)
+[![GoDoc](https://godoc.org/github.com/faasflow/lib/openfaas?status.svg)](https://godoc.org/github.com/faasflow/lib/openfaas)
 
 > - [x] **Pure**      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; FaaS with [OpenFaaS](https://github.com/openfaas/faas)
 > - [x] **Fast**      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  Built with `Go`
@@ -181,6 +182,8 @@ func Define(flow *faasflow.Workflow, context *faasflow.Context) (err error) {
 
 Full implementation of the above examples are available
 [here](https://github.com/s8sg/faasflow-example).
+
+OpenFaaS flow librray are available as [github.com/faasflow/lib/openfaas](https://godoc.org/github.com/faasflow/lib/openfaas)
 
 ## Faas-flow Design
 
