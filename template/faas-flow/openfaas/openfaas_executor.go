@@ -47,17 +47,23 @@ func (of *OpenFaasExecutor) HandleNextNode(partial *executor.PartialState) error
 		return fmt.Errorf("failed to encode partial state, error %v", err)
 	}
 
+	url, _ := url.Parse(of.asyncURL)
+	url.Path = path.Join(url.Path, "flow", of.reqID, "forward")
+
 	// build url for calling the flow in async
-	httpReq, _ := http.NewRequest(http.MethodPost, fmt.Sprint(of.asyncURL, of.reqID), bytes.NewReader(state))
+	httpReq, _ := http.NewRequest(http.MethodPost, url.String(), bytes.NewReader(state))
 	httpReq.Header.Add("Accept", "application/json")
 	httpReq.Header.Add("Content-Type", "application/json")
 	httpReq.Header.Add(util.RequestIdHeader, of.reqID)
 	httpReq.Header.Set(util.CallbackUrlHeader, of.CallbackURL)
 
+	fmt.Println(fmt.Sprint(of.asyncURL, of.reqID))
+	fmt.Println(httpReq)
+
 	// extend req span for async call
 	if of.MonitoringEnabled() {
 		faasHandler := of.EventHandler.(*eventhandler.FaasEventHandler)
-		faasHandler.Tracer.ExtendReqSpan(of.reqID, faasHandler.CurrentNodeID, of.asyncURL, httpReq)
+		faasHandler.Tracer.ExtendReqSpan(of.reqID, faasHandler.CurrentNodeID, url.String(), httpReq)
 	}
 
 	client := &http.Client{}
@@ -187,7 +193,7 @@ func (of *OpenFaasExecutor) Init(req *http.Request) error {
 	if of.flowName == "" {
 		return fmt.Errorf("failed to parse workflow name from host")
 	}
-	of.asyncURL = buildURL("http://"+of.gateway, "async-function", of.flowName, "/flow/%s/execute")
+	of.asyncURL = buildURL("http://"+of.gateway, "async-function", of.flowName)
 
 	callbackURL := req.Header.Get("X-Faas-Flow-Callback-Url")
 	of.CallbackURL = callbackURL
@@ -212,8 +218,8 @@ func getWorkflowNameFromHost(host string) string {
 }
 
 // buildURL builds execution url for the flow
-func buildURL(gateway, rPath, function, urlPath string) string {
+func buildURL(gateway, rPath, function string) string {
 	u, _ := url.Parse(gateway)
-	u.Path = path.Join(u.Path, rPath, function, urlPath)
+	u.Path = path.Join(u.Path, rPath, function)
 	return u.String()
 }
