@@ -3,6 +3,7 @@ package openfaas
 import (
 	"bytes"
 	"fmt"
+	"github.com/faasflow/runtime"
 	"github.com/faasflow/runtime/controller/util"
 	"io/ioutil"
 	"log"
@@ -10,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"regexp"
 	"strings"
 
 	faasflow "github.com/faasflow/lib/openfaas"
@@ -187,34 +187,18 @@ func (of *OpenFaasExecutor) GetDataStore() (sdk.DataStore, error) {
 	return of.DataStore, nil
 }
 
-func (of *OpenFaasExecutor) Init(req *http.Request) error {
+func (of *OpenFaasExecutor) Init(request *runtime.Request) error {
 	of.gateway = config.GatewayURL()
-	of.flowName = getWorkflowNameFromHost(req.Host)
-	if of.flowName == "" {
-		return fmt.Errorf("failed to parse workflow name from host")
-	}
+	of.flowName = request.FlowName
 	of.asyncURL = buildURL("http://"+of.gateway, "async-function", of.flowName)
 
-	callbackURL := req.Header.Get("X-Faas-Flow-Callback-Url")
+	callbackURL := request.GetHeader("X-Faas-Flow-Callback-Url")
 	of.CallbackURL = callbackURL
 
 	faasHandler := of.EventHandler.(*eventhandler.FaasEventHandler)
-	faasHandler.Header = req.Header
+	faasHandler.Header = request.Header
 
 	return nil
-}
-
-// internal
-
-var re = regexp.MustCompile(`(?m)^[^:.]+\s*`)
-
-// getWorkflowNameFromHostFromHost returns the flow name from env
-func getWorkflowNameFromHost(host string) string {
-	matches := re.FindAllString(host, -1)
-	if matches[0] != "" {
-		return matches[0]
-	}
-	return ""
 }
 
 // buildURL builds execution url for the flow

@@ -7,7 +7,7 @@ require (
 	github.com/faasflow/faas-flow-consul-statestore v1.0.0
 	github.com/faasflow/faas-flow-minio-datastore v1.0.0
 	github.com/faasflow/lib v1.0.0
-	github.com/faasflow/runtime v0.1.1
+	github.com/faasflow/runtime v0.2.2
 	github.com/faasflow/sdk v1.0.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pkg/errors v0.9.1 // indirect

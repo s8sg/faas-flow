@@ -2,10 +2,10 @@ package openfaas
 
 import (
 	"fmt"
+	"github.com/faasflow/runtime"
 	sdk "github.com/faasflow/sdk"
 	"github.com/faasflow/sdk/executor"
 	"handler/eventhandler"
-	"net/http"
 )
 
 type OpenFaasRuntime struct {
@@ -31,8 +31,8 @@ func (ofRuntime *OpenFaasRuntime) Init() error {
 	return nil
 }
 
-func (ofRuntime *OpenFaasRuntime) CreateExecutor(req *http.Request) (executor.Executor, error) {
+func (ofRuntime *OpenFaasRuntime) CreateExecutor(request *runtime.Request) (executor.Executor, error) {
 	ex := &OpenFaasExecutor{StateStore: ofRuntime.stateStore, DataStore: ofRuntime.dataStore, EventHandler: ofRuntime.eventHandler}
-	error := ex.Init(req)
+	error := ex.Init(request)
 	return ex, error
 }
