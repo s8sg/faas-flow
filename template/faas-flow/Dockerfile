@@ -1,4 +1,4 @@
-FROM openfaas/of-watchdog:0.7.7 as watchdog
+FROM ghcr.io/openfaas/of-watchdog as watchdog
 FROM golang:1.14.3-alpine3.11 as build
 
 COPY --from=watchdog /fwatchdog /usr/bin/fwatchdog
